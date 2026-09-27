@@ -1,0 +1,131 @@
+name: iOS unsigned build
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_tag:
+        description: Release tag containing xcode-export.zip (for example export-001)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Record the build environment
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/diagnostics" "$RUNNER_TEMP/output"
+          test -d "$DEVELOPER_DIR"
+          {
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcodebuild -showsdks
+            df -h .
+          } | tee "$RUNNER_TEMP/diagnostics/environment.txt"
+
+      - name: Download the exported Xcode project
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPORT_TAG: ${{ inputs.export_tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPORT_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "Use a simple release tag such as export-001."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/download"
+          gh release download "$EXPORT_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern xcode-export.zip \
+            --dir "$RUNNER_TEMP/download"
+          {
+            echo "Release: $EXPORT_TAG"
+            shasum -a 256 "$RUNNER_TEMP/download/xcode-export.zip"
+          } | tee "$RUNNER_TEMP/diagnostics/export.txt"
+
+      - name: Extract and check the export
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/xcode-export"
+          unzip -q "$RUNNER_TEMP/download/xcode-export.zip" \
+            -d "$RUNNER_TEMP/xcode-export"
+          test -f "$RUNNER_TEMP/xcode-export/Unity-iPhone.xcodeproj/project.pbxproj"
+          # Windows ZIP creation does not preserve executable permission bits.
+          find "$RUNNER_TEMP/xcode-export" -type f \
+            \( -name '*.sh' -o -name il2cpp -o -name bee_backend \
+               -o -name usymtool -o -name clang -o -name 'clang++' \) \
+            -exec chmod u+x {} +
+          xcodebuild -list \
+            -project "$RUNNER_TEMP/xcode-export/Unity-iPhone.xcodeproj" \
+            | tee "$RUNNER_TEMP/diagnostics/project.txt"
+
+      - name: Compile an unsigned iPhone application
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$RUNNER_TEMP/xcode-export/Unity-iPhone.xcodeproj" \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            DEVELOPMENT_TEAM= \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/diagnostics/xcodebuild.log"
+
+      - name: Package the unsigned IPA
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apps=("$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/"*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "Expected exactly one .app in Release-iphoneos."
+            exit 1
+          fi
+          app="${apps[0]}"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")
+          /usr/bin/lipo "$app/$executable" -verify_arch arm64
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          /usr/bin/ditto "$app" "$RUNNER_TEMP/package/Payload/$(basename "$app")"
+          cd "$RUNNER_TEMP/package"
+          /usr/bin/ditto -c -k --keepParent Payload \
+            "$RUNNER_TEMP/output/IndoorNavigation-unsigned.ipa"
+          shasum -a 256 "$RUNNER_TEMP/output/IndoorNavigation-unsigned.ipa" \
+            | tee "$RUNNER_TEMP/diagnostics/ipa.txt"
+
+      - name: Upload the unsigned IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-ipa-${{ github.run_number }}
+          path: ${{ runner.temp }}/output/IndoorNavigation-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-${{ github.run_number }}
+          path: ${{ runner.temp }}/diagnostics/
+          if-no-files-found: warn
+          retention-days: 3
