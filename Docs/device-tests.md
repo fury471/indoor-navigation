@@ -15,3 +15,21 @@
 - Live camera feed: Camera worked.
 - Session status: SessionTracking
 - Tracking reason: None
+
+## 2026-09-29 — One-time tracking cube
+
+- Device: iPhone 16 Pro
+- Build label: tracking-001
+- Export release: export-002
+- Result: All five device checks passed.
+
+### Observations
+- The status panel displayed tracking-001.
+- One orange cube appeared after tracking became ready.
+- Moving sideways changed the viewing angle; the cube did not follow the camera.
+- Moving closer made the cube appear larger.
+- Looking away and back showed the cube near its original location.
+
+### Limitations
+- Qualitative observation only; drift was not measured.
+- No building-map alignment or persistence across app launches tested.
