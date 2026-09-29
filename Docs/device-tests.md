@@ -42,3 +42,15 @@
 - Observed: Native bridge: OK.
 - Verified: Unity C# successfully called the native function.
 - Not yet tested: Swift integration or RoomPlan capture.
+
+## 2026-09-30 — RoomPlan capability
+
+- Device: iPhone 16 Pro
+- Build: roomplan-support-001
+- Export release: export-004
+- Result: Passed.
+- Native bridge: OK.
+- RoomPlan: supported.
+- AR session: SessionTracking; reason: None.
+- Camera background and test cube visible.
+- Room capture and saved-map localisation not yet tested.
