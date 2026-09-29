@@ -33,3 +33,12 @@
 ### Limitations
 - Qualitative observation only; drift was not measured.
 - No building-map alignment or persistence across app launches tested.
+
+## 2026-09-29 — Native iOS bridge
+
+- Device: iPhone 16 Pro
+- Build label: native-001
+- Result: Passed.
+- Observed: Native bridge: OK.
+- Verified: Unity C# successfully called the native function.
+- Not yet tested: Swift integration or RoomPlan capture.
