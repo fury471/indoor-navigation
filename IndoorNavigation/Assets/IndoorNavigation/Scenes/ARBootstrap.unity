@@ -274,7 +274,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 168d05a86f75fae4ca35d993da3702e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::IndoorNavigation.Presentation.ARStatusDisplay
-  buildLabel: native-001
+  buildLabel: roomplan-support-001
 --- !u!1 &123527405
 GameObject:
   m_ObjectHideFlags: 0
@@ -517,7 +517,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
   m_AnchoredPosition: {x: 0, y: -160}
-  m_SizeDelta: {x: 960, y: 300}
+  m_SizeDelta: {x: 960, y: 360}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &895143749
 MonoBehaviour:

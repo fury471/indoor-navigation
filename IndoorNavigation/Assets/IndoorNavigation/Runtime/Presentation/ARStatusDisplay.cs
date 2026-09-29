@@ -18,11 +18,13 @@ namespace IndoorNavigation.Presentation
         private NotTrackingReason previousReason;
         private bool hasDisplayedStatus;
         private string nativeBridgeStatus;
+        private string roomPlanStatus;
         // Finds the text component on the same object
         private void Awake()
         {
             statusText = GetComponent<TextMeshProUGUI>();
             nativeBridgeStatus = IOSNativeBridge.GetStatus();
+            roomPlanStatus = RoomPlanCapabilities.GetStatus();
         }
         // Requests a fresh display whenever this component becomes enabled
         private void OnEnable()
@@ -51,7 +53,8 @@ namespace IndoorNavigation.Presentation
                 $"Build: {buildLabel}{editorLabel}\n" +
                 $"Session: {state}\n" +
                 $"Reason: {reason}\n" +
-                nativeBridgeStatus;
+                nativeBridgeStatus + "\n" +
+                roomPlanStatus;
 
             previousState = state;
             previousReason = reason;
