@@ -2,6 +2,7 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
+using IndoorNavigation.Platform;
 
 namespace IndoorNavigation.Presentation
 {
@@ -16,10 +17,12 @@ namespace IndoorNavigation.Presentation
         private ARSessionState previousState;
         private NotTrackingReason previousReason;
         private bool hasDisplayedStatus;
+        private string nativeBridgeStatus;
         // Finds the text component on the same object
         private void Awake()
         {
             statusText = GetComponent<TextMeshProUGUI>();
+            nativeBridgeStatus = IOSNativeBridge.GetStatus();
         }
         // Requests a fresh display whenever this component becomes enabled
         private void OnEnable()
@@ -47,7 +50,8 @@ namespace IndoorNavigation.Presentation
                 $"Indoor Navigation | {Application.version}\n" +
                 $"Build: {buildLabel}{editorLabel}\n" +
                 $"Session: {state}\n" +
-                $"Reason: {reason}";
+                $"Reason: {reason}\n" +
+                nativeBridgeStatus;
 
             previousState = state;
             previousReason = reason;
