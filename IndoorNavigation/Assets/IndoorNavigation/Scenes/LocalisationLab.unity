@@ -274,7 +274,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 168d05a86f75fae4ca35d993da3702e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::IndoorNavigation.Presentation.ARStatusDisplay
-  buildLabel: localisation-001
+  buildLabel: localisation-002
 --- !u!1 &123527405
 GameObject:
   m_ObjectHideFlags: 0
