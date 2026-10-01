@@ -54,3 +54,14 @@
 - AR session: SessionTracking; reason: None.
 - Camera background and test cube visible.
 - Room capture and saved-map localisation not yet tested.
+
+## 2026-10-01 — Localisation recovery: visual check
+
+- Device: iPhone 16 Pro
+- Build: localisation-002
+- Saved localisation files are accessible through Apple Devices.
+- Manual observation: after restarting and loading the saved map,
+  the reference cube appeared at its expected physical location.
+- Result: qualitative check passed.
+- Recovery time and position/orientation errors were not measured.
+- Scope: the tested local area; multi-floor behaviour remains untested.
