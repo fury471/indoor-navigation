@@ -1,0 +1,19 @@
+{
+    "name": "IndoorNavigation.App",
+    "rootNamespace": "IndoorNavigation.App",
+    "references": [
+        "IndoorNavigation.Core",
+        "IndoorNavigation.Adapters",
+        "IndoorNavigation.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

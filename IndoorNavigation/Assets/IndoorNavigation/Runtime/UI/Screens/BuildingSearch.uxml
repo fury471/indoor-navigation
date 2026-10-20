@@ -1,0 +1,10 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- V1 · Choose a building -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:Label text="Which building are you in?" class="title" />
+        <ui:Label text="The app works in buildings that have been mapped. Pick yours to download its map." class="body" />
+        <ui:ScrollView name="venue-list" />
+        <ui:Label name="empty" text="Looking for supported buildings…" class="body" />
+    </ui:VisualElement>
+</ui:UXML>

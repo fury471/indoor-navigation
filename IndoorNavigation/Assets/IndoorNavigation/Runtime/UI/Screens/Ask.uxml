@@ -1,0 +1,15 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- 2 · Ask: what do you need? -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:VisualElement class="row">
+            <ui:Label name="building" class="chip" />
+            <ui:VisualElement class="spacer" />
+            <ui:Button name="change" text="Change" class="button button--small" />
+        </ui:VisualElement>
+        <ui:Label text="What do you need?" class="title" />
+        <ui:Label text="Describe it in your own words, or name a place." class="body" />
+        <ui:TextField name="request" class="text-field" />
+        <ui:Button name="search" text="Search" class="button button--primary" />
+    </ui:VisualElement>
+</ui:UXML>

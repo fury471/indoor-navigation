@@ -1,0 +1,34 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- B · Phone lowered: 2D, your floor. Also draws E (floor change), F (position uncertain)
+         and the B3 confirmation as parts of this screen. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:VisualElement class="card">
+            <ui:Label name="instruction" class="strong" />
+            <ui:Label name="instruction-detail" class="small" />
+        </ui:VisualElement>
+        <ui:VisualElement name="position-banner" class="warning">
+            <ui:Label text="Position uncertain" class="strong" />
+            <ui:Label text="Turn instructions are paused. Raise the phone and look slowly at walls and signs." class="warning-text" />
+        </ui:VisualElement>
+        <ui:VisualElement name="floor-card" class="card">
+            <ui:Label name="floor-question" class="strong" />
+            <ui:Label text="Confirm when you are there. The map then switches floor." class="small" />
+            <ui:Button name="confirm-floor" class="button button--primary" />
+        </ui:VisualElement>
+        <ui:VisualElement name="map" class="map" />
+        <ui:VisualElement class="sheet">
+            <ui:Label name="destination" class="strong" />
+            <ui:Label name="remaining" class="small" />
+            <ui:Button name="end-route" text="End route" class="button button--danger" />
+        </ui:VisualElement>
+        <ui:VisualElement name="end-confirm" class="overlay">
+            <ui:VisualElement class="sheet">
+                <ui:Label text="End this route?" class="title" />
+                <ui:Label text="You can find it again from search." class="body" />
+                <ui:Button name="keep-going" text="Keep going" class="button button--primary" />
+                <ui:Button name="end" text="End route" class="button button--danger" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

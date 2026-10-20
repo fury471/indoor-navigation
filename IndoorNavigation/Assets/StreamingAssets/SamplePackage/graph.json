@@ -1,0 +1,370 @@
+{
+  "nodes": [
+    {
+      "id": "n-printer",
+      "kind": "approach",
+      "floor": 1,
+      "x": 6.0,
+      "z": 3.0
+    },
+    {
+      "id": "d-office-1",
+      "kind": "door",
+      "floor": 1,
+      "x": 6.0,
+      "z": 5.6
+    },
+    {
+      "id": "j-office-1",
+      "kind": "junction",
+      "floor": 1,
+      "x": 6.0,
+      "z": 8.2
+    },
+    {
+      "id": "j1",
+      "kind": "junction",
+      "floor": 1,
+      "x": 11.9,
+      "z": 8.2
+    },
+    {
+      "id": "j-stairs-1",
+      "kind": "junction",
+      "floor": 1,
+      "x": 20.0,
+      "z": 8.2
+    },
+    {
+      "id": "stairs-1",
+      "kind": "stairs",
+      "floor": 1,
+      "x": 20.0,
+      "z": 2.8
+    },
+    {
+      "id": "j-vr-lab",
+      "kind": "junction",
+      "floor": 1,
+      "x": 11.9,
+      "z": 14.0
+    },
+    {
+      "id": "d-vr-lab",
+      "kind": "door",
+      "floor": 1,
+      "x": 9.5,
+      "z": 14.0
+    },
+    {
+      "id": "d-meeting",
+      "kind": "door",
+      "floor": 1,
+      "x": 14.2,
+      "z": 14.0
+    },
+    {
+      "id": "j-workshop",
+      "kind": "junction",
+      "floor": 1,
+      "x": 11.9,
+      "z": 26.0
+    },
+    {
+      "id": "d-workshop",
+      "kind": "door",
+      "floor": 1,
+      "x": 9.5,
+      "z": 26.0
+    },
+    {
+      "id": "d-storage",
+      "kind": "door",
+      "floor": 1,
+      "x": 14.2,
+      "z": 26.0
+    },
+    {
+      "id": "lift-1",
+      "kind": "lift",
+      "floor": 1,
+      "x": 11.9,
+      "z": 33.0
+    },
+    {
+      "id": "stairs-2",
+      "kind": "stairs",
+      "floor": 2,
+      "x": 20.0,
+      "z": 2.8
+    },
+    {
+      "id": "j-stairs-2",
+      "kind": "junction",
+      "floor": 2,
+      "x": 20.0,
+      "z": 8.2
+    },
+    {
+      "id": "j2",
+      "kind": "junction",
+      "floor": 2,
+      "x": 11.9,
+      "z": 8.2
+    },
+    {
+      "id": "j-lab-2",
+      "kind": "junction",
+      "floor": 2,
+      "x": 5.7,
+      "z": 8.2
+    },
+    {
+      "id": "j-office-2",
+      "kind": "junction",
+      "floor": 2,
+      "x": 2.5,
+      "z": 8.2
+    },
+    {
+      "id": "d-office-2",
+      "kind": "door",
+      "floor": 2,
+      "x": 2.5,
+      "z": 5.6
+    },
+    {
+      "id": "lab-2-door",
+      "kind": "door",
+      "floor": 2,
+      "x": 5.7,
+      "z": 10.8
+    },
+    {
+      "id": "n-cabinet-b",
+      "kind": "approach",
+      "floor": 2,
+      "x": 5.7,
+      "z": 16.8
+    },
+    {
+      "id": "j-studio",
+      "kind": "junction",
+      "floor": 2,
+      "x": 11.9,
+      "z": 20.0
+    },
+    {
+      "id": "d-studio",
+      "kind": "door",
+      "floor": 2,
+      "x": 14.2,
+      "z": 20.0
+    },
+    {
+      "id": "j-kitchen",
+      "kind": "junction",
+      "floor": 2,
+      "x": 11.9,
+      "z": 27.0
+    },
+    {
+      "id": "d-kitchen",
+      "kind": "door",
+      "floor": 2,
+      "x": 9.5,
+      "z": 27.0
+    },
+    {
+      "id": "lift-2",
+      "kind": "lift",
+      "floor": 2,
+      "x": 11.9,
+      "z": 33.0
+    }
+  ],
+  "edges": [
+    {
+      "from": "n-printer",
+      "to": "d-office-1",
+      "kind": "room",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "d-office-1",
+      "to": "j-office-1",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-office-1",
+      "to": "j1",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j1",
+      "to": "j-stairs-1",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-stairs-1",
+      "to": "stairs-1",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j1",
+      "to": "j-vr-lab",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-vr-lab",
+      "to": "d-vr-lab",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-vr-lab",
+      "to": "d-meeting",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-vr-lab",
+      "to": "j-workshop",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-workshop",
+      "to": "d-workshop",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-workshop",
+      "to": "d-storage",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-workshop",
+      "to": "lift-1",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "stairs-1",
+      "to": "stairs-2",
+      "kind": "stairs",
+      "stepFree": false,
+      "staffOnly": false
+    },
+    {
+      "from": "lift-1",
+      "to": "lift-2",
+      "kind": "lift",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "stairs-2",
+      "to": "j-stairs-2",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-stairs-2",
+      "to": "j2",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j2",
+      "to": "j-lab-2",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-lab-2",
+      "to": "j-office-2",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-office-2",
+      "to": "d-office-2",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-lab-2",
+      "to": "lab-2-door",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "lab-2-door",
+      "to": "n-cabinet-b",
+      "kind": "room",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j2",
+      "to": "j-studio",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-studio",
+      "to": "d-studio",
+      "kind": "door",
+      "stepFree": false,
+      "staffOnly": false
+    },
+    {
+      "from": "j-studio",
+      "to": "j-kitchen",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-kitchen",
+      "to": "d-kitchen",
+      "kind": "door",
+      "stepFree": true,
+      "staffOnly": false
+    },
+    {
+      "from": "j-kitchen",
+      "to": "lift-2",
+      "kind": "corridor",
+      "stepFree": true,
+      "staffOnly": false
+    }
+  ]
+}

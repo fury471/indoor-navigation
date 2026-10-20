@@ -1,0 +1,44 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- W · Developer panel (blueprint). The Study group arrives in week 7. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="developer">
+        <ui:VisualElement class="row">
+            <ui:Label text="Developer panel" class="strong" />
+            <ui:VisualElement class="spacer" />
+            <ui:Button name="close" text="Close" class="button button--small" />
+        </ui:VisualElement>
+        <ui:Label name="showing" class="small" />
+        <ui:VisualElement class="developer-group">
+            <ui:Label text="Getting ready" class="small" />
+            <ui:VisualElement class="developer-buttons">
+                <ui:Button name="download-ok" text="Download OK" />
+                <ui:Button name="download-fails" text="Download fails" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="developer-group">
+            <ui:Label text="Position and phone" class="small" />
+            <ui:VisualElement class="developer-buttons">
+                <ui:Button name="position-found" text="Position found" />
+                <ui:Button name="position-lost" text="Position lost" />
+                <ui:Button name="raise" text="Raise · AR" />
+                <ui:Button name="lower" text="Lower · 2D" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="developer-group">
+            <ui:Label text="Search (canned answers)" class="small" />
+            <ui:VisualElement class="developer-buttons">
+                <ui:Button name="ask-question" text="Ask question" />
+                <ui:Button name="results" text="Results" />
+                <ui:Button name="no-match" text="No match" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="developer-group">
+            <ui:Label text="Navigation" class="small" />
+            <ui:VisualElement class="developer-buttons">
+                <ui:Button name="next-step" text="Next step" />
+                <ui:Button name="arrive" text="Arrived" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:Label text="Triple-tap the top-left corner to open. Every tap is logged." class="small" />
+    </ui:VisualElement>
+</ui:UXML>

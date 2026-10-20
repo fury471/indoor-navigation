@@ -1,0 +1,23 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- V3 · Getting the building ready, with V3b · Download didn't finish -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:Label text="Getting the building ready" class="title" />
+        <ui:Label name="venue" class="body" />
+        <ui:VisualElement name="progress-card" class="card">
+            <ui:Label name="percent" class="strong" />
+            <ui:VisualElement class="progress-track">
+                <ui:VisualElement name="progress-fill" class="progress-fill" />
+            </ui:VisualElement>
+            <ui:Label text="Each file is checked when it arrives. If anything fails, your phone keeps what it had." class="small" />
+        </ui:VisualElement>
+        <ui:VisualElement name="error-card" class="warning">
+            <ui:Label text="Download didn't finish" class="strong" />
+            <ui:Label name="error" class="warning-text" />
+        </ui:VisualElement>
+        <ui:VisualElement class="spacer" />
+        <ui:Label text="Next, the app asks to use the camera so it can find where you are." class="small" />
+        <ui:Button name="retry" text="Try again" class="button button--primary" />
+        <ui:Button name="cancel" text="Cancel" class="button" />
+    </ui:VisualElement>
+</ui:UXML>

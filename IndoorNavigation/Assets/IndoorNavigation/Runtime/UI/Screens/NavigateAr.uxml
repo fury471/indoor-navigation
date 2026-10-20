@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- A · Phone raised: AR + minimap. Transparent, so the camera view shows through. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen screen--transparent">
+        <ui:VisualElement class="card">
+            <ui:Label name="instruction" class="strong" />
+            <ui:Label name="instruction-detail" class="small" />
+        </ui:VisualElement>
+        <ui:Label name="destination" class="chip" />
+        <ui:VisualElement class="spacer" />
+        <ui:VisualElement name="minimap" class="minimap" />
+    </ui:VisualElement>
+</ui:UXML>

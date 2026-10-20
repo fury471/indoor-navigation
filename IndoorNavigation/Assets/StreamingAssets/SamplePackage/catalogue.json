@@ -1,0 +1,186 @@
+{
+  "places": [
+    {
+      "id": "vr-lab",
+      "kind": "space",
+      "type": "lab",
+      "name": "VR lab",
+      "floor": 1,
+      "approachNode": "d-vr-lab",
+      "source": "vlm",
+      "confidence": "medium",
+      "status": "edited",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "meeting-room",
+      "kind": "space",
+      "type": "meeting room",
+      "name": "Meeting room",
+      "floor": 1,
+      "approachNode": "d-meeting",
+      "keywords": [
+        "meeting",
+        "room",
+        "screen",
+        "whiteboard"
+      ],
+      "description": "Screen and whiteboard, seats 8 people",
+      "source": "vlm",
+      "confidence": "medium",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "office-1",
+      "kind": "space",
+      "type": "office",
+      "name": "Office",
+      "floor": 1,
+      "approachNode": "d-office-1",
+      "keywords": [
+        "reception",
+        "office"
+      ],
+      "description": "Reception desk",
+      "source": "admin",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "printer",
+      "kind": "object",
+      "type": "printer",
+      "name": "Printer",
+      "parent": "office-1",
+      "approachNode": "n-printer",
+      "keywords": [
+        "print",
+        "printer",
+        "copy"
+      ],
+      "source": "vlm",
+      "confidence": "high",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "workshop",
+      "kind": "space",
+      "type": "workshop",
+      "name": "Workshop",
+      "floor": 1,
+      "approachNode": "d-workshop",
+      "source": "vlm",
+      "confidence": "low",
+      "status": "edited",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "storage-1",
+      "kind": "space",
+      "type": "storage",
+      "name": "Storage",
+      "floor": 1,
+      "approachNode": "d-storage",
+      "source": "roomplan",
+      "confidence": "high",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "lab-2",
+      "kind": "space",
+      "type": "lab",
+      "name": "Lab 2",
+      "floor": 2,
+      "approachNode": "lab-2-door",
+      "source": "vlm",
+      "confidence": "medium",
+      "status": "edited",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "cabinet-b",
+      "kind": "object",
+      "type": "storage",
+      "name": "Cabinet B",
+      "parent": "lab-2",
+      "approachNode": "n-cabinet-b",
+      "source": "roomplan",
+      "confidence": "high",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "cable-drawer",
+      "kind": "item",
+      "name": "Cable drawer",
+      "parent": "cabinet-b",
+      "keywords": [
+        "charger",
+        "cable",
+        "USB-C",
+        "Lightning"
+      ],
+      "hint": "Second drawer from the top",
+      "description": "USB-C and Lightning cables to borrow",
+      "photo": "photos/cable-drawer.jpg",
+      "source": "admin",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "studio",
+      "kind": "space",
+      "type": "studio",
+      "name": "Studio",
+      "floor": 2,
+      "approachNode": "d-studio",
+      "source": "vlm",
+      "confidence": "medium",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "colour-printer",
+      "kind": "object",
+      "type": "printer",
+      "name": "Printer, colour",
+      "parent": "studio",
+      "keywords": [
+        "print",
+        "printer",
+        "colour"
+      ],
+      "source": "vlm",
+      "confidence": "high",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "kitchen",
+      "kind": "space",
+      "type": "kitchen",
+      "name": "Kitchen",
+      "floor": 2,
+      "approachNode": "d-kitchen",
+      "source": "roomplan",
+      "confidence": "high",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    },
+    {
+      "id": "office-2",
+      "kind": "space",
+      "type": "office",
+      "name": "Office",
+      "floor": 2,
+      "approachNode": "d-office-2",
+      "source": "vlm",
+      "confidence": "medium",
+      "status": "accepted",
+      "checked": "2026-10-10"
+    }
+  ]
+}

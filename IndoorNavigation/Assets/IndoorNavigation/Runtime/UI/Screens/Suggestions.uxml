@@ -1,0 +1,16 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- 4 · Suggestions with reasons, with 4b · No matching place -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:Label name="request" class="strong" />
+        <ui:ScrollView name="list" />
+        <ui:VisualElement name="no-match" class="card">
+            <ui:Label text="No recorded place matches" class="strong" />
+            <ui:Label name="no-match-text" class="body" />
+        </ui:VisualElement>
+        <ui:VisualElement class="spacer" />
+        <ui:Label text="Suggestions come only from the building's records." class="small" />
+        <ui:Button name="refine" text="Refine search" class="button" />
+        <ui:Button name="edit" text="Edit search" class="button" />
+    </ui:VisualElement>
+</ui:UXML>

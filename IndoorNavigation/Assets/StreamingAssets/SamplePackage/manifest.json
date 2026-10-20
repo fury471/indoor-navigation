@@ -1,0 +1,41 @@
+{
+  "venueId": "vr-lab-building",
+  "name": "VR lab building",
+  "packageVersion": "0.1.0",
+  "schemaVersion": "1.0.0",
+  "floors": [
+    {
+      "number": 1,
+      "name": "Floor 1"
+    },
+    {
+      "number": 2,
+      "name": "Floor 2"
+    }
+  ],
+  "areas": [
+    {
+      "id": "area-1",
+      "floor": 1,
+      "name": "Floor 1, VR lab corridor"
+    },
+    {
+      "id": "area-2",
+      "floor": 2,
+      "name": "Floor 2, Lab 2 corridor"
+    }
+  ],
+  "startArea": "area-1",
+  "files": [
+    {
+      "path": "catalogue.json",
+      "bytes": 4169,
+      "sha256": "fb31eefaf1896b3fa43a3d3ed32047e5398dffa16c04c8d76a0743c2132dbbfa"
+    },
+    {
+      "path": "graph.json",
+      "bytes": 6478,
+      "sha256": "1b3ba2e17222c8f5fe4a521ed8477ddee682a5a9514f292dcd6f298026bde13b"
+    }
+  ]
+}

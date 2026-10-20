@@ -1,0 +1,30 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- The one document the app shows. Each screen lives in its own file under Screens/
+         and is placed here once; ScreenHost displays one at a time. -->
+    <Style src="Tokens.uss" />
+    <ui:Template name="BuildingSearch" src="Screens/BuildingSearch.uxml" />
+    <ui:Template name="Downloading" src="Screens/Downloading.uxml" />
+    <ui:Template name="Locate" src="Screens/Locate.uxml" />
+    <ui:Template name="Ask" src="Screens/Ask.uxml" />
+    <ui:Template name="Clarify" src="Screens/Clarify.uxml" />
+    <ui:Template name="Suggestions" src="Screens/Suggestions.uxml" />
+    <ui:Template name="Preview" src="Screens/Preview.uxml" />
+    <ui:Template name="NavigateMap" src="Screens/NavigateMap.uxml" />
+    <ui:Template name="NavigateAr" src="Screens/NavigateAr.uxml" />
+    <ui:Template name="Arrived" src="Screens/Arrived.uxml" />
+    <ui:Template name="DeveloperPanel" src="Developer/DeveloperPanel.uxml" />
+    <ui:VisualElement name="app">
+        <ui:Instance template="BuildingSearch" name="screen-V1" />
+        <ui:Instance template="Downloading" name="screen-V3" />
+        <ui:Instance template="Locate" name="screen-1" />
+        <ui:Instance template="Ask" name="screen-2" />
+        <ui:Instance template="Clarify" name="screen-3" />
+        <ui:Instance template="Suggestions" name="screen-4" />
+        <ui:Instance template="Preview" name="screen-5" />
+        <ui:Instance template="NavigateMap" name="screen-B" />
+        <ui:Instance template="NavigateAr" name="screen-A" />
+        <ui:Instance template="Arrived" name="screen-G" />
+    </ui:VisualElement>
+    <ui:Instance template="DeveloperPanel" name="developer-panel" />
+    <ui:VisualElement name="developer-hotspot" />
+</ui:UXML>

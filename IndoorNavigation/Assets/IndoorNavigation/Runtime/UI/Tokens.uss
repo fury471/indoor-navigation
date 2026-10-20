@@ -1,0 +1,240 @@
+/* Design tokens and shared classes from the blueprint (Spec board, v0.2).
+   Sizes are in points on a 390 x 844 reference screen; PanelSettings scales them. */
+
+:root {
+    --ground: #EEF0F2;
+    --surface: #FFFFFF;
+    --text: #14171F;
+    --muted: #5B6270;
+    --border: #E3E5E8;
+    --accent: #0F766E;
+    --accent-pressed: #0B5C56;
+    --accent-soft: #E3F1EF;
+    --you: #2563EB;
+    --destination: #D9480F;
+    --danger: #B42318;
+    --warning-bg: #FFF6E5;
+    --warning-text: #7A4A00;
+    --warning-border: #F2D19B;
+}
+
+/* Every screen instance fills the app; only one is displayed at a time.
+   #app itself has no background, so screen A can let the camera view show through. */
+#app {
+    flex-grow: 1;
+}
+
+#app > TemplateContainer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+/* Safe area: top 60, bottom 34; margins 16 at the screen edge. */
+.screen {
+    flex-grow: 1;
+    padding: 60px 16px 34px 16px;
+    background-color: var(--ground);
+}
+
+.screen--transparent {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.title {
+    font-size: 28px;
+    -unity-font-style: bold;
+    color: var(--text);
+    white-space: normal;
+    margin: 0 0 8px 0;
+}
+
+.body {
+    font-size: 16px;
+    color: var(--muted);
+    white-space: normal;
+    margin: 0 0 16px 0;
+}
+
+.small {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: normal;
+}
+
+.strong {
+    font-size: 18px;
+    -unity-font-style: bold;
+    color: var(--text);
+    white-space: normal;
+}
+
+.card {
+    background-color: var(--surface);
+    border-radius: 20px;
+    border-width: 1px;
+    border-color: var(--border);
+    padding: 16px;
+    margin: 0 0 12px 0;
+}
+
+.sheet {
+    background-color: var(--surface);
+    border-radius: 24px;
+    padding: 20px;
+}
+
+.row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.spacer {
+    flex-grow: 1;
+}
+
+/* Buttons: at least 44 tall to touch, 48-52 for main actions, radius 14. */
+.button {
+    height: 52px;
+    margin: 8px 0 0 0;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: 16px;
+    -unity-font-style: bold;
+}
+
+.button--primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: #FFFFFF;
+}
+
+.button--primary:active {
+    background-color: var(--accent-pressed);
+}
+
+.button--danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.button--small {
+    height: 44px;
+    font-size: 14px;
+}
+
+.text-field {
+    height: 52px;
+    margin: 0 0 8px 0;
+    font-size: 16px;
+}
+
+.warning {
+    background-color: var(--warning-bg);
+    border-radius: 20px;
+    border-width: 1px;
+    border-color: var(--warning-border);
+    padding: 16px;
+    margin: 0 0 12px 0;
+}
+
+.warning-text {
+    color: var(--warning-text);
+    font-size: 15px;
+    white-space: normal;
+}
+
+.progress-track {
+    height: 8px;
+    margin: 12px 0;
+    border-radius: 4px;
+    background-color: var(--border);
+}
+
+.progress-fill {
+    height: 8px;
+    width: 0;
+    border-radius: 4px;
+    background-color: var(--accent);
+}
+
+.map {
+    flex-grow: 1;
+    min-height: 200px;
+    margin: 8px 0;
+    border-radius: 20px;
+    background-color: var(--surface);
+}
+
+.minimap {
+    width: 148px;
+    height: 148px;
+    border-radius: 24px;
+    background-color: var(--surface);
+}
+
+.chip {
+    padding: 8px 12px;
+    border-radius: 12px;
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+}
+
+.overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding: 16px;
+    justify-content: center;
+    background-color: rgba(20, 23, 31, 0.4);
+}
+
+/* Developer panel (W) and its hidden opening corner. */
+#developer-panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.developer {
+    flex-grow: 1;
+    padding: 52px 16px 24px 16px;
+    background-color: var(--border);
+}
+
+.developer-group {
+    background-color: var(--surface);
+    border-radius: 16px;
+    padding: 12px;
+    margin: 0 0 8px 0;
+}
+
+.developer-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.developer-buttons > Button {
+    width: 31%;
+    height: 44px;
+    margin: 4px 1%;
+    font-size: 14px;
+}
+
+#developer-hotspot {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 44px;
+    height: 44px;
+}

@@ -1,0 +1,16 @@
+{
+    "name": "IndoorNavigation.Adapters",
+    "rootNamespace": "IndoorNavigation.Adapters",
+    "references": [
+        "IndoorNavigation.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

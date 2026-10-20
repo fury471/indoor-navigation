@@ -1,0 +1,19 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- 3 · Clarifying question, with 3b · Finding matches (loading) -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:Label text="Your request" class="small" />
+        <ui:Label name="request" class="strong" />
+        <ui:VisualElement name="loading" class="card">
+            <ui:Label text="Finding places that match" class="strong" />
+            <ui:Label text="Checking the building's records. Usually takes a few seconds." class="small" />
+        </ui:VisualElement>
+        <ui:VisualElement name="question-group" class="card">
+            <ui:Label text="One quick question" class="small" />
+            <ui:Label name="question" class="strong" />
+            <ui:VisualElement name="options" />
+        </ui:VisualElement>
+        <ui:VisualElement class="spacer" />
+        <ui:Button name="cancel" text="Cancel" class="button" />
+    </ui:VisualElement>
+</ui:UXML>

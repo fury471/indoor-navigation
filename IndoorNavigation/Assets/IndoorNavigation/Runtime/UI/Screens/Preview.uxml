@@ -1,0 +1,21 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- 5 · Route preview and options, with 5b · No step-free route -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:VisualElement class="row">
+            <ui:Button name="back" text="Back" class="button button--small" />
+        </ui:VisualElement>
+        <ui:Label name="destination" class="title" />
+        <ui:Label name="where" class="body" />
+        <ui:VisualElement name="map" class="map" />
+        <ui:VisualElement class="sheet">
+            <ui:Label name="summary" class="strong" />
+            <ui:Toggle name="avoid-stairs" label="Avoid stairs" />
+            <ui:VisualElement name="no-route" class="warning">
+                <ui:Label text="No step-free route mapped" class="strong" />
+                <ui:Label text="Every mapped way to this place has stairs or steps." class="warning-text" />
+            </ui:VisualElement>
+            <ui:Button name="start" text="Start" class="button button--primary" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
