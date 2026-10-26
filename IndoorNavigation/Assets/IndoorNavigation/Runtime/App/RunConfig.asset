@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aad909773e1ebc145b1930ab9952cd97, type: 3}
+  m_Name: RunConfig
+  m_EditorClassIdentifier: IndoorNavigation.App::IndoorNavigation.App.RunConfig
+  venueData: 0
+  position: 0
+  search: 0
+  attitude: 0
+  developerPanel: 1
+  rememberBuilding: 1
+  participantCode: dev
+  condition: 1

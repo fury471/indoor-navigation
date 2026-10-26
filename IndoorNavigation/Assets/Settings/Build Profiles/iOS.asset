@@ -41,6 +41,8 @@ MonoBehaviour:
   m_OverrideGlobalSceneList: 1
   m_Scenes:
   - m_enabled: 1
+    m_path: Assets/IndoorNavigation/Scenes/App.unity
+  - m_enabled: 0
     m_path: Assets/IndoorNavigation/Scenes/LocalisationLab.unity
   m_HasScriptingDefines: 0
   m_ScriptingDefines: []
