@@ -103,7 +103,7 @@ Walk through it once:
 4. **Start** → B. Press **G**: you stop at the lift with "Are you on floor 2?". Tap **I'm on floor 2**: the banner shows while the new floor is found. Press **G** again → G. **Found it** → 2.
 5. Hold **Up** during a route → A; **Down** → B. Change RunConfig's condition to *TwoDOnly* and try again: raising keeps B.
 6. Search `print a poster` → 4 with two printers. Pick **Printer, colour** with Avoid stairs ticked → 5b.
-7. Press **D**, then **Change** on screen 2 and download again → V3b → **Try again**.
+7. Stop Play, choose **Edit > Clear All PlayerPrefs**, and press Play again. On V1 press **D**, then tap the building and **Download and continue** → V3b → **Try again**. D only affects a real download: within one Play run the placeholder remembers what it installed, so **Change** and downloading the same version again skips the download and never fails.
 
 Open the session log (the Console printed its path; on Windows it is under `%USERPROFILE%\AppData\LocalLow\<company>\<product>\SessionLogs`). Every line has the time, participant `dev`, condition, event and detail.
 
@@ -193,9 +193,13 @@ It does not compile yet: that is the first red. Add `PickNamedPlace(string place
 
 **Read.** `Core/Ports/*`, `Adapters/Placeholders/*`, `Adapters/Data/JsonLinesSessionLog.cs`, `Tests/EditMode/Fakes.cs`, `App/DeveloperActions.cs`, decision record 1.
 
-**Try.** Run the scenario and read the log file from top to bottom. Find the `state` lines, the `pose` lines (never two within a second) and the `developer` lines your keys wrote.
+**Try.** Run the scenario and read the log file from top to bottom. Find the `state` lines, the `pose` lines (never two within a second) and the `developer` lines the panel buttons wrote. Keys write none yet; that is part 3 of the exercise.
 
 **Exercise: log the screen.** For the study you will want to know how long people stay on each screen, for example A against B. In `UI/ScreenHost.cs`, when the screen changes (`next != current`), call `session.LogExternal("screen", code)`. Run the scenario and check the new lines. Commit: `feat(ui): log every screen change`.
+
+**Exercise, part 2: say whether a route is step-free.** The route line logs `stairs` and `lift`, but a route can avoid both and still cross steps: the colour printer route goes through the studio door, which has two steps, and logs `stairs False, lift True`. For RQ3 the log must say what the participant actually met. Write the test first in `RoutePlannerTests`: the route from `j-vr-lab` to `d-studio` (the studio door, where the colour printer is) is not step-free; copy the shape of the test that uses `d-studio`. Add `bool StepFree` to `Route`, set it in `RoutePlanner.BuildRoute` (false if any edge on the route is not `stepFree`), and add `step-free {4}` to the route line in `AppSession.PlanRoute`. Commit: `feat(core): log whether a route is step-free`.
+
+**Exercise, part 3: make the keys leave a trace.** A panel button writes a `developer` line before it acts (`Wire` in `DeveloperPanelPresenter`), but a key calls the same action without logging, so the log cannot show that an event was forced by hand, and you cannot tell whether a key arrived. Move the `LogExternal("developer", …)` call out of `Wire` and into each method of `App/DeveloperActions.cs`, so buttons and keys share one place that logs. Press D and F, then check that each wrote exactly one line. Commit: `fix(app): log developer actions from keys as well as buttons`.
 
 ### Lesson 4: passive views and one-way flow (1 h)
 
