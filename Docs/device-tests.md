@@ -87,7 +87,7 @@
 ### Limitations
 - Position, search, downloads and phone attitude are placeholders driven by panel W.
 
-## 2026-10-26 — Walking skeleton
+## 2026-10-26 — Real phone attitude
 
 - Device: iPhone 16 Pro
 - Unity: 6000.3.24f1

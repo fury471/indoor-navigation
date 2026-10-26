@@ -50,14 +50,14 @@ namespace IndoorNavigation.App
 
             // 1. Adapters: one per port, as RunConfig says.
             var clock = new SystemClock();
-            string samplePackage = Path.Combine(Application.streamingAssetsPath, "SamplePackage");
+            string packageFolder = ChoosePackageFolder();
             var log = new JsonLinesSessionLog(
                 Path.Combine(Application.persistentDataPath, "SessionLogs"), clock.UtcNow, echoToConsole: Application.isEditor);
 
             // A real port that is not built yet stops the app at once, with a clear message.
             if (config.venueData == PortVersion.Real) throw NotBuiltYet("venue data", "week 4");
-            var placeholderDirectory = new PlaceholderVenueDirectory(samplePackage);
-            var placeholderRepository = new PlaceholderVenueRepository(samplePackage);
+            var placeholderDirectory = new PlaceholderVenueDirectory(packageFolder);
+            var placeholderRepository = new PlaceholderVenueRepository(packageFolder);
 
             if (config.position == PortVersion.Real) throw NotBuiltYet("position", "week 3");
             var placeholderPosition = new PlaceholderPositionSource(SampleStartPose);
@@ -119,6 +119,7 @@ namespace IndoorNavigation.App
 
             // 5. Go.
             Debug.Log("[IndoorNavigation] Session log: " + log.FilePath);
+            session.LogExternal("venue", "package folder " + packageFolder);
             host.Refresh();
             Run(session.StartAsync());
         }
@@ -147,6 +148,18 @@ namespace IndoorNavigation.App
         }
 
         private static VisualElement ScreenElement(VisualElement root, string code) => root.Q<VisualElement>("screen-" + code);
+
+        /// <summary>
+        /// A package copied into the app's Documents folder, as VenuePackage/, wins over the
+        /// sample built into the app, so new venue data reaches the phone without a rebuild.
+        /// </summary>
+        private static string ChoosePackageFolder()
+        {
+            string copied = Path.Combine(Application.persistentDataPath, "VenuePackage");
+            return File.Exists(Path.Combine(copied, "manifest.json"))
+                ? copied
+                : Path.Combine(Application.streamingAssetsPath, "SamplePackage");
+        }
 
         private static NotSupportedException NotBuiltYet(string port, string when) =>
             new NotSupportedException($"The real {port} adapter arrives in {when}. Set {port} to Placeholder in RunConfig.");
