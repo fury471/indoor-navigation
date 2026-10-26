@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <!-- 1 · Finding your position -->
     <Style src="../Tokens.uss" />
-    <ui:VisualElement class="screen">
+    <ui:VisualElement class="screen screen--transparent">
         <ui:Label name="building" class="chip" />
         <ui:VisualElement class="spacer" />
         <ui:VisualElement class="sheet">
