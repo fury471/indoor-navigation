@@ -65,3 +65,22 @@
 - Result: qualitative check passed.
 - Recovery time and position/orientation errors were not measured.
 - Scope: the tested local area; multi-floor behaviour remains untested.
+
+## 2026-10-26 — Walking skeleton
+
+- Device: iPhone 16 Pro
+- Unity: 6000.3.24f1
+- Scene: App
+- Source commit: e1f1579
+- Export release: export-skeleton-001
+- Installation: Sideloadly
+- Result: …
+
+### Observations
+- Scenario with panel W: …
+- Camera permission asked at screen 1, not at launch: …
+- Screen A showed the live camera: …
+- Session log found in SessionLogs: …
+
+### Limitations
+- Position, search, downloads and phone attitude are placeholders driven by panel W.

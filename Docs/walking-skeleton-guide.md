@@ -103,7 +103,7 @@ Walk through it once:
 4. **Start** → B. Press **G**: you stop at the lift with "Are you on floor 2?". Tap **I'm on floor 2**: the banner shows while the new floor is found. Press **G** again → G. **Found it** → 2.
 5. Hold **Up** during a route → A; **Down** → B. Change RunConfig's condition to *TwoDOnly* and try again: raising keeps B.
 6. Search `print a poster` → 4 with two printers. Pick **Printer, colour** with Avoid stairs ticked → 5b.
-7. Stop Play, choose **Edit > Clear All PlayerPrefs**, and press Play again. On V1 press **D**, then tap the building and **Download and continue** → V3b → **Try again**. D only affects a real download: within one Play run the placeholder remembers what it installed, so **Change** and downloading the same version again skips the download and never fails.
+7. Press **D** (or the panel button **Download fails**), then **Change** on screen 2 and download again → V3b → **Try again**. Arming the failure makes the placeholder forget what it installed in this run, so the next download really runs and can fail.
 
 Open the session log (the Console printed its path; on Windows it is under `%USERPROFILE%\AppData\LocalLow\<company>\<product>\SessionLogs`). Every line has the time, participant `dev`, condition, event and detail.
 

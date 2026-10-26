@@ -22,9 +22,25 @@ namespace IndoorNavigation.Adapters.Placeholders
         private readonly Dictionary<string, string> installed = new Dictionary<string, string>();
 
         public PlaceholderVenueRepository(string packageFolder) => this.packageFolder = packageFolder;
+        private bool failNextInstall;
 
-        /// <summary>Set by the developer panel: the next download stops halfway with an error.</summary>
-        public bool FailNextInstall { get; set; }
+        /// <summary>
+        /// Set by the developer panel: the next download stops halfway with an error. Arming it also
+        /// forgets what this run installed, so the next download really runs; an up-to-date package
+        /// would otherwise skip the download and never fail.
+        /// </summary>
+        public bool FailNextInstall
+        {
+            get => failNextInstall;
+            set
+            {
+                failNextInstall = value;
+                if (value)
+                {
+                    installed.Clear();
+                }
+            }
+        }
 
         public string InstalledVersion(string venueId) => installed.TryGetValue(venueId, out string version) ? version : null;
 
