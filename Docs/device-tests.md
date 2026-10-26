@@ -74,13 +74,15 @@
 - Source commit: e1f1579
 - Export release: export-skeleton-001
 - Installation: Sideloadly
-- Result: …
+
+- Result: passed, except V3b (see Observations).
 
 ### Observations
-- Scenario with panel W: …
-- Camera permission asked at screen 1, not at launch: …
-- Screen A showed the live camera: …
-- Session log found in SessionLogs: …
+- Scenario with panel W: V1 → V3 → 1 → 2 → 3 → 4 → 5 → B ↔ A → lift to floor 2 → G passed. Avoid stairs moved the cable-drawer route from the stairs (48 m) to the lift (59 m). 5b appeared for the colour printer. Cancel on V3 returned to V1.
+- Camera permission asked at screen 1, not at launch: yes, after deleting and reinstalling the app. An earlier build with the same app ID had already been allowed.
+- Screen A showed the live camera: yes. Screen 1 hid it behind a solid background; made transparent afterwards, to check in the next build.
+- Session log found in SessionLogs: yes, copied off the phone with Apple Devices.
+- V3b (forced failed download): did not appear. The placeholder skipped a package it had already installed in the same run. Fixed in 7c7e457 and checked in the Editor; recheck in the next device build.
 
 ### Limitations
 - Position, search, downloads and phone attitude are placeholders driven by panel W.
