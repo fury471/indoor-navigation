@@ -86,3 +86,14 @@
 
 ### Limitations
 - Position, search, downloads and phone attitude are placeholders driven by panel W.
+
+## 2026-10-26 — Walking skeleton
+
+- Device: iPhone 16 Pro
+- Unity: 6000.3.24f1
+- Scene: App
+- Source commit: 54d2d44
+- Export release: export-skeleton-002
+- Installation: Sideloadly
+
+- Result: flat gives B; raising it upright for half a second gives A; lowering it gives B; quick wobbles don’t flip the screen; OK: **V3b** (Change → panel **Download fails** → Download → V3b → **Try again**), and the **camera behind screen 1**.

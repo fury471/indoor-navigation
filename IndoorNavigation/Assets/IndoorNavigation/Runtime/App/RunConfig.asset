@@ -15,7 +15,7 @@ MonoBehaviour:
   venueData: 0
   position: 0
   search: 0
-  attitude: 0
+  attitude: 1
   developerPanel: 1
   rememberBuilding: 1
   participantCode: dev
