@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using IndoorNavigation.Core.Positioning;
+using IndoorNavigation.Core.Venue;
 using UnityEngine;
 
 namespace IndoorNavigation.Adapters.AR
@@ -41,7 +42,7 @@ namespace IndoorNavigation.Adapters.AR
             if (record.worldMapBytes != mapBytes)
                 throw new InvalidDataException("The world map and its alignment file do not belong together.");
             if (record.markers == null || record.markers.Length < PlanAlignment.MinimumMarkers)
-                throw new InvalidDataException("The alignment file has fewer than two markers.");
+                throw new InvalidDataException("The alignment file has fewer than two marked corners.");
             return record;
         }
 
@@ -84,47 +85,76 @@ namespace IndoorNavigation.Adapters.AR
         public int worldMapBytes;
         public MarkerRecord[] markers;
 
-        // Written for people reading the file; the app refits from the markers when it loads.
+        // Written for people reading the file when the fit was known at recording time. The app
+        // always refits on load, from these AR marks and the plan positions in the current package.
+        public bool fitted;
         public double rotationDegrees;
         public double offsetX;
         public double offsetZ;
         public double floorHeight;
         public double rmsErrorMetres;
 
-        public static AlignmentRecord From(string areaId, int floor, int mapBytes, IReadOnlyList<MarkerPair> pairs, PlanAlignment fit)
+        /// <param name="planMarkers">The plan positions known at recording time; may be empty.</param>
+        /// <param name="fit">The fit at recording time, or null when the plan positions come later.</param>
+        public static AlignmentRecord From(string areaId, int floor, int mapBytes, IReadOnlyList<ArMark> marks, IReadOnlyList<MarkerInfo> planMarkers, PlanAlignment fit)
         {
-            var markers = new MarkerRecord[pairs.Count];
-            for (int i = 0; i < pairs.Count; i++)
+            var plan = new Dictionary<string, MarkerInfo>(StringComparer.Ordinal);
+            if (planMarkers != null)
             {
-                MarkerPair p = pairs[i];
-                markers[i] = new MarkerRecord { id = p.Id, planX = p.PlanX, planZ = p.PlanZ, arX = p.ArX, arY = p.ArY, arZ = p.ArZ };
+                foreach (MarkerInfo marker in planMarkers) plan[marker.Id] = marker;
             }
 
-            return new AlignmentRecord
+            var markers = new MarkerRecord[marks.Count];
+            for (int i = 0; i < marks.Count; i++)
+            {
+                ArMark m = marks[i];
+                bool known = plan.TryGetValue(m.Id, out MarkerInfo p);
+                markers[i] = new MarkerRecord
+                {
+                    id = m.Id, arX = m.X, arY = m.Y, arZ = m.Z,
+                    planKnown = known, planX = known ? p.X : 0, planZ = known ? p.Z : 0,
+                };
+            }
+
+            var record = new AlignmentRecord
             {
                 areaId = areaId,
                 floor = floor,
                 savedAtUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
                 worldMapBytes = mapBytes,
                 markers = markers,
-                rotationDegrees = fit.RotationDegrees,
-                offsetX = fit.OffsetX,
-                offsetZ = fit.OffsetZ,
-                floorHeight = fit.FloorHeight,
-                rmsErrorMetres = fit.RmsErrorMetres,
             };
-        }
 
-        public MarkerPair[] ToPairs()
-        {
-            var pairs = new MarkerPair[markers.Length];
-            for (int i = 0; i < markers.Length; i++)
+            if (fit != null)
             {
-                MarkerRecord m = markers[i];
-                pairs[i] = new MarkerPair(m.id, m.planX, m.planZ, m.arX, m.arY, m.arZ);
+                record.fitted = true;
+                record.rotationDegrees = fit.RotationDegrees;
+                record.offsetX = fit.OffsetX;
+                record.offsetZ = fit.OffsetZ;
+                record.floorHeight = fit.FloorHeight;
+                record.rmsErrorMetres = fit.RmsErrorMetres;
             }
 
-            return pairs;
+            return record;
+        }
+
+        public List<ArMark> ToArMarks()
+        {
+            var marks = new List<ArMark>();
+            foreach (MarkerRecord m in markers) marks.Add(new ArMark(m.id, m.arX, m.arY, m.arZ));
+            return marks;
+        }
+
+        /// <summary>The plan positions stored with the recording, for markers that had one.</summary>
+        public List<MarkerInfo> RecordedPlanMarkers()
+        {
+            var plan = new List<MarkerInfo>();
+            foreach (MarkerRecord m in markers)
+            {
+                if (m.planKnown) plan.Add(new MarkerInfo(m.id, m.planX, m.planZ));
+            }
+
+            return plan;
         }
     }
 
@@ -132,10 +162,14 @@ namespace IndoorNavigation.Adapters.AR
     public sealed class MarkerRecord
     {
         public string id;
-        public double planX;
-        public double planZ;
         public double arX;
         public double arY;
         public double arZ;
+
+        /// <summary>False when the corner was marked before its plan position was known.</summary>
+        public bool planKnown;
+
+        public double planX;
+        public double planZ;
     }
 }

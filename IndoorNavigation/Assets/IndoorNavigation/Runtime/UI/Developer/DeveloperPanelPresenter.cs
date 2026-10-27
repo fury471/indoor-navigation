@@ -12,6 +12,7 @@ namespace IndoorNavigation.UI.Developer
     public sealed class DeveloperPanelPresenter
     {
         private const long TripleTapMilliseconds = 600;
+        private const long StatusRefreshMilliseconds = 500;
 
         private readonly VisualElement panel;
         private readonly Label showing;
@@ -19,18 +20,21 @@ namespace IndoorNavigation.UI.Developer
         private readonly IDeveloperActions actions;
         private readonly Label positionStatus;
         private readonly Func<string> readPositionStatus;
+        private readonly IVisualElementScheduledItem statusRefresh;
         private long firstTapTime;
         private int taps;
 
         /// <param name="recorder">The world-map recorder, or null when the position is a placeholder.</param>
         /// <param name="positionStatusText">One line from the real position source, or null.</param>
+        /// <param name="logCheckPoint">Writes the current position to the log and returns one line, or null.</param>
         public DeveloperPanelPresenter(
             VisualElement panel,
             VisualElement hotspot,
             AppSession session,
             IDeveloperActions actions,
             MapRecorderPresenter recorder = null,
-            Func<string> positionStatusText = null)
+            Func<string> positionStatusText = null,
+            Func<string> logCheckPoint = null)
         {
             this.panel = panel ?? throw new ArgumentNullException(nameof(panel), "developer-panel is missing from AppShell.uxml.");
             this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -66,6 +70,27 @@ namespace IndoorNavigation.UI.Developer
                 });
             }
 
+            // Check points: the panel stays open, so you can walk to the next doorway and tap again.
+            Label checkResult = panel.Q<Label>("check-result");
+            SetVisible("check-point", logCheckPoint != null);
+            if (logCheckPoint != null)
+            {
+                Wire("check-point", () =>
+                {
+                    string result = logCheckPoint();
+                    if (checkResult != null) checkResult.text = result;
+                    Render();
+                });
+            }
+
+            // The real position changes without the session changing (for example while relocalising),
+            // so its line is refreshed while the panel is open.
+            if (readPositionStatus != null)
+            {
+                statusRefresh = panel.schedule.Execute(Render).Every(StatusRefreshMilliseconds);
+                statusRefresh.Pause();
+            }
+
             session.Changed += Render;
             ScreenPresenter.SetVisible(panel, false);
         }
@@ -77,12 +102,14 @@ namespace IndoorNavigation.UI.Developer
             IsOpen = true;
             ScreenPresenter.SetVisible(panel, true);
             session.LogExternal("developer", "open");
+            statusRefresh?.Resume();
             Render();
         }
 
         public void Close()
         {
             IsOpen = false;
+            statusRefresh?.Pause();
             ScreenPresenter.SetVisible(panel, false);
             session.LogExternal("developer", "close");
         }

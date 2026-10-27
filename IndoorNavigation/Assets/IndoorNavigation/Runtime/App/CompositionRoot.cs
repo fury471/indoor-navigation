@@ -153,8 +153,9 @@ namespace IndoorNavigation.App
                     ? null
                     : new MapRecorderPresenter(recorderElement, new MapRecordingActions(recorder), session);
                 Func<string> positionStatus = realPosition == null ? (Func<string>)null : () => realPosition.Status;
+                Func<string> checkPoint = realPosition == null ? (Func<string>)null : realPosition.LogCheckPoint;
                 var actions = new DeveloperActions(session, placeholderRepository, placeholderPosition, placeholderAttitude, placeholderSearch);
-                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus);
+                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus, checkPoint);
                 gameObject.AddComponent<DeveloperKeys>().Init(actions, panel, root);
             }
             else

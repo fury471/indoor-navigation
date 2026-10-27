@@ -21,8 +21,11 @@ namespace IndoorNavigation.Adapters.AR
     /// Records an area's world map for the developer (admin) role, standing in the lab:
     /// 1. aim the crosshair at each marker, a door-frame corner on the floor, and mark it (a raycast against the floor);
     /// 2. walk slowly until ARKit reports the map as "Mapped";
-    /// 3. save: the map and the markers' AR and plan positions go to Documents/WorldMaps/&lt;area&gt;.
-    /// The markers' plan positions come from the venue package (the manifest's area markers).
+    /// 3. save: the map and the marks go to Documents/WorldMaps/&lt;area&gt;.
+    /// Two ways to name the marks:
+    /// - the package already lists the area's markers with plan positions: one button per marker, and a live fit;
+    /// - it does not yet: corners are marked in route order (d1-left, d1-right, d2-left …), and their plan
+    ///   positions are added to the package later, from the room scans. The map then aligns on its next load.
     /// Saving follows the localisation lab's recorder (ARKit's GetARWorldMapAsync).
     /// </summary>
     public sealed class AreaMapRecorder : MonoBehaviour
@@ -32,7 +35,11 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>A hit must be at least this far below the camera to count as the floor, not a table.</summary>
         public const float MinimumDropToFloorMetres = 0.6f;
 
+        /// <summary>Without plan positions, at least this many doors must have both corners marked.</summary>
+        public const int MinimumDoorsInRouteOrder = 2;
+
         private readonly Dictionary<string, Vector3> marks = new Dictionary<string, Vector3>();
+        private readonly List<string> markOrder = new List<string>();
 
         private ARSession arSession;
         private XROrigin origin;
@@ -46,7 +53,7 @@ namespace IndoorNavigation.Adapters.AR
         private bool saving;
         private float saveStartedAt;
         private PlanAlignment pendingFit;
-        private List<MarkerPair> pendingPairs;
+        private List<ArMark> pendingMarks;
         private string message = "";
 
 #if UNITY_IOS && !UNITY_EDITOR
@@ -59,17 +66,27 @@ namespace IndoorNavigation.Adapters.AR
 
         public string AreaName => area?.Name;
 
-        /// <summary>The marker ids of the area, in the manifest's order.</summary>
+        /// <summary>True when the package has the area's marker positions, so the fit can be shown live.</summary>
+        public bool HasPlanMarkers => area != null && area.Markers.Count >= PlanAlignment.MinimumMarkers;
+
+        /// <summary>
+        /// The marker buttons to show: the package's markers, or, in route order, every corner marked
+        /// so far plus the next one.
+        /// </summary>
         public IReadOnlyList<string> MarkerIds
         {
             get
             {
                 var ids = new List<string>();
-                if (area != null)
+                if (area == null) return ids;
+                if (HasPlanMarkers)
                 {
                     foreach (MarkerInfo marker in area.Markers) ids.Add(marker.Id);
+                    return ids;
                 }
 
+                ids.AddRange(markOrder);
+                ids.Add(MarkerPairing.CornerId(markOrder.Count));
                 return ids;
             }
         }
@@ -109,16 +126,13 @@ namespace IndoorNavigation.Adapters.AR
                 return false;
             }
 
-            if (current.Markers.Count < PlanAlignment.MinimumMarkers)
-            {
-                reason = $"{current.Id} has no measured markers in the package's manifest.";
-                return false;
-            }
-
             area = current;
             marks.Clear();
+            markOrder.Clear();
             Preview = null;
-            message = "Aim the circle at a door corner on the floor and mark it.";
+            message = HasPlanMarkers
+                ? "Aim the circle at a door corner on the floor and mark it."
+                : "Mark door corners in route order, as you face each door from the corridor: left, then right.";
             positioning.PauseForRecording();
             SetPlaneDetection(true);
             IsRecording = true;
@@ -137,7 +151,7 @@ namespace IndoorNavigation.Adapters.AR
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
 
-        public bool CanSave => IsRecording && !saving && Preview != null && MappingDone;
+        public bool CanSave => IsRecording && !saving && MappingDone && (HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder);
 
         /// <summary>One or two lines for the recorder overlay.</summary>
         public string Status
@@ -145,6 +159,18 @@ namespace IndoorNavigation.Adapters.AR
             get
             {
                 if (!IsRecording) return message;
+                if (!HasPlanMarkers)
+                {
+                    var doors = new List<string>();
+                    foreach ((string door, double width) in MarkerPairing.DoorWidths(Marks()))
+                    {
+                        doors.Add(string.Format(CultureInfo.InvariantCulture, "{0} {1:F2} m{2}", door, width, MarkerPairing.IsPlausibleDoor(width) ? "" : " (check)"));
+                    }
+
+                    string widths = doors.Count == 0 ? "no door complete yet" : string.Join("  ", doors);
+                    return $"Mapping: {MappingText}  ·  {widths}\n{message}";
+                }
+
                 var parts = new List<string>();
                 foreach (string id in MarkerIds) parts.Add(id + (IsMarked(id) ? " ✓" : " –"));
                 string marked = string.Join("  ", parts);
@@ -180,26 +206,39 @@ namespace IndoorNavigation.Adapters.AR
                 return;
             }
 
+            if (!marks.ContainsKey(markerId)) markOrder.Add(markerId);
             marks[markerId] = origin.TrackablesParent.InverseTransformPoint(world);
             Report("map", string.Format(CultureInfo.InvariantCulture, "marked {0} at {1:F2}, {2:F2}, {3:F2}", markerId, marks[markerId].x, marks[markerId].y, marks[markerId].z));
             UpdatePreview();
-            message = Preview == null
-                ? "Marked. Now mark the next cross."
-                : "Walk slowly around the area until Mapping says Mapped, then save.";
+            if (HasPlanMarkers)
+            {
+                message = Preview == null
+                    ? "Marked. Now mark the next door corner."
+                    : "Walk slowly around the area until Mapping says Mapped, then save.";
+            }
+            else
+            {
+                message = CompleteDoors() >= MinimumDoorsInRouteOrder
+                    ? "Marked. Mark more doors if you like, then walk slowly until Mapping says Mapped, and save."
+                    : "Marked. Now mark " + MarkerPairing.CornerId(markOrder.Count) + ".";
+            }
         }
 
         public void Save()
         {
             if (!CanSave)
             {
-                message = Preview == null ? "Mark at least two door corners first." : "Walk slowly around until Mapping says Mapped.";
+                bool marked = HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder;
+                message = !marked
+                    ? (HasPlanMarkers ? "Mark at least two door corners first." : $"Mark both corners of at least {MinimumDoorsInRouteOrder} doors first.")
+                    : "Walk slowly around until Mapping says Mapped.";
                 return;
             }
 
             try
             {
                 pendingFit = Preview;
-                pendingPairs = Pairs();
+                pendingMarks = Marks();
                 request = Session.GetARWorldMapAsync();
                 saving = true;
                 saveStartedAt = Time.realtimeSinceStartup;
@@ -241,17 +280,22 @@ namespace IndoorNavigation.Adapters.AR
                         byte[] managed = bytes.ToArray();
                         if (managed.Length == 0) throw new InvalidOperationException("The world map is empty.");
 
-                        AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingPairs, pendingFit);
+                        AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit);
                         store.Save(area.Id, managed, record);
+                        string fitText = pendingFit == null
+                            ? "plan positions come later"
+                            : string.Format(CultureInfo.InvariantCulture, "fit {0:F2} m", pendingFit.RmsErrorMetres);
                         Report("map", string.Format(CultureInfo.InvariantCulture,
-                            "saved {0}: {1:F1} MiB, {2} markers, fit {3:F2} m", area.Id, managed.Length / (1024f * 1024f), pendingPairs.Count, pendingFit.RmsErrorMetres));
+                            "saved {0}: {1:F1} MiB, {2} corners, {3}", area.Id, managed.Length / (1024f * 1024f), pendingMarks.Count, fitText));
                     }
                 }
 
                 ReleaseRequest();
                 IsRecording = false;
                 SetPlaneDetection(false);
-                message = "Saved. This area is now located with the new map.";
+                message = pendingFit == null
+                    ? "Saved. The map lines up with the plan once the package lists these corners."
+                    : "Saved. This area is now located with the new map.";
                 positioning.UseRecordedMap(area.Id, pendingFit);
             }
             catch (Exception e)
@@ -296,7 +340,13 @@ namespace IndoorNavigation.Adapters.AR
 
         private void UpdatePreview()
         {
-            List<MarkerPair> pairs = Pairs();
+            if (!HasPlanMarkers)
+            {
+                Preview = null;
+                return;
+            }
+
+            List<MarkerPair> pairs = MarkerPairing.Pair(area.Markers, Marks());
             try
             {
                 Preview = pairs.Count >= PlanAlignment.MinimumMarkers ? PlanAlignment.Fit(pairs) : null;
@@ -308,19 +358,20 @@ namespace IndoorNavigation.Adapters.AR
             }
         }
 
-        private List<MarkerPair> Pairs()
+        /// <summary>The marks so far, in the order they were first marked.</summary>
+        private List<ArMark> Marks()
         {
-            var pairs = new List<MarkerPair>();
-            foreach (MarkerInfo marker in area.Markers)
+            var list = new List<ArMark>();
+            foreach (string id in markOrder)
             {
-                if (marks.TryGetValue(marker.Id, out Vector3 ar))
-                {
-                    pairs.Add(new MarkerPair(marker.Id, marker.X, marker.Z, ar.x, ar.y, ar.z));
-                }
+                Vector3 p = marks[id];
+                list.Add(new ArMark(id, p.x, p.y, p.z));
             }
 
-            return pairs;
+            return list;
         }
+
+        private int CompleteDoors() => MarkerPairing.DoorWidths(Marks()).Count;
 
         private void Report(string eventName, string detail) => Diagnostic?.Invoke(eventName, detail);
     }

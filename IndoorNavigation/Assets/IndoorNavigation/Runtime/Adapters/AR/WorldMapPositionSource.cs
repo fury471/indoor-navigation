@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using IndoorNavigation.Core.Ports;
 using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.Core.Venue;
@@ -52,6 +54,10 @@ namespace IndoorNavigation.Adapters.AR
         private float trackingSince = -1f;
         private float notTrackingSince = -1f;
         private int attempts;
+        private int checkPoints;
+
+        /// <summary>True when the session is in the map's frame but the package lacks the corners' plan positions.</summary>
+        private bool inMapFrameWithoutPlan;
 
         public PositionState State { get; private set; } = PositionState.Searching;
         public PlanPose Pose { get; private set; }
@@ -87,6 +93,7 @@ namespace IndoorNavigation.Adapters.AR
             alignment = null;
             pendingAlignment = null;
             waitingForRelocalisation = false;
+            inMapFrameWithoutPlan = false;
             attempts = 0;
             SetState(PositionState.Searching);
 
@@ -101,6 +108,7 @@ namespace IndoorNavigation.Adapters.AR
             loadPending = false;
             waitingForRelocalisation = false;
             alignment = null;
+            inMapFrameWithoutPlan = false;
             Status = "Stopped";
         }
 
@@ -117,6 +125,7 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             alignment = null;
+            inMapFrameWithoutPlan = false;
             SetState(PositionState.Searching);
             Status = $"{CurrentArea}: recording a new map";
         }
@@ -127,13 +136,20 @@ namespace IndoorNavigation.Adapters.AR
         /// </summary>
         public void UseRecordedMap(string areaId, PlanAlignment fitted)
         {
-            if (areaId != CurrentArea || fitted == null)
+            if (areaId != CurrentArea)
             {
                 return;
             }
 
             loadPending = false;
             waitingForRelocalisation = false;
+            if (fitted == null)
+            {
+                inMapFrameWithoutPlan = true;
+                Status = $"{areaId}: map saved; it lines up with the plan once the package lists its corners";
+                return;
+            }
+
             alignment = fitted;
             Status = $"{areaId}: located with the map just recorded";
             SetState(PositionState.Found);
@@ -185,7 +201,16 @@ namespace IndoorNavigation.Adapters.AR
             {
                 byte[] bytes = store.ReadMap(CurrentArea);
                 AlignmentRecord record = store.ReadAlignment(CurrentArea, bytes.Length);
-                pendingAlignment = PlanAlignment.Fit(record.ToPairs());
+                pendingAlignment = MarkerPairing.TryFit(
+                    areas(CurrentArea)?.Markers, record.RecordedPlanMarkers(), record.ToArMarks(), out string problem);
+                if (pendingAlignment == null)
+                {
+                    Report("position", "not aligned yet: " + problem);
+                }
+                else
+                {
+                    Report("position", string.Format(CultureInfo.InvariantCulture, "aligned from {0} corners, fit {1:F2} m", pendingAlignment.MarkerCount, pendingAlignment.RmsErrorMetres));
+                }
 
                 using (var nativeBytes = new NativeArray<byte>(bytes, Allocator.Temp))
                 {
@@ -238,9 +263,16 @@ namespace IndoorNavigation.Adapters.AR
                     if (now - trackingSince >= StableTrackingSeconds)
                     {
                         waitingForRelocalisation = false;
+                        Report("position", string.Format(CultureInfo.InvariantCulture, "relocalised in {0:F1} s", now - loadStartedAt));
+                        if (pendingAlignment == null)
+                        {
+                            inMapFrameWithoutPlan = true;
+                            Status = $"{CurrentArea}: relocalised; it lines up with the plan once the package lists its corners";
+                            return;
+                        }
+
                         alignment = pendingAlignment;
-                        Status = $"{CurrentArea}: located (fit {alignment.RmsErrorMetres:F2} m)";
-                        Report("position", $"relocalised in {now - loadStartedAt:F1} s");
+                        Status = string.Format(CultureInfo.InvariantCulture, "{0}: located (fit {1:F2} m)", CurrentArea, alignment.RmsErrorMetres);
                         SetState(PositionState.Found);
                         Track(force: true);
                         return;
@@ -309,11 +341,38 @@ namespace IndoorNavigation.Adapters.AR
                 PoseChanged?.Invoke(pose);
             }
         }
+
+        /// <summary>
+        /// Writes where the phone is now to the log, for checking accuracy afterwards: stand in the middle
+        /// of a marked doorway, hold the phone above the threshold and tap. Returns a line for the panel.
+        /// </summary>
+        public string LogCheckPoint()
+        {
+            bool inMapFrame = alignment != null || inMapFrameWithoutPlan;
+            if (!inMapFrame || Session == null || !TrackingNormally())
+            {
+                return "Not located yet: look around until the map is recognised.";
+            }
+
+            checkPoints++;
+            Vector3 p = origin.TrackablesParent.InverseTransformPoint(cameraTransform.position);
+            string detail = string.Format(CultureInfo.InvariantCulture, "{0} {1}: ar {2:F2}, {3:F2}, {4:F2}", CurrentArea, checkPoints, p.x, p.y, p.z);
+            if (alignment != null)
+            {
+                (double x, double z) = alignment.ToPlan(p.x, p.z);
+                detail += string.Format(CultureInfo.InvariantCulture, "; plan {0:F2}, {1:F2}", x, z);
+            }
+
+            Report("check", detail);
+            return "Logged check point " + checkPoints.ToString(CultureInfo.InvariantCulture) + ".";
+        }
 #else
         private void Update()
         {
             // ARKit world maps need the iPhone. The composition root does not use this class in the Editor.
         }
+
+        public string LogCheckPoint() => "Check points need the iPhone.";
 
         private void AbandonMap() => waitingForRelocalisation = false;
 #endif
