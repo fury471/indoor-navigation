@@ -88,7 +88,7 @@ namespace IndoorNavigation.App
                 realPosition = gameObject.AddComponent<WorldMapPositionSource>();
                 realPosition.Init(arSessionComponent, xrOrigin, arCamera, mapStore, AreaById);
                 recorder = gameObject.AddComponent<AreaMapRecorder>();
-                recorder.Init(arSessionComponent, xrOrigin, raycastManager, planeManager, mapStore, realPosition, AreaById);
+                recorder.Init(arSessionComponent, xrOrigin, raycastManager, planeManager, mapStore, realPosition, AreaById, PointCloudsForRecording());
                 position = realPosition;
             }
             else
@@ -212,6 +212,18 @@ namespace IndoorNavigation.App
             if (arCamera == null) throw new InvalidOperationException("Position is Real, so set AR Camera on CompositionRoot.");
             if (raycastManager == null) throw new InvalidOperationException("Position is Real, so add an AR Raycast Manager to the XR Origin and set it on CompositionRoot.");
             return component;
+        }
+
+        /// <summary>
+        /// ARKit's feature points, for the recorder's live map. Added to the XR Origin if the scene has no
+        /// AR Point Cloud Manager, and switched off until a recording starts.
+        /// </summary>
+        private ARPointCloudManager PointCloudsForRecording()
+        {
+            ARPointCloudManager manager = xrOrigin.GetComponent<ARPointCloudManager>();
+            if (manager == null) manager = xrOrigin.gameObject.AddComponent<ARPointCloudManager>();
+            manager.enabled = false;
+            return manager;
         }
 
         /// <summary>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using IndoorNavigation.Adapters.AR;
+using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.UI.Developer;
 using UnityEngine;
 
@@ -29,6 +30,10 @@ namespace IndoorNavigation.App
         public bool IsMarked(string markerId) => recorder.IsMarked(markerId);
 
         public bool CanSave => recorder.CanSave;
+
+        public MapCoverage Coverage => recorder.Coverage;
+
+        public string MappingState => recorder.MappingState;
 
         public bool Begin(out string reason) => recorder.Begin(out reason);
 

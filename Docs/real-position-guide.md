@@ -30,6 +30,14 @@ Everything in the lab happens in **one visit**: the scans, and the world map wit
 - once aligned, the fit's RMS error should be under 0.15 m;
 - the note's door list, with photos, says which door is which.
 
+**Seeing what the map covers.** A world map is made of feature points, "notable features detected in camera imagery" (Apple, ARWorldMap.rawFeaturePoints). ARKit's status word, Limited, Extending or Mapped, describes only "the area visible in a given frame" (Apple, ARFrame.WorldMappingStatus). It doesn't say what you've covered. So the recorder shows a **live map** in its top-right corner, seen from above, centred on you, with the way you face pointing up:
+- floor squares of 0.5 m light up as ARKit collects feature points over them: brighter means more points, and dark means not in the map yet;
+- the orange line is the path you've walked;
+- the small diamonds are the corners you've marked;
+- the counter shows the points and the square metres covered.
+
+Relocalising "is more likely to succeed if the user moves to areas of the local environment that they visited during the previous session" (Apple, Saving and loading world data). So cover the whole area, and especially the spots where the app will be started later. Plain white walls give few points: show the camera doors, signs, furniture and edges too. When you save, the log records the points, the area covered and the distance walked, so recordings can be compared.
+
 **Every start after that:** the app loads the area's map, you look around, and ARKit relocalises. "Relocalising" must be seen, then two seconds of normal tracking; the check comes from the localisation lab. If nothing happens within 45 s, the app tries again. With the corners in the package, the app then turns the camera pose into a plan pose. Without them, panel W says "relocalised; it lines up with the plan once the package lists its corners", and the app stays on screen 1.
 
 **Check points measure accuracy.** Panel W → **Log check point** writes the phone's AR position to the log (and its plan position, once aligned). Standing in the middle of a marked doorway, the right answer is the middle of its two corners. Logged right after recording and again after each relaunch, the same doorway gives two measures from one visit's log: how well the map relocalises, and, once the package exists, how far the position is from the plan.
@@ -42,16 +50,17 @@ Decision record 7 has the reasons for each choice.
 |---|---|
 | `Core/Positioning/PlanAlignment.cs` | The fit, AR → plan, plan → AR, and heading (10 tests) |
 | `Core/Positioning/MarkerPairing.cs` | Route-order names, pairing by name, door widths, the fit with the package first (9 tests) |
+| `Core/Positioning/MapCoverage.cs` | What a recording covers: feature points per 0.5 m square, the path, the marks, for the live map (7 tests) |
 | `Core/Venue/VenueManifest.cs` | `MarkerInfo`; each area lists its markers |
 | `Core/Venue/VenueValidator.cs` | An area with markers needs at least two, 1 m or more apart (3 tests) |
 | `Adapters/AR/WorldMapPositionSource.cs` | The real `IPositionSource`: load, relocalise, plan pose, lost and found, check points |
 | `Adapters/AR/AreaMapRecorder.cs` | Mark the door corners, save map + `alignment.json` |
 | `Adapters/AR/AreaMapStore.cs` | `Documents/WorldMaps/<area>/`, written safely (temporary folder first) |
-| `UI/Developer/MapRecorder.uxml`, `MapRecorderPresenter.cs`, `IMapRecording.cs` | The recorder overlay with its crosshair |
+| `UI/Developer/MapRecorder.uxml`, `MapRecorderPresenter.cs`, `IMapRecording.cs` | The recorder overlay with its crosshair, mapping badge and live map |
 | `UI/Developer/DeveloperPanel.uxml`, `DeveloperPanelPresenter.cs` | Panel W's World map group: status, Record map, Log check point |
 | `App/MapRecordingActions.cs`, `App/CompositionRoot.cs` | Wiring; in the Editor, Real position and attitude fall back to the placeholders |
 
-The tests now number 237.
+The tests now number 244.
 
 ## B. Unity set-up (done 26 Oct)
 
@@ -62,17 +71,18 @@ For reference, in case the scene is ever rebuilt:
 
 ## C. Before the visit (about 1.5 h)
 
-**Commit (15 min).**
-1. Open Unity and wait for it to import the changed files. It creates the `.meta` files for the two new ones.
-2. **Test Runner → EditMode → Run All.** Expect 237 passed.
+**Commit (10 min).** The first two commits are in (27 Oct): the door corners (`af94402`) and the scan converter (`d5a30ff`). The live map is the third.
+1. Open Unity and wait for the import. It creates the `.meta` files for `MapCoverage.cs` and `MapCoverageTests.cs`.
+2. **Test Runner → EditMode → Run All.** Expect 244 passed.
 3. **Press Play.** The scenario runs with the keys as before. Panel W shows no World map group in the Editor; that is expected.
 4. Commit:
    ```powershell
-   git add Docs/decisions/0007-area-alignment-markers.md Docs/real-position-guide.md IndoorNavigation/Assets/IndoorNavigation/Runtime/Core/Positioning IndoorNavigation/Assets/IndoorNavigation/Runtime/Adapters/AR IndoorNavigation/Assets/IndoorNavigation/Runtime/UI/Developer IndoorNavigation/Assets/IndoorNavigation/Runtime/App/CompositionRoot.cs IndoorNavigation/Assets/IndoorNavigation/Tests/EditMode
+   git add Docs/real-position-guide.md IndoorNavigation/Assets/IndoorNavigation/Runtime/Core/Positioning IndoorNavigation/Assets/IndoorNavigation/Runtime/Adapters/AR IndoorNavigation/Assets/IndoorNavigation/Runtime/App/CompositionRoot.cs IndoorNavigation/Assets/IndoorNavigation/Runtime/App/MapRecordingActions.cs IndoorNavigation/Assets/IndoorNavigation/Runtime/UI/Developer IndoorNavigation/Assets/IndoorNavigation/Runtime/UI/Tokens.uss IndoorNavigation/Assets/IndoorNavigation/Tests/EditMode
    git diff --cached --stat
-   git commit -m "feat(position): record door corners before their plan positions are known"
+   git commit -m "feat(position): show what a world-map recording covers on a live map"
+   git push
    ```
-   The stat should list 12 files: 6 changed code files, the 2 new ones (`MarkerPairing.cs`, `MarkerPairingTests.cs`) with their 2 `.meta` files, and the 2 docs.
+   The stat should list 12 files: `MapCoverage.cs` and `MapCoverageTests.cs` with their `.meta` files, 7 changed code and style files, and this guide.
 
 **Build 3 (about 45 min, mostly waiting).** Push, run the workflow as for build 2, and install `export-position-001` with Apple Devices. Don't delete the app first: nothing in it needs to go.
 
@@ -80,7 +90,7 @@ For reference, in case the scene is ever rebuilt:
 1. Open the app → V1 → download → screen 1.
 2. Triple-tap the top-left corner → panel W. The World map group says `area-1: no world map yet`. Tap **Record map**.
 3. Mark `d1-left`, `d1-right`, `d2-left`, `d2-right` as in part D. Check that each door's width looks right.
-4. Walk until **Mapping: Mapped**, tap **Save map**. The panel says `map saved; it lines up with the plan once the package lists its corners`.
+4. Walk around both doors and the room between them, watching the live map: squares light up where ARKit has points. When the area around both doors is lit and the badge is green (**Mapped**), tap **Save map**. The panel says `map saved; it lines up with the plan once the package lists its corners`.
 5. Stand in door 1's doorway, panel W → **Log check point**. It says `Logged check point 1.`
 6. Close the app completely, open it again, look around. Panel W says `relocalised; …` within about a minute. Log a check point in door 1 again.
 7. Tell me if any step behaves differently. If everything works, you're ready.
@@ -95,7 +105,7 @@ Do this after the scans, with the lab still empty. "Area 1" is the floor 1 corri
 1. Open the app → V1 → download → screen 1. Triple-tap the top-left corner → panel W → **Record map**.
 2. Stand in the corridor about 1.5 m from door d1, facing it. Put the orange circle exactly where the **left** door frame meets the floor, and tap **Mark d1-left**. Then the right corner: **Mark d1-right**. The status line shows `d1 0.91 m` or similar. If it says `(check)`, tap **Mark d1-right again** with better aim.
 3. Do the same at d2 (and d3). The button always names the next corner.
-4. Walk slowly around the area, looking at walls and furniture, until the status says **Mapping: Mapped** (usually 1–2 minutes). Tap **Save map**. It says: `Saved. The map lines up with the plan once the package lists these corners.`
+4. Walk slowly around the area, looking at walls, doors and furniture from about 1–1.5 m (the distance Teo and Yang (2023) recommend for iPad lidar mapping). Watch the live map: keep going until the squares around every marked door and along the walls are lit, including the spots where you'll start the relaunch tests. Then, with the badge green (**Mapped**), tap **Save map**. It takes a few minutes. It says: `Saved. The map lines up with the plan once the package lists these corners.`
 
 **Test (20 min).**
 5. Check points in the same session: stand in the middle of each marked doorway, on the line where the door would close, phone upright at chest height. Panel W → **Log check point**. Do d1, d2 (and d3).
@@ -119,4 +129,8 @@ Record the numbers in `device-tests.md`: time to relocalise for each try, the di
 
 - Apple Inc. (n.d.). *ARWorldMap*. ARKit documentation.
 - Apple Inc. (2023). *Explore enhancements to RoomPlan* (WWDC23, session 10192).
+- Apple Inc. (n.d.). *ARFrame.WorldMappingStatus*. ARKit documentation.
+- Apple Inc. (n.d.). *rawFeaturePoints* (ARWorldMap). ARKit documentation.
+- Apple Inc. (n.d.). *Saving and loading world data*. ARKit sample code.
+- Teo, T.-A., & Yang, C.-C. (2023). Evaluating the accuracy and quality of an iPad Pro's built-in lidar for 3D indoor mapping. *Developments in the Built Environment, 14*, 100169. doi:10.1016/j.dibe.2023.100169
 - Umeyama, S. (1991). Least-squares estimation of transformation parameters between two point patterns. *IEEE Transactions on Pattern Analysis and Machine Intelligence, 13*(4), 376–380. doi:10.1109/34.88573

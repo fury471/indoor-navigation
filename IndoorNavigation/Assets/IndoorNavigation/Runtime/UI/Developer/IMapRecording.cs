@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using IndoorNavigation.Core.Positioning;
 
 namespace IndoorNavigation.UI.Developer
 {
@@ -21,6 +22,12 @@ namespace IndoorNavigation.UI.Developer
         bool IsMarked(string markerId);
 
         bool CanSave { get; }
+
+        /// <summary>What the recording has covered so far, for the live map.</summary>
+        MapCoverage Coverage { get; }
+
+        /// <summary>ARKit's mapping status for what the camera sees now (Limited, Extending, Mapped), or null.</summary>
+        string MappingState { get; }
 
         /// <summary>Starts recording the area being located. Returns false with a reason if it cannot.</summary>
         bool Begin(out string reason);

@@ -27,6 +27,8 @@ namespace IndoorNavigation.Adapters.AR
     /// - it does not yet: corners are marked in route order (d1-left, d1-right, d2-left …), and their plan
     ///   positions are added to the package later, from the room scans. The map then aligns on its next load.
     /// Saving follows the localisation lab's recorder (ARKit's GetARWorldMapAsync).
+    /// While recording, ARKit's feature points (what a world map is made of) and the path walked are
+    /// collected in <see cref="Coverage"/>, for the overlay's live map.
     /// </summary>
     public sealed class AreaMapRecorder : MonoBehaviour
     {
@@ -45,6 +47,7 @@ namespace IndoorNavigation.Adapters.AR
         private XROrigin origin;
         private ARRaycastManager raycasts;
         private ARPlaneManager planes;
+        private ARPointCloudManager pointClouds;
         private AreaMapStore store;
         private WorldMapPositionSource positioning;
         private Func<string, AreaInfo> areas;
@@ -55,12 +58,16 @@ namespace IndoorNavigation.Adapters.AR
         private PlanAlignment pendingFit;
         private List<ArMark> pendingMarks;
         private string message = "";
+        private readonly MapCoverage coverage = new MapCoverage();
 
 #if UNITY_IOS && !UNITY_EDITOR
         private ARWorldMapRequest request;
 #endif
 
         public bool IsRecording { get; private set; }
+
+        /// <summary>What the recording has covered so far: feature points per floor cell, the path, the marks.</summary>
+        public MapCoverage Coverage => coverage;
 
         public string AreaId => area?.Id;
 
@@ -103,7 +110,8 @@ namespace IndoorNavigation.Adapters.AR
             ARPlaneManager planeManager,
             AreaMapStore mapStore,
             WorldMapPositionSource positionSource,
-            Func<string, AreaInfo> areaLookup)
+            Func<string, AreaInfo> areaLookup,
+            ARPointCloudManager pointCloudManager = null)
         {
             arSession = session ? session : throw new ArgumentNullException(nameof(session));
             origin = xrOrigin ? xrOrigin : throw new ArgumentNullException(nameof(xrOrigin));
@@ -112,6 +120,7 @@ namespace IndoorNavigation.Adapters.AR
             store = mapStore ?? throw new ArgumentNullException(nameof(mapStore));
             positioning = positionSource ?? throw new ArgumentNullException(nameof(positionSource));
             areas = areaLookup ?? throw new ArgumentNullException(nameof(areaLookup));
+            pointClouds = pointCloudManager; // optional: without it the live map shows only the path
         }
 
         public bool IsMarked(string markerId) => marks.ContainsKey(markerId);
@@ -135,6 +144,8 @@ namespace IndoorNavigation.Adapters.AR
                 : "Mark door corners in route order, as you face each door from the corridor: left, then right.";
             positioning.PauseForRecording();
             SetPlaneDetection(true);
+            coverage.Clear();
+            SetPointClouds(true);
             IsRecording = true;
             Report("map", "recording started for " + area.Id);
             reason = null;
@@ -147,6 +158,7 @@ namespace IndoorNavigation.Adapters.AR
             IsRecording = false;
             ReleaseRequest();
             SetPlaneDetection(false);
+            SetPointClouds(false);
             Report("map", "recording cancelled");
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
@@ -208,6 +220,7 @@ namespace IndoorNavigation.Adapters.AR
 
             if (!marks.ContainsKey(markerId)) markOrder.Add(markerId);
             marks[markerId] = origin.TrackablesParent.InverseTransformPoint(world);
+            coverage.SetMark(markerId, marks[markerId].x, marks[markerId].z);
             Report("map", string.Format(CultureInfo.InvariantCulture, "marked {0} at {1:F2}, {2:F2}, {3:F2}", markerId, marks[markerId].x, marks[markerId].y, marks[markerId].z));
             UpdatePreview();
             if (HasPlanMarkers)
@@ -251,9 +264,39 @@ namespace IndoorNavigation.Adapters.AR
             }
         }
 
+        /// <summary>ARKit's mapping status for what the camera sees now: Limited, Extending or Mapped.</summary>
+        public string MappingState => Session == null ? null : Session.worldMappingStatus.ToString();
+
         private void Update()
         {
             if (saving) PollSave();
+            if (IsRecording) UpdateCoverage();
+        }
+
+        /// <summary>Adds this frame's feature points and the phone's position, in session coordinates.</summary>
+        private void UpdateCoverage()
+        {
+            Transform frame = origin.TrackablesParent;
+            if (frame == null || origin.Camera == null) return;
+            Transform camera = origin.Camera.transform;
+            Vector3 at = frame.InverseTransformPoint(camera.position);
+            Vector3 facing = frame.InverseTransformDirection(camera.forward + camera.up);
+            coverage.SetViewer(at.x, at.z, facing.x, facing.z);
+
+            if (pointClouds == null || !pointClouds.enabled) return;
+            foreach (ARPointCloud cloud in pointClouds.trackables)
+            {
+                if (!cloud.positions.HasValue || !cloud.identifiers.HasValue) continue;
+                NativeSlice<Vector3> positions = cloud.positions.Value;
+                NativeSlice<ulong> ids = cloud.identifiers.Value;
+                Transform space = cloud.transform;
+                int count = Math.Min(positions.Length, ids.Length);
+                for (int i = 0; i < count; i++)
+                {
+                    Vector3 p = frame.InverseTransformPoint(space.TransformPoint(positions[i]));
+                    coverage.AddPoint(ids[i], p.x, p.z);
+                }
+            }
         }
 
         private void PollSave()
@@ -293,6 +336,8 @@ namespace IndoorNavigation.Adapters.AR
                 ReleaseRequest();
                 IsRecording = false;
                 SetPlaneDetection(false);
+                SetPointClouds(false);
+                Report("map", "coverage " + coverage.Summary());
                 message = pendingFit == null
                     ? "Saved. The map lines up with the plan once the package lists these corners."
                     : "Saved. This area is now located with the new map.";
@@ -320,6 +365,8 @@ namespace IndoorNavigation.Adapters.AR
             planes.enabled = on;
         }
 #else
+        public string MappingState => null;
+
         private bool MappingDone => false;
 
         private string MappingText => "needs the iPhone";
@@ -337,6 +384,11 @@ namespace IndoorNavigation.Adapters.AR
 #endif
 
         private void OnDisable() => ReleaseRequest();
+
+        private void SetPointClouds(bool on)
+        {
+            if (pointClouds != null) pointClouds.enabled = on;
+        }
 
         private void UpdatePreview()
         {

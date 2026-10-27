@@ -267,6 +267,57 @@
 }
 
 /* Marker buttons have long names ("Mark vr-lab-left"), so two fit per row. */
+/* The recorder's live map. Its colours are the app's tokens, read by MapRecorderPresenter. */
+.coverage-box {
+    align-self: flex-end;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.mapping-badge {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: var(--surface);
+    background-color: rgba(20, 23, 31, 0.6);
+    padding: 2px 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+}
+
+.mapping-badge--limited {
+    background-color: var(--danger);
+}
+
+.mapping-badge--extending {
+    background-color: var(--warning-text);
+}
+
+.mapping-badge--mapped {
+    background-color: var(--accent);
+}
+
+.coverage {
+    width: 168px;
+    height: 168px;
+    border-radius: 12px;
+    background-color: rgba(20, 23, 31, 0.62);
+    overflow: hidden;
+    --coverage-cell: var(--accent-soft);
+    --coverage-path: var(--destination);
+    --coverage-you: var(--you);
+    --coverage-mark: var(--warning-border);
+}
+
+.coverage-text {
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--surface);
+    background-color: rgba(20, 23, 31, 0.6);
+    padding: 1px 8px;
+    border-radius: 8px;
+    margin-top: 4px;
+}
+
 .recorder-markers {
     flex-direction: row;
     flex-wrap: wrap;

@@ -7,6 +7,12 @@
             <ui:Label name="area" class="strong" />
             <ui:Label name="status" class="small" />
         </ui:VisualElement>
+        <!-- Live map of what the recording has covered: seen from above, centred on you, facing up. -->
+        <ui:VisualElement class="coverage-box" picking-mode="Ignore">
+            <ui:Label name="mapping" class="mapping-badge" picking-mode="Ignore" />
+            <ui:VisualElement name="coverage" class="coverage" picking-mode="Ignore" />
+            <ui:Label name="coverage-text" class="coverage-text" picking-mode="Ignore" />
+        </ui:VisualElement>
         <ui:VisualElement class="spacer" />
         <ui:VisualElement class="sheet">
             <ui:VisualElement name="markers" class="recorder-markers" />
