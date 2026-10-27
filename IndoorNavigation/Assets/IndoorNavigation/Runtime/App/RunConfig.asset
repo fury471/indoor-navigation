@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: RunConfig
   m_EditorClassIdentifier: IndoorNavigation.App::IndoorNavigation.App.RunConfig
   venueData: 0
-  position: 0
+  position: 1
   search: 0
   attitude: 1
   developerPanel: 1
