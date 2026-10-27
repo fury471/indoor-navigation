@@ -60,6 +60,40 @@ namespace IndoorNavigation.Core.Tests
         }
 
         [Test]
+        public void AnAreaWithOneMarker_IsReported()
+        {
+            VenuePackage venue = WithStartAreaMarkers(new MarkerInfo("A", 0, 0));
+
+            StringAssert.Contains("at least 2", VenueValidator.Validate(venue)[0]);
+        }
+
+        [Test]
+        public void MarkersTooCloseTogether_AreReported()
+        {
+            VenuePackage venue = WithStartAreaMarkers(new MarkerInfo("A", 0, 0), new MarkerInfo("B", 0.5, 0));
+
+            StringAssert.Contains("apart", VenueValidator.Validate(venue)[0]);
+        }
+
+        [Test]
+        public void TwoMarkersFarApart_AreValid()
+        {
+            VenuePackage venue = WithStartAreaMarkers(new MarkerInfo("A", 0, 0), new MarkerInfo("B", 4.2, 0));
+
+            CollectionAssert.IsEmpty(VenueValidator.Validate(venue));
+        }
+
+        private static VenuePackage WithStartAreaMarkers(params MarkerInfo[] markers)
+        {
+            VenueManifest sample = SampleVenue.Manifest();
+            var manifest = new VenueManifest(
+                sample.VenueId, sample.Name, sample.PackageVersion, sample.SchemaVersion, sample.Floors,
+                new[] { new AreaInfo("area-1", 1, "Floor 1", markers), sample.Areas[1] },
+                sample.StartAreaId, sample.Files);
+            return new VenuePackage(manifest, SampleVenue.Places(), SampleVenue.Graph());
+        }
+
+        [Test]
         public void StairsOnOneFloor_AreReported()
         {
             var graph = new RouteGraph(

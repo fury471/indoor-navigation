@@ -17,10 +17,20 @@ namespace IndoorNavigation.UI.Developer
         private readonly Label showing;
         private readonly AppSession session;
         private readonly IDeveloperActions actions;
+        private readonly Label positionStatus;
+        private readonly Func<string> readPositionStatus;
         private long firstTapTime;
         private int taps;
 
-        public DeveloperPanelPresenter(VisualElement panel, VisualElement hotspot, AppSession session, IDeveloperActions actions)
+        /// <param name="recorder">The world-map recorder, or null when the position is a placeholder.</param>
+        /// <param name="positionStatusText">One line from the real position source, or null.</param>
+        public DeveloperPanelPresenter(
+            VisualElement panel,
+            VisualElement hotspot,
+            AppSession session,
+            IDeveloperActions actions,
+            MapRecorderPresenter recorder = null,
+            Func<string> positionStatusText = null)
         {
             this.panel = panel ?? throw new ArgumentNullException(nameof(panel), "developer-panel is missing from AppShell.uxml.");
             this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -42,6 +52,19 @@ namespace IndoorNavigation.UI.Developer
             Wire("no-match", actions.NoMatch);
             Wire("next-step", actions.NextStep);
             Wire("arrive", actions.Arrive);
+
+            // The World map group only exists when the real position is used.
+            positionStatus = panel.Q<Label>("position-status");
+            readPositionStatus = positionStatusText;
+            SetVisible("map-group", recorder != null);
+            if (recorder != null)
+            {
+                Wire("record-map", () =>
+                {
+                    Close();
+                    recorder.Open();
+                });
+            }
 
             session.Changed += Render;
             ScreenPresenter.SetVisible(panel, false);
@@ -97,8 +120,15 @@ namespace IndoorNavigation.UI.Developer
             }
         }
 
+        private void SetVisible(string elementName, bool visible)
+        {
+            VisualElement element = panel.Q<VisualElement>(elementName);
+            if (element != null) ScreenPresenter.SetVisible(element, visible);
+        }
+
         private void Render()
         {
+            if (positionStatus != null) positionStatus.text = readPositionStatus?.Invoke() ?? "";
             showing.text = "Showing " + session.Screen + " · " + session.State + " · " + session.Study.Condition + " · " + session.Study.ParticipantCode;
         }
     }

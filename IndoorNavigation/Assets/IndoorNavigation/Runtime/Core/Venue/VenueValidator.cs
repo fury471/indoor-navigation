@@ -12,6 +12,7 @@ namespace IndoorNavigation.Core.Venue
         {
             var problems = new List<string>();
             CheckStartArea(package, problems);
+            CheckMarkers(package, problems);
             CheckPlaces(package, problems);
             CheckEdges(package, problems);
             CheckConnected(package, problems);
@@ -23,6 +24,46 @@ namespace IndoorNavigation.Core.Venue
             if (package.Area(package.StartAreaId) == null)
             {
                 problems.Add($"The start area '{package.StartAreaId}' is not in the manifest.");
+            }
+        }
+
+        /// <summary>An area that has alignment markers needs at least two, with different ids, spread out.</summary>
+        private static void CheckMarkers(VenuePackage package, List<string> problems)
+        {
+            foreach (AreaInfo area in package.Manifest.Areas)
+            {
+                if (area.Markers.Count == 0)
+                {
+                    continue; // not measured yet; the area cannot be aligned until it is
+                }
+
+                if (area.Markers.Count < Positioning.PlanAlignment.MinimumMarkers)
+                {
+                    problems.Add($"Area '{area.Id}' has {area.Markers.Count} marker; alignment needs at least {Positioning.PlanAlignment.MinimumMarkers}.");
+                    continue;
+                }
+
+                var ids = new HashSet<string>();
+                double widest = 0;
+                for (int i = 0; i < area.Markers.Count; i++)
+                {
+                    if (!ids.Add(area.Markers[i].Id))
+                    {
+                        problems.Add($"Area '{area.Id}' has two markers called '{area.Markers[i].Id}'.");
+                    }
+
+                    for (int j = i + 1; j < area.Markers.Count; j++)
+                    {
+                        double dx = area.Markers[i].X - area.Markers[j].X;
+                        double dz = area.Markers[i].Z - area.Markers[j].Z;
+                        widest = System.Math.Max(widest, System.Math.Sqrt(dx * dx + dz * dz));
+                    }
+                }
+
+                if (widest < Positioning.PlanAlignment.MinimumSpreadMetres)
+                {
+                    problems.Add($"Area '{area.Id}' has its markers less than {Positioning.PlanAlignment.MinimumSpreadMetres} m apart.");
+                }
             }
         }
 

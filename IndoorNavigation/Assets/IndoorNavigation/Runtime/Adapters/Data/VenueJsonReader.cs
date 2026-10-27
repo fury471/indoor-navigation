@@ -20,7 +20,12 @@ namespace IndoorNavigation.Adapters.Data
             foreach (FloorDto floor in dto.floors ?? Array.Empty<FloorDto>()) floors.Add(new FloorInfo(floor.number, floor.name));
 
             var areas = new List<AreaInfo>();
-            foreach (AreaDto area in dto.areas ?? Array.Empty<AreaDto>()) areas.Add(new AreaInfo(area.id, area.floor, area.name));
+            foreach (AreaDto area in dto.areas ?? Array.Empty<AreaDto>())
+            {
+                var markers = new List<MarkerInfo>();
+                foreach (MarkerDto marker in area.markers ?? Array.Empty<MarkerDto>()) markers.Add(new MarkerInfo(marker.id, marker.x, marker.z));
+                areas.Add(new AreaInfo(area.id, area.floor, area.name, markers));
+            }
 
             var files = new List<PackageFile>();
             foreach (FileDto file in dto.files ?? Array.Empty<FileDto>()) files.Add(new PackageFile(file.path, file.bytes, file.sha256));
@@ -122,7 +127,9 @@ namespace IndoorNavigation.Adapters.Data
 
     [Serializable] internal sealed class FloorDto { public int number; public string name; }
 
-    [Serializable] internal sealed class AreaDto { public string id; public int floor; public string name; }
+    [Serializable] internal sealed class AreaDto { public string id; public int floor; public string name; public MarkerDto[] markers; }
+
+    [Serializable] internal sealed class MarkerDto { public string id; public double x; public double z; }
 
     [Serializable] internal sealed class FileDto { public string path; public long bytes; public string sha256; }
 

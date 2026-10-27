@@ -15,19 +15,46 @@ namespace IndoorNavigation.Core.Venue
         public string Name { get; }
     }
 
+    /// <summary>
+    /// A fixed point on the floor whose plan position is known, usually where a door frame meets
+    /// the floor on the corridor side. Marking the same points in AR lines the area's world map
+    /// up with the plan (see <c>Positioning.PlanAlignment</c>).
+    /// </summary>
+    public sealed class MarkerInfo
+    {
+        public MarkerInfo(string id, double x, double z)
+        {
+            if (string.IsNullOrEmpty(id)) throw new ArgumentException("A marker needs an id.", nameof(id));
+            Id = id;
+            X = x;
+            Z = z;
+        }
+
+        public string Id { get; }
+
+        /// <summary>Metres on the floor plan, x to the right and z down the plan.</summary>
+        public double X { get; }
+
+        public double Z { get; }
+    }
+
     /// <summary>A part of a floor with its own ARKit world map.</summary>
     public sealed class AreaInfo
     {
-        public AreaInfo(string id, int floor, string name)
+        public AreaInfo(string id, int floor, string name, IReadOnlyList<MarkerInfo> markers = null)
         {
             Id = id;
             Floor = floor;
             Name = name;
+            Markers = markers ?? Array.Empty<MarkerInfo>();
         }
 
         public string Id { get; }
         public int Floor { get; }
         public string Name { get; }
+
+        /// <summary>The alignment markers of this area; empty until the area has been measured.</summary>
+        public IReadOnlyList<MarkerInfo> Markers { get; }
     }
 
     public sealed class PackageFile

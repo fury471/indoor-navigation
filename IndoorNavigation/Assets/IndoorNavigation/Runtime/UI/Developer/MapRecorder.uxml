@@ -1,0 +1,18 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- Developer only: record an area's world map and mark its door corners. The camera shows
+         through; the crosshair is the exact middle of the screen, where marks are raycast. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="recorder">
+        <ui:VisualElement class="card">
+            <ui:Label name="area" class="strong" />
+            <ui:Label name="status" class="small" />
+        </ui:VisualElement>
+        <ui:VisualElement class="spacer" />
+        <ui:VisualElement class="sheet">
+            <ui:VisualElement name="markers" class="recorder-markers" />
+            <ui:Button name="save" text="Save map" class="button button--primary" />
+            <ui:Button name="close" text="Close" class="button" />
+        </ui:VisualElement>
+        <ui:VisualElement name="crosshair" class="crosshair" picking-mode="Ignore" />
+    </ui:VisualElement>
+</ui:UXML>

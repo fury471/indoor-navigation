@@ -238,3 +238,44 @@
     width: 44px;
     height: 44px;
 }
+
+/* World-map recorder (developer only): over the camera, with a crosshair in the exact middle. */
+#map-recorder {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.recorder {
+    flex-grow: 1;
+    padding: 60px 16px 34px 16px;
+}
+
+.crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 32px;
+    height: 32px;
+    margin-left: -16px;
+    margin-top: -16px;
+    border-width: 3px;
+    border-radius: 16px;
+    border-color: var(--destination);
+}
+
+/* Marker buttons have long names ("Mark vr-lab-left"), so two fit per row. */
+.recorder-markers {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.recorder-markers > Button {
+    width: 48%;
+    height: 44px;
+    margin: 4px 1%;
+    font-size: 13px;
+    white-space: normal;
+}

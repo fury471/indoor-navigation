@@ -2,7 +2,11 @@
     "name": "IndoorNavigation.Adapters",
     "rootNamespace": "IndoorNavigation.Adapters",
     "references": [
-        "IndoorNavigation.Core"
+        "IndoorNavigation.Core",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems",
+        "Unity.XR.ARKit",
+        "Unity.XR.CoreUtils"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
