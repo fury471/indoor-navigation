@@ -27,6 +27,7 @@ namespace IndoorNavigation.UI.Developer
         /// <param name="recorder">The world-map recorder, or null when the position is a placeholder.</param>
         /// <param name="positionStatusText">One line from the real position source, or null.</param>
         /// <param name="logCheckPoint">Writes the current position to the log and returns one line, or null.</param>
+        /// <param name="nextArea">Locates the next area, for recording or testing its map; returns one line, or null.</param>
         public DeveloperPanelPresenter(
             VisualElement panel,
             VisualElement hotspot,
@@ -34,7 +35,8 @@ namespace IndoorNavigation.UI.Developer
             IDeveloperActions actions,
             MapRecorderPresenter recorder = null,
             Func<string> positionStatusText = null,
-            Func<string> logCheckPoint = null)
+            Func<string> logCheckPoint = null,
+            Func<string> nextArea = null)
         {
             this.panel = panel ?? throw new ArgumentNullException(nameof(panel), "developer-panel is missing from AppShell.uxml.");
             this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -78,6 +80,18 @@ namespace IndoorNavigation.UI.Developer
                 Wire("check-point", () =>
                 {
                     string result = logCheckPoint();
+                    if (checkResult != null) checkResult.text = result;
+                    Render();
+                });
+            }
+
+            // Next area: every area's map can be recorded and tested in one visit, without a route.
+            SetVisible("next-area", nextArea != null);
+            if (nextArea != null)
+            {
+                Wire("next-area", () =>
+                {
+                    string result = nextArea();
                     if (checkResult != null) checkResult.text = result;
                     Render();
                 });

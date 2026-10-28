@@ -7,6 +7,7 @@ using IndoorNavigation.Adapters.AR;
 using IndoorNavigation.Adapters.Data;
 using IndoorNavigation.Adapters.Placeholders;
 using IndoorNavigation.Core.Ports;
+using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.Core.Session;
 using IndoorNavigation.Core.Venue;
 using IndoorNavigation.UI;
@@ -149,13 +150,13 @@ namespace IndoorNavigation.App
             if (recorderElement != null) ScreenPresenter.SetVisible(recorderElement, false);
             if (config.developerPanel)
             {
-                MapRecorderPresenter recorderPresenter = recorder == null
-                    ? null
-                    : new MapRecorderPresenter(recorderElement, new MapRecordingActions(recorder), session);
+                MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, () => session.Venue);
+                MapRecorderPresenter recorderPresenter = recording == null ? null : new MapRecorderPresenter(recorderElement, recording, session);
                 Func<string> positionStatus = realPosition == null ? (Func<string>)null : () => realPosition.Status;
                 Func<string> checkPoint = realPosition == null ? (Func<string>)null : realPosition.LogCheckPoint;
+                Func<string> nextArea = recording == null ? (Func<string>)null : recording.NextArea;
                 var actions = new DeveloperActions(session, placeholderRepository, placeholderPosition, placeholderAttitude, placeholderSearch);
-                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus, checkPoint);
+                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus, checkPoint, nextArea);
                 gameObject.AddComponent<DeveloperKeys>().Init(actions, panel, root);
             }
             else
@@ -200,8 +201,11 @@ namespace IndoorNavigation.App
 
         private static VisualElement ScreenElement(VisualElement root, string code) => root.Q<VisualElement>("screen-" + code);
 
-        /// <summary>The venue's area with this id; read when needed, because the venue loads after start-up.</summary>
-        private AreaInfo AreaById(string areaId) => session?.Venue?.Area(areaId);
+        /// <summary>
+        /// The venue's area with this id, or the two-floor test area; read when needed, because the
+        /// venue loads after start-up.
+        /// </summary>
+        private AreaInfo AreaById(string areaId) => RecordingAreas.Find(session?.Venue, areaId);
 
         /// <summary>The real position needs the AR objects from the scene; says which one is missing.</summary>
         private ARSession RequireArReferences()

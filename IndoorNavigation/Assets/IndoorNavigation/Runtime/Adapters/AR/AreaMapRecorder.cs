@@ -29,10 +29,12 @@ namespace IndoorNavigation.Adapters.AR
     /// Saving follows the localisation lab's recorder (ARKit's GetARWorldMapAsync).
     /// While recording, ARKit's feature points (what a world map is made of) and the path walked are
     /// collected in <see cref="Coverage"/>, for the overlay's live map.
+    /// Every recording starts in a fresh AR session, so the map holds only what was seen while
+    /// recording: a floor 2 map recorded after walking up from floor 1 must not hold floor 1 too.
     /// </summary>
     public sealed class AreaMapRecorder : MonoBehaviour
     {
-        public const float SaveTimeoutSeconds = 30f;
+        public const float SaveTimeoutSeconds = 60f; // a two-floor test map is larger
 
         /// <summary>A hit must be at least this far below the camera to count as the floor, not a table.</summary>
         public const float MinimumDropToFloorMetres = 0.6f;
@@ -143,11 +145,12 @@ namespace IndoorNavigation.Adapters.AR
                 ? "Aim the circle at a door corner on the floor and mark it."
                 : "Mark door corners in route order, as you face each door from the corridor: left, then right.";
             positioning.PauseForRecording();
+            arSession.Reset(); // a fresh session: the map holds only what is seen from now on
             SetPlaneDetection(true);
             coverage.Clear();
             SetPointClouds(true);
             IsRecording = true;
-            Report("map", "recording started for " + area.Id);
+            Report("map", "recording started for " + area.Id + " in a fresh AR session");
             reason = null;
             return true;
         }

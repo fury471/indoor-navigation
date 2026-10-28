@@ -43,6 +43,7 @@
             <ui:Label text="World map (real position)" class="small" />
             <ui:Label name="position-status" class="small" />
             <ui:VisualElement class="developer-buttons">
+                <ui:Button name="next-area" text="Next area" />
                 <ui:Button name="record-map" text="Record map" />
                 <ui:Button name="check-point" text="Log check point" />
             </ui:VisualElement>

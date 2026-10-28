@@ -55,6 +55,8 @@ namespace IndoorNavigation.Adapters.AR
         private float notTrackingSince = -1f;
         private int attempts;
         private int checkPoints;
+        private string lastTracking;
+        private float trackingChangedAt;
 
         /// <summary>True when the session is in the map's frame but the package lacks the corners' plan positions.</summary>
         private bool inMapFrameWithoutPlan;
@@ -178,6 +180,7 @@ namespace IndoorNavigation.Adapters.AR
         private void Update()
         {
             if (CurrentArea == null) return;
+            ReportTrackingChanges();
 
             if (loadPending && SessionReady)
             {
@@ -299,6 +302,33 @@ namespace IndoorNavigation.Adapters.AR
             arSession.Reset();
         }
 
+        /// <summary>
+        /// Logs every change of ARKit's tracking state with its reason and how long the previous state
+        /// lasted, in every view. With the phone held flat the camera sees only the floor, and ARKit
+        /// reports "insufficientFeatures" when it shows too little detail (decision record 9); this
+        /// measures how often that happens.
+        /// </summary>
+        private void ReportTrackingChanges()
+        {
+            if (Session == null) return;
+            string now = TrackingText();
+            if (now == lastTracking) return;
+            float t = Time.realtimeSinceStartup;
+            string before = lastTracking == null
+                ? ""
+                : string.Format(CultureInfo.InvariantCulture, " (was {0} for {1:F1} s)", lastTracking, t - trackingChangedAt);
+            Report("tracking", now + before);
+            lastTracking = now;
+            trackingChangedAt = t;
+        }
+
+        private string TrackingText() => TrackingNormally()
+            ? "normal"
+            : Session.trackingState + " " + Session.notTrackingReason;
+
+        /// <summary>The camera's angle from straight down: about 0° with the phone flat, about 90° held upright.</summary>
+        private float CameraTiltDegrees() => Vector3.Angle(cameraTransform.forward, -origin.TrackablesParent.up);
+
         private bool TrackingNormally() =>
             Session.trackingState == TrackingState.Tracking &&
             Session.notTrackingReason == NotTrackingReason.None &&
@@ -349,11 +379,13 @@ namespace IndoorNavigation.Adapters.AR
         public string LogCheckPoint()
         {
             bool inMapFrame = alignment != null || inMapFrameWithoutPlan;
-            if (!inMapFrame || Session == null || !TrackingNormally())
+            if (!inMapFrame || Session == null)
             {
                 return "Not located yet: look around until the map is recognised.";
             }
 
+            // Logged even while tracking is limited, with the tracking state and the phone's tilt,
+            // so a walk with the phone held flat can be compared with one held upright.
             checkPoints++;
             Vector3 p = origin.TrackablesParent.InverseTransformPoint(cameraTransform.position);
             string detail = string.Format(CultureInfo.InvariantCulture, "{0} {1}: ar {2:F2}, {3:F2}, {4:F2}", CurrentArea, checkPoints, p.x, p.y, p.z);
@@ -363,8 +395,9 @@ namespace IndoorNavigation.Adapters.AR
                 detail += string.Format(CultureInfo.InvariantCulture, "; plan {0:F2}, {1:F2}", x, z);
             }
 
+            detail += string.Format(CultureInfo.InvariantCulture, "; tracking {0}; camera {1:F0}° from straight down", TrackingText(), CameraTiltDegrees());
             Report("check", detail);
-            return "Logged check point " + checkPoints.ToString(CultureInfo.InvariantCulture) + ".";
+            return "Logged check point " + checkPoints.ToString(CultureInfo.InvariantCulture) + (TrackingNormally() ? "." : " (tracking " + TrackingText() + ").");
         }
 #else
         private void Update()

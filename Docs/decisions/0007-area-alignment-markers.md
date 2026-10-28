@@ -1,6 +1,6 @@
 # 7. Align each area's world map to the plan with door-corner markers
 
-Date: 2026-10-26 (revised 2026-10-27: corners are marked before their plan positions are known)
+Date: 2026-10-26 (revised 2026-10-27: corners are marked before their plan positions are known; 2026-10-28: every area recorded in one visit, and a two-floor map tested)
 Status: Accepted
 
 ## Context
@@ -24,4 +24,11 @@ An ARKit world map brings back the AR coordinate frame of the session that recor
 - With markers on one straight line only, a mirrored plan cannot be detected. Corners of doors on different walls avoid that.
 - Route-order names depend on the written note: a door marked in the wrong order is paired with the wrong plan corner. The door widths shown while marking, the RMS error after the package is written, and the note's door list are three independent checks.
 - Tape crosses were considered and rejected: they cannot be guaranteed to stay on the floor for the weeks between recording and the test. Building RoomPlan into our own app, so the scan and the world map share one AR session, would remove markers altogether; that is the capture-scene Could.
+- One map per area, one area per floor, is the default: the floor is confirmed by the user, never guessed, and a map of one floor cannot relocalise on the other. A single map for both floors would make the stairs seamless and could read the floor from the height, but floors that look alike risk relocalising on the wrong floor ("perceptual aliasing", Lowry et al. 2016), and the project handoff lists "single map versus regional maps" as untested. So lab visit 1 also records a test map of both floors walked by the stairs (`both-floors`, panel W → Next area) and compares time to relocalise, failures and wrong-floor matches (the check points' height shows the floor). The result decides whether this default stays.
+- Every recording starts in a fresh AR session, so a map holds only what was walked while recording it.
 - Recorded maps and alignments later move into the venue package (decision record 4 already lists `area-N.worldmap` and `alignment.json`).
+
+## Sources
+
+- Lowry, S., Sünderhauf, N., Newman, P., Leonard, J. J., Cox, D., Corke, P., & Milford, M. J. (2016). Visual place recognition: A survey. *IEEE Transactions on Robotics, 32*(1), 1–19. doi:10.1109/TRO.2015.2496823
+- Umeyama, S. (1991). Least-squares estimation of transformation parameters between two point patterns. *IEEE Transactions on Pattern Analysis and Machine Intelligence, 13*(4), 376–380. doi:10.1109/34.88573
