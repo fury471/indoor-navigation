@@ -43,7 +43,7 @@ namespace IndoorNavigation.UI.Screens
             bool leftNext = Session.CornersMarked == 0;
             string stand = fixing.Inside
                 ? "Stand inside the room, a few steps from its door, facing the door."
-                : "Stand in the corridor in front of the door, facing it.";
+                : "Stand outside the door (in the corridor, or in the room around it), facing it.";
             step.text = leftNext
                 ? stand + " Put the circle where the LEFT side of the frame meets the floor, then tap Mark."
                 : "Now the RIGHT side of the frame, where it meets the floor.";

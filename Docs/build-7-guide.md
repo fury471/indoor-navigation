@@ -1,6 +1,6 @@
-# Builds 7 to 9: finding your position, arrows in AR
+# Builds 7 to 10: finding your position, arrows in AR
 
-Build 7 (`export-position-007`, source `dc934c6`) was the first version: it opened the doors by itself after 10 s and only from the corridor. Build 8 (`export-position-008`, `7324a64`) added the floor question, rooms and the reminder, but had layout and data bugs (`device-tests.md`). **Build 9 (`export-position-009`) fixes them and is the one to test.** It makes finding the position quick and dependable, with the person in control (decision record 11):
+Build 7 (`export-position-007`, source `dc934c6`) was the first version: it opened the doors by itself after 10 s and only from the corridor. Build 8 (`export-position-008`, `7324a64`) added the floor question, rooms and the reminder, but had layout and data bugs (`device-tests.md`). Build 9 (`export-position-009`, `8f080aa`) fixes them. **Build 10 (`export-position-010`) adds the wording for rooms inside rooms ("at a door, outside it") and is the one to test.** It makes finding the position quick and dependable, with the person in control (decision record 11):
 
 - **Screen 1** first asks **Which floor are you on?**, then tries that floor's world map while it tells you how to hold the phone. After about 10 s with the phone up it shows a **reminder** ("Still recognising this floor… or try another way"), and **Tell the app where I am** becomes the main button. Nothing switches by itself: the map keeps trying until you tap it. Then **Where are you?** lists the rooms people start in (*VR lab*, *Toilets*) and the corridor doors (*Lift*), your floor first, with a button to go back to the map.
 - **Screen 1b** shows the chosen door with a small drawing, and says whether to stand inside the room or in the corridor. You mark its left corner, then its right corner, where the frame meets the floor. If the width doesn't match the door, it asks you to mark again. Then you're placed: position, heading and floor.
@@ -23,26 +23,26 @@ Until the package lists the corners on the real plan, each floor's recording is 
 
 ## B. Commit (5 min)
 
-For build 9: the fixes, with their documents (the material is already in `c248162`).
+For build 10: the wording for inner rooms, with its documents (build 9's fixes are in `8f080aa`).
 
 ```powershell
-git add README.md Docs IndoorNavigation/Assets/IndoorNavigation/Runtime IndoorNavigation/Assets/IndoorNavigation/Tests/EditMode
+git add README.md Docs IndoorNavigation/Assets/IndoorNavigation/Runtime
 git diff --cached --stat
-git commit -m "fix(ui): keep developer overlays and the crosshair clear; refuse door widths that are not doors"
+git commit -m "fix(ui): say 'outside the door' so inner rooms read right; build 10"
 git push
 ```
 
-The stat should show `AppCover.cs` with its `.meta`, the changed code, styles and tests, and the documents. Leave `ProjectSettings.asset` and anything under `Assets/XR` out.
+The stat should show three code files and the documents. Leave `ProjectSettings.asset` and anything under `Assets/XR` out.
 
 ## C. Build (about 45 min, mostly waiting)
 
-As before: Build Profiles → iOS → **Build** into `E:\IndoorNavigationBuilds\position-009\Xcode`, then
+As before: Build Profiles → iOS → **Build** into `E:\IndoorNavigationBuilds\position-010\Xcode`, then
 
 ```powershell
-.\Tools\Package-Xcode.ps1 -ExportDirectory E:\IndoorNavigationBuilds\position-009\Xcode -ZipPath E:\IndoorNavigationBuilds\position-009\xcode-export.zip
+.\Tools\Package-Xcode.ps1 -ExportDirectory E:\IndoorNavigationBuilds\position-010\Xcode -ZipPath E:\IndoorNavigationBuilds\position-010\xcode-export.zip
 ```
 
-GitHub → new release `export-position-009` on the pushed commit with the ZIP → Actions → **iOS unsigned build** with `export_tag` = `export-position-009` → install the IPA with Sideloadly over the old app.
+GitHub → new release `export-position-010` on the pushed commit with the ZIP → Actions → **iOS unsigned build** with `export_tag` = `export-position-010` → install the IPA with Sideloadly over the old app.
 
 ## D. Quick check at home (15 min)
 
@@ -70,10 +70,11 @@ Building empty, normal lighting, Auto-Lock **Never**, don't leave the app while 
 **Floor 1 (about 50 min)**
 
 1. **Record.** W → World maps → **New map** `f1`, floor 1.
-2. **Mark the doors**, always from the corridor side, facing the door, about 1.5 m away, left corner then right corner: the **VR lab**, **each toilet door**, the **lift**, and one more door on a different wall. After each door, tap its chip and name it (*VR lab*, *Toilets*, *Lift*). For the VR lab, switch on **People may start inside this room**. Photograph each door.
-3. **Walk:** the corridor between VR lab, toilets, lift and stairs in both directions; **inside the VR lab** (walk around, then stand a few steps in front of its door, facing it); and around the foot of the stairs. At each named door, stop and turn slowly left and right. Save when Mapped (3–5 min a part; Test, then Continue for the next part).
+2. **Mark the doors**, always from **outside** the door, facing it, about 1.5 m away, left corner then right corner: the **VR lab** (from the corridor), the **inner room's door inside the VR lab** (from inside the VR lab), **each toilet door**, the **lift**, and one more door on a different wall. After each door, tap its chip and name it (*VR lab*, *VR lab – inner room*, *Toilets*, *Lift*). Switch on **People may start inside this room** for the VR lab and for the inner room: **the demo starts in the inner room** (30 Oct). Photograph each door.
+3. **Walk:** the corridor between VR lab, toilets, lift and stairs in both directions; **inside the VR lab and inside its inner room** (walk around each, then stand a few steps in front of its door, facing it); and around the foot of the stairs. At each named door, stop and turn slowly left and right. Save when Mapped (3–5 min a part; Test, then Continue for the next part).
 4. **Check points for the route** (W → Log check point, standing still, phone upright): the **foot of the stairs** (middle of the bottom step), the **middle of the lift door**, the **middle of each toilet door**, the **middle of the VR lab door**. Note each number.
 5. **Automatic start, 4 times:** close the app, open it, choose floor 1, hold the phone up: inside the VR lab, by the lift, by the toilets, at the foot of the stairs. Note the seconds, or "no" after 1 minute.
+   **The demo start, 5 times:** stand on the exact spot in the inner room where the demo will begin (mark it with your foot position, not with tape) and start the app as a visitor would. Note the seconds each time. Then do the door fix from there twice: *inner room* under "in a room", facing its door.
 6. **Door fix, 4 times:** W → Find position again → *VR lab* (in a room), *VR lab* (corridor), *Lift*, *Toilets*. Note the seconds and any "mark again".
 7. **Drift:** after a fix, turn **Doors in AR** on and walk VR lab → toilets → lift. At each door, Log check point and note how far the orange posts are from the real corners (cm, by eye).
 
@@ -82,7 +83,7 @@ Building empty, normal lighting, Auto-Lock **Never**, don't leave the app while 
 **Floor 3 (about 30 min)**
 
 8. **Record** `f3`, floor 3. Mark and name the **lift** door and **two doors along the hallway** (on different walls if possible). Walk the hallway both ways, around the printer and the top of the stairs. Save when Mapped.
-9. **Check points:** in front of the **printer** (where a person stands to use it), the **top of the stairs**, the **middle of the lift door**, and the hallway spot where the demo starts. Note each number.
+9. **Check points:** in front of the **printer** (where a person stands to use it), the **top of the stairs**, the **middle of the lift door**, and the hallway spot the demo goes to. Note each number.
 10. **Automatic start, 2 times** (in the hallway, by the printer) and **door fix, 2 times** (lift, one hallway door).
 
 **Between the floors (15 min): does tracking survive the climb?**

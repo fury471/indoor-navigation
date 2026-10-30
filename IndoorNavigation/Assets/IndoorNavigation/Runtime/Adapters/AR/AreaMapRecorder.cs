@@ -263,7 +263,7 @@ namespace IndoorNavigation.Adapters.AR
             {
                 message = HasPlanMarkers
                     ? "Aim the circle at a door corner on the floor and mark it. Don't leave the app until it says Saved."
-                    : "Mark each door from the corridor side, facing it: left corner, then right, where the frame meets the floor. Don't leave the app until it says Saved.";
+                    : "Mark each door from outside it (the corridor, or the room around an inner room), facing it: left corner, then right, where the frame meets the floor. Don't leave the app until it says Saved.";
                 Report("map", "recording started for " + area.Id + " (floor " + area.Floor.ToString(CultureInfo.InvariantCulture) + ") in a fresh AR session");
             }
         }

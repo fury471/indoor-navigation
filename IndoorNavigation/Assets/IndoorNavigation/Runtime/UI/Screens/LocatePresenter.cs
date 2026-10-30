@@ -155,7 +155,7 @@ namespace IndoorNavigation.UI.Screens
                 return;
             }
 
-            doorIntro.text = "Where are you? Choose the room you're in, or the door you're standing at in the corridor. You'll then aim at that door.";
+            doorIntro.text = "Where are you? Choose the room you're in, or the door you're standing in front of, outside it. You'll then aim at that door.";
             int lastFloor = int.MinValue;
             bool? lastInside = null;
             foreach (DoorInfo door in doors)
@@ -165,7 +165,7 @@ namespace IndoorNavigation.UI.Screens
                     lastFloor = door.Floor;
                     lastInside = door.Inside;
                     string floorName = "Floor " + door.Floor.ToString(CultureInfo.InvariantCulture);
-                    var heading = new Label(floorName + (door.Inside ? " · in a room" : " · at a door, in the corridor"));
+                    var heading = new Label(floorName + (door.Inside ? " · in a room" : " · at a door, outside it"));
                     heading.AddToClassList("locate-floor");
                     doorList.Add(heading);
                 }

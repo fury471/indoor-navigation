@@ -173,4 +173,11 @@
   - a relocalised map always counts as located;
   - a map can be saved only with two doors at a door's width (0.6–2.5 m), and the recorder says which door to mark again.
 - Layout checked with an HTML replica at 390×694 (iPhone SE) and 390×848 (iPhone 16 Pro): nothing overlaps the crosshair, nothing runs off the screen.
-- Result: to be tested (`Docs/build-7-guide.md` part D), with the checks listed under build 8.
+- Source commit: 8f080aa
+- Result: built; superseded by build 10 before its device test.
+
+## Build 10 — rooms inside rooms
+
+- Export release: `export-position-010`
+- What changed: wording only. Screen 1 lists "at a door, outside it" instead of "in the corridor", and 1b and the recorder say "outside the door (in the corridor, or in the room around it)", so a room inside a room (the VR lab's inner room, where the demo starts) reads right.
+- Result: to be tested (`Docs/build-7-guide.md` parts D and E), with the checks listed under builds 8 and 9.
