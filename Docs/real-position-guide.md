@@ -1,5 +1,12 @@
 # Real position: guide for build 3
 
+> **Partly history (30 Oct 2026).** Part A (the idea) and the code table still hold. Parts C and D describe build 3c and lab visit 1; since then:
+> - **Next area** and the `both-floors` test are gone. Panel W → **World maps** lists the maps on the phone; you name, test, continue and delete them there. Steps: `world-map-guide.md`.
+> - The app no longer re-applies a map every 45 s; it applies it again only if relocalising never started within 15 s (`RelocalisationPolicy`), because re-applying restarts the matching.
+> - A recording that is interrupted (tracking restarts, the app leaves the screen) can't be saved.
+> - The demo now covers three floors, one map each, and the app finds the floor by trying the maps (decision 10).
+> - The route in AR moves to build 7. What happened in the lab: `lab-visit-1.md`.
+
 Build 3 replaces the placeholder position with the real one for the floor 1 start area. The phone recognises the area from a saved ARKit world map, and door corners turn AR coordinates into plan metres. Build 4 then draws the route in AR.
 
 Everything in the lab happens in **one visit**: the scans, and the world maps of both floors with their tests. The corners' plan positions come from the scans afterwards, so the maps are recorded before they are known.
@@ -52,17 +59,20 @@ Decision record 7 has the reasons for each choice; decision record 9 covers the 
 |---|---|
 | `Core/Positioning/PlanAlignment.cs` | The fit, AR → plan, plan → AR, and heading (10 tests) |
 | `Core/Positioning/MarkerPairing.cs` | Route-order names, pairing by name, door widths, the fit with the package first (9 tests) |
-| `Core/Positioning/MapCoverage.cs` | What a recording covers: feature points per 0.5 m square, the path, the marks, for the live map (7 tests) |
+| `Core/Positioning/MapCoverage.cs` | What a recording covers: feature points per 0.5 m square, the path, the marks, for the live map; since build 6 also what the map covered before it was continued |
+| `Core/Positioning/RecordingAreas.cs` | Which area a name means (package first, then the saved map), map names, the one-line detail of a saved map (build 4) |
+| `Core/Positioning/MapSessionRules.cs` | `RecordingGuard` (interrupted recordings), `RelocalisationPolicy` (when to apply a map again), `RecordingProgress` (the time, distance and size line) (build 4) |
 | `Core/Venue/VenueManifest.cs` | `MarkerInfo`; each area lists its markers |
 | `Core/Venue/VenueValidator.cs` | An area with markers needs at least two, 1 m or more apart (3 tests) |
 | `Adapters/AR/WorldMapPositionSource.cs` | The real `IPositionSource`: load, relocalise, plan pose, lost and found, check points, tracking changes in the log |
 | `Adapters/AR/AreaMapRecorder.cs` | Mark the door corners, save map + `alignment.json` |
-| `Adapters/AR/AreaMapStore.cs` | `Documents/WorldMaps/<area>/`, written safely (temporary folder first) |
-| `UI/Developer/MapRecorder.uxml`, `MapRecorderPresenter.cs`, `IMapRecording.cs` | The recorder overlay with its crosshair, mapping badge and live map |
-| `UI/Developer/DeveloperPanel.uxml`, `DeveloperPanelPresenter.cs` | Panel W's World map group: status, Record map, Log check point |
+| `Adapters/AR/AreaMapStore.cs` | `Documents/WorldMaps/<area>/` with the map, `alignment.json` and (build 6) `coverage.json`, written safely (temporary folder first); list, read and delete |
+| `UI/Developer/MapRecorder.uxml`, `MapRecorderPresenter.cs`, `IMapRecording.cs` | The recorder overlay: crosshair, progress line, live map, door chips, Undo, Mark, Save |
+| `UI/Developer/MapLibrary.uxml`, `MapLibraryPresenter.cs` | The World maps screen: status, maps by floor, Test, Continue, Delete, New map (build 5) |
+| `UI/Developer/DeveloperPanel.uxml`, `DeveloperPanelPresenter.cs` | Panel W's World maps group: status, World maps, Log check point |
 | `App/MapRecordingActions.cs`, `App/CompositionRoot.cs` | Wiring; in the Editor, Real position and attitude fall back to the placeholders |
 
-The tests now number 244.
+The tests numbered 244 at build 3 and 258 at build 6.
 
 ## B. Unity set-up (done 26 Oct)
 

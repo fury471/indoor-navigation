@@ -1,7 +1,7 @@
 # 9. Keep the position honest while the phone is held low
 
 Date: 2026-10-28
-Status: Proposed. Accept or change after the low-phone walk on lab visit 1 (29 Oct); the thresholds are set from that walk and from the week 6 localisation test.
+Status: Proposed. Accept or change after the low-phone walk, moved from lab visit 1 (29 Oct, not done; see `Docs/lab-visit-1.md`) to lab visit 2; the thresholds are set from that walk and from the week 6 localisation test.
 
 ## Context
 

@@ -1,6 +1,8 @@
 # scan-to-plan
 
-Turns the OpenPlan3D scans of lab visit 1 into one plan of the building, in metres. Claude runs it; you check the drawings it makes. Python 3.9 or newer, standard library only.
+Turns OpenPlan3D (RoomPlan) scans into one plan of the building, in metres. Claude runs it; you check the drawings it makes. Python 3.9 or newer, standard library only.
+
+> **Status on 30 Oct 2026.** The tool works on the home practice scans of 27 Oct (the evidence below). In the lab on 29 Oct, RoomPlan found few walls in the large spaces, missed the lift door and left the VR lab incomplete, so those scans aren't used (`Docs/lab-visit-1.md`). That fits Apple's own scope: RoomPlan "works best for a single residential room with a maximum room size of … around 9 by 9 meters" (WWDC22). For the demo building, the plan will come from the photographed evacuation plans instead: each photo rectified to a flat drawing, then scaled and placed with the AR door corners of decision 7, with one door left out of the fit as a check. That input is not built yet; it will write the same `plan.json` and `miniature.json`, so everything downstream stays. RoomPlan stays the input for small rooms.
 
 ## Scans and how they are joined
 

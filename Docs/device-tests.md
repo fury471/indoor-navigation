@@ -97,3 +97,48 @@
 - Installation: Sideloadly
 
 - Result: flat gives B; raising it upright for half a second gives A; lowering it gives B; quick wobbles don’t flip the screen; OK: **V3b** (Change → panel **Download fails** → Download → V3b → **Try again**), and the **camera behind screen 1**.
+
+## 2026-10-27 to 28 — Real position, builds 3 and 3b (home)
+
+- Device: iPhone 16 Pro
+- Scene: App
+- Export releases: `export-position-001` (build 3: world-map position, door corners), `export-position-002` (build 3b: the live coverage map)
+- Result: not recorded separately. The session logs of 28 Oct (00:14, 01:31–01:35) show home rehearsals: the recorder opened, door corners marked, recordings cancelled. No map was saved in those runs.
+
+## 2026-10-29 — Lab visit 1, build 3c
+
+- Device: iPhone 16 Pro
+- Scene: App
+- Source commit: 812106b
+- Export release: `export-position-003`
+- Installation: Sideloadly
+- Result: **partly failed.** One world map (`area-1`, 52.1 MiB, 10 corners) was recorded and relocalised in 6 of 7 tries, in 10–39 s when it worked first time, but up to 5 min with re-applying, and once not at all in 4 min. Tracking restarted in the middle of the recording without the recorder noticing, so the map and its corners mix two frames. RoomPlan scans of the lab were unusable.
+- Full report with the numbers: `Docs/lab-visit-1.md`.
+
+### Limitations
+- The spot of each relocalisation try wasn't written down.
+- Floor 2, both floors in one map, the lift ride and the low-phone walk were not done.
+
+## 2026-10-30 — World-map library, build 4 (home)
+
+- Device: iPhone 16 Pro
+- Scene: App
+- Source commit: a8ece1d
+- Export release: `export-position-004`
+- Result: **failed.** New, short recordings at home did not relocalise.
+- Cause, found afterwards: the app loads `area-1`'s map at start, ARKit keeps it as the session's initial world map, and the reset at the start of a recording ran with it again. Each new recording began by matching the old map. The 29 Oct logs show the same (`recording started …` followed by `Limited Relocalizing`). The LocalisationLab scene never had this, because it recorded in a fresh launch.
+
+## 2026-10-30 — Stale-map fix and World maps screen, build 5 (home)
+
+- Device: iPhone 16 Pro
+- Scene: App
+- Source commit: 9ba384d
+- Export release: `export-position-005`
+- Result: **passed** for relocalisation: a new map, `test1`, relocalised after relaunching. Delete worked.
+- Problems found: the World maps screen and the recorder didn't fit the screen (panels squeezed into each other as doors and maps were added); continuing a map showed only the marked doors, not what the map already covered; the map's size wasn't visible while recording. Fixed in build 6.
+
+## Build 6 — recorder layout, earlier coverage, map size
+
+- Source commit: e7f1e51
+- Export release: `export-position-006`
+- Result: to be tested. Checks: both screens fit with 10 doors and 10 maps; Continue shows the earlier coverage in grey; the size line updates about every 20 s; Undo never removes a corner that came with the continued map.
