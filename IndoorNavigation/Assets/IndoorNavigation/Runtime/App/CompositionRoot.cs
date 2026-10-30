@@ -111,7 +111,7 @@ namespace IndoorNavigation.App
                 realPosition = gameObject.AddComponent<WorldMapPositionSource>();
                 realPosition.Init(arSessionComponent, xrOrigin, arCamera, raycastManager, planeManager, mapStore, AreaById, PackageAreas);
                 recorder = gameObject.AddComponent<AreaMapRecorder>();
-                recorder.Init(arSessionComponent, xrOrigin, raycastManager, planeManager, mapStore, realPosition, AreaById, PointCloudsForRecording());
+                recorder.Init(arSessionComponent, xrOrigin, raycastManager, planeManager, mapStore, realPosition, AreaById, PointCloudsForRecording(), AnchorsForRecording());
                 position = realPosition;
                 realPositionSource = realPosition;
                 overlay = gameObject.AddComponent<ArRouteOverlay>();
@@ -304,6 +304,20 @@ namespace IndoorNavigation.App
             ARPointCloudManager manager = xrOrigin.GetComponent<ARPointCloudManager>();
             if (manager == null) manager = xrOrigin.gameObject.AddComponent<ARPointCloudManager>();
             manager.enabled = false;
+            return manager;
+        }
+
+        /// <summary>
+        /// The recorder puts an ARKit anchor on every marked corner, so the corners move with ARKit's
+        /// corrections while the map is recorded (decision record 7, amended 30 Oct). Added here like
+        /// the point clouds, so the scene needs no change. It stays enabled: anchors are tracked only
+        /// while their manager runs.
+        /// </summary>
+        private ARAnchorManager AnchorsForRecording()
+        {
+            ARAnchorManager manager = xrOrigin.GetComponent<ARAnchorManager>();
+            if (manager == null) manager = xrOrigin.gameObject.AddComponent<ARAnchorManager>();
+            manager.enabled = true;
             return manager;
         }
 

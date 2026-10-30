@@ -7,10 +7,11 @@ using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 
+using UnityEngine.XR.ARSubsystems;
+
 #if UNITY_IOS && !UNITY_EDITOR
 using Unity.Collections;
 using UnityEngine.XR.ARKit;
-using UnityEngine.XR.ARSubsystems;
 #endif
 
 #pragma warning disable 0414, 0169, 0067 // some fields and events are only used on the iPhone
@@ -34,6 +35,13 @@ namespace IndoorNavigation.Adapters.AR
     /// relocalise, and record on in the map's own frame, so the saved map holds the old and the new.
     /// A recording that is interrupted (the app leaves the screen, or tracking restarts) is not saved,
     /// because it would mix two frames (<see cref="RecordingGuard"/>).
+    /// Every marked corner also gets an ARKit anchor. ARKit corrects its picture of the room while you
+    /// walk and moves its anchors with it ("ARKit may automatically update the properties of anchors";
+    /// an anchor "helps ARKit to optimize world-tracking accuracy in the area around that anchor",
+    /// Apple, ARAnchor and ARSessionDelegate), but a position written down at the moment of marking
+    /// stays where it was. So just before saving, each corner takes its anchor's position, and the
+    /// recorder logs how far they moved. Builds up to 9 saved the positions from the moment of marking,
+    /// which put the door posts off their corners after relocalising (30 Oct).
     /// </summary>
     public sealed class AreaMapRecorder : MonoBehaviour
     {
@@ -58,6 +66,10 @@ namespace IndoorNavigation.Adapters.AR
         private AreaMapStore store;
         private WorldMapPositionSource positioning;
         private Func<string, AreaInfo> areas;
+        private ARAnchorManager anchorManager;
+        private readonly Dictionary<string, ARAnchor> anchors = new Dictionary<string, ARAnchor>(StringComparer.Ordinal);
+        private int anchorGeneration;
+        private string lastMove = "";
 
         private AreaInfo area;
         private bool saving;
@@ -131,7 +143,8 @@ namespace IndoorNavigation.Adapters.AR
             AreaMapStore mapStore,
             WorldMapPositionSource positionSource,
             Func<string, AreaInfo> areaLookup,
-            ARPointCloudManager pointCloudManager = null)
+            ARPointCloudManager pointCloudManager = null,
+            ARAnchorManager anchorsManager = null)
         {
             arSession = session ? session : throw new ArgumentNullException(nameof(session));
             origin = xrOrigin ? xrOrigin : throw new ArgumentNullException(nameof(xrOrigin));
@@ -141,6 +154,7 @@ namespace IndoorNavigation.Adapters.AR
             positioning = positionSource ?? throw new ArgumentNullException(nameof(positionSource));
             areas = areaLookup ?? throw new ArgumentNullException(nameof(areaLookup));
             pointClouds = pointCloudManager; // optional: without it the live map shows only the path
+            anchorManager = anchorsManager; // optional: without it corners keep the positions they were marked at
         }
 
         public bool IsMarked(string markerId) => marks.ContainsKey(markerId);
@@ -164,6 +178,7 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             area = newArea;
+            ClearAnchors();
             marks.Clear();
             markOrder.Clear();
             doorLabels.Clear();
@@ -202,6 +217,7 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             area = areas(id) ?? store.TryReadArea(id) ?? new AreaInfo(id, 0, id);
+            ClearAnchors();
             marks.Clear();
             markOrder.Clear();
             foreach (ArMark m in store.ReadMarks(id))
@@ -236,6 +252,7 @@ namespace IndoorNavigation.Adapters.AR
                 arSession.Reset();
             }
             SetPlaneDetection(true);
+            WakeAnchors();
             coverage.Clear();
             earlier?.LoadInto(coverage);
             foreach (string id in markOrder) coverage.SetMark(id, marks[id].x, marks[id].z);
@@ -258,6 +275,7 @@ namespace IndoorNavigation.Adapters.AR
                 }
 
                 Report("map", $"recording continued for {area.Id} from its saved map, {markOrder.Count} corners");
+                AnchorLoadedMarks();
             }
             else
             {
@@ -284,6 +302,7 @@ namespace IndoorNavigation.Adapters.AR
             ReleaseSizeRequest();
             SetPlaneDetection(false);
             SetPointClouds(false);
+            ClearAnchors();
             Report("map", "recording cancelled");
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
@@ -373,6 +392,7 @@ namespace IndoorNavigation.Adapters.AR
             string id = markOrder[markOrder.Count - 1];
             markOrder.RemoveAt(markOrder.Count - 1);
             marks.Remove(id);
+            RemoveAnchor(id);
             coverage.RemoveMark(id);
             UpdatePreview();
             message = "Removed " + id + ". Mark it again when the circle is on the corner.";
@@ -405,6 +425,149 @@ namespace IndoorNavigation.Adapters.AR
             }
         }
 
+        /// <summary>True when ARKit anchors can be made: the manager runs and has its subsystem (not in the Editor).</summary>
+        private bool AnchorsAvailable => anchorManager != null && anchorManager.isActiveAndEnabled && anchorManager.subsystem != null;
+
+        /// <summary>
+        /// Makes sure the anchor manager runs: it was added when the app started, possibly before the
+        /// AR session, and enabling it again picks up ARKit's anchor subsystem. The log says whether
+        /// corners get anchors, so a recording's corners can be trusted or not.
+        /// </summary>
+        private void WakeAnchors()
+        {
+            if (anchorManager == null)
+            {
+                Report("map", "corner anchors off: no anchor manager");
+                return;
+            }
+
+            if (!AnchorsAvailable)
+            {
+                anchorManager.enabled = false;
+                anchorManager.enabled = true;
+            }
+
+            Report("map", AnchorsAvailable ? "corner anchors on" : "corner anchors off: ARKit gives no anchor subsystem");
+        }
+
+        /// <summary>The number of corners that have an anchor now (for the log and the tests on the phone).</summary>
+        public int AnchoredCorners => anchors.Count;
+
+        /// <summary>
+        /// Puts an anchor on a corner just marked, at <paramref name="sessionPoint"/>. ARKit creates it
+        /// asynchronously, so by then the corner may have been marked again, undone or the recording
+        /// ended: such an anchor is removed at once, and only the anchor at the corner's current
+        /// position is kept.
+        /// </summary>
+        private async void AnchorMark(string id, Vector3 sessionPoint)
+        {
+            RemoveAnchor(id);
+            if (!AnchorsAvailable || origin == null) return;
+            int generation = anchorGeneration;
+            try
+            {
+                var pose = new Pose(origin.TrackablesParent.TransformPoint(sessionPoint), Quaternion.identity);
+                Result<ARAnchor> result = await anchorManager.TryAddAnchorAsync(pose);
+                ARAnchor anchor = result.status.IsSuccess() ? result.value : null;
+                if (anchor == null)
+                {
+                    Report("map", "no anchor for " + id + ": it keeps the position it was marked at");
+                    return;
+                }
+
+                bool current = generation == anchorGeneration && IsRecording
+                    && marks.TryGetValue(id, out Vector3 now) && (now - sessionPoint).sqrMagnitude < 1e-6f
+                    && !anchors.ContainsKey(id);
+                if (current) anchors[id] = anchor;
+                else RemoveFromSession(anchor);
+            }
+            catch (Exception e)
+            {
+                Report("map", "no anchor for " + id + ": " + e.Message);
+            }
+        }
+
+        /// <summary>A continued map's corners get anchors too, once it has relocalised, after the map's own restored anchors are removed.</summary>
+        private void AnchorLoadedMarks()
+        {
+            if (!AnchorsAvailable) return;
+            var restored = new List<ARAnchor>();
+            foreach (ARAnchor anchor in anchorManager.trackables) restored.Add(anchor);
+            foreach (ARAnchor anchor in restored) RemoveFromSession(anchor);
+            foreach (string id in markOrder) AnchorMark(id, marks[id]);
+        }
+
+        private void RemoveAnchor(string id)
+        {
+            if (id == null || !anchors.TryGetValue(id, out ARAnchor anchor)) return;
+            anchors.Remove(id);
+            RemoveFromSession(anchor);
+        }
+
+        /// <summary>Removes every anchor this recorder made; anchors still being created are dropped when they arrive.</summary>
+        private void ClearAnchors()
+        {
+            anchorGeneration++;
+            foreach (ARAnchor anchor in anchors.Values) RemoveFromSession(anchor);
+            anchors.Clear();
+            lastMove = "";
+        }
+
+        private void RemoveFromSession(ARAnchor anchor)
+        {
+            if (anchor == null || !AnchorsAvailable) return; // a reset has removed it already
+            try
+            {
+                anchorManager.TryRemoveAnchor(anchor);
+            }
+            catch (Exception)
+            {
+                // The anchor is gone either way for the recording: it no longer moves a corner.
+            }
+        }
+
+        /// <summary>
+        /// Just before saving: each anchored corner takes the position ARKit now gives its anchor, and
+        /// the log says how far the corners moved since they were marked (the drift ARKit corrected).
+        /// </summary>
+        private void MoveMarksToAnchors()
+        {
+            lastMove = "";
+            if (anchors.Count == 0 || origin == null) return;
+            Transform frame = origin.TrackablesParent;
+            int moved = 0;
+            float total = 0f, largest = 0f;
+            string largestId = null;
+            foreach (KeyValuePair<string, ARAnchor> pair in new List<KeyValuePair<string, ARAnchor>>(anchors))
+            {
+                ARAnchor anchor = pair.Value;
+                if (anchor == null || anchor.trackingState == TrackingState.None || !marks.TryGetValue(pair.Key, out Vector3 was)) continue;
+                Vector3 now = frame.InverseTransformPoint(anchor.transform.position);
+                float dx = now.x - was.x, dz = now.z - was.z;
+                float shift = (float)Math.Sqrt(dx * dx + dz * dz);
+                marks[pair.Key] = now;
+                coverage.SetMark(pair.Key, now.x, now.z);
+                moved++;
+                total += shift;
+                if (shift > largest)
+                {
+                    largest = shift;
+                    largestId = pair.Key;
+                }
+            }
+
+            if (moved == 0) return;
+            UpdatePreview();
+            Report("map", string.Format(CultureInfo.InvariantCulture,
+                "corners moved with ARKit's anchors before saving: {0} of {1}, mean {2:F2} m, largest {3:F2} m ({4})",
+                moved, markOrder.Count, total / moved, largest, largestId ?? "-"));
+            if (largest >= 0.05f)
+            {
+                lastMove = string.Format(CultureInfo.InvariantCulture,
+                    " ARKit moved the corners by up to {0:F2} m ({1}) since you marked them; the saved map has the corrected places.", largest, largestId);
+            }
+        }
+
 #if UNITY_IOS && !UNITY_EDITOR
         private ARKitSessionSubsystem Session => arSession.subsystem as ARKitSessionSubsystem;
 
@@ -434,6 +597,7 @@ namespace IndoorNavigation.Adapters.AR
 
             if (!marks.ContainsKey(markerId)) markOrder.Add(markerId);
             marks[markerId] = origin.TrackablesParent.InverseTransformPoint(world);
+            AnchorMark(markerId, marks[markerId]);
             coverage.SetMark(markerId, marks[markerId].x, marks[markerId].z);
             Report("map", string.Format(CultureInfo.InvariantCulture, "marked {0} at {1:F2}, {2:F2}, {3:F2}", markerId, marks[markerId].x, marks[markerId].y, marks[markerId].z));
             UpdatePreview();
@@ -479,6 +643,7 @@ namespace IndoorNavigation.Adapters.AR
                 return;
             }
 
+            if (IsRecording && !saving) MoveMarksToAnchors(); // where ARKit now puts each corner
             if (!CanSave)
             {
                 message = SaveBlocker() ?? "Walk slowly around until Mapping says Mapped.";
@@ -651,9 +816,10 @@ namespace IndoorNavigation.Adapters.AR
                 SetPlaneDetection(false);
                 SetPointClouds(false);
                 Report("map", "coverage " + coverage.Summary());
-                message = pendingFit == null
+                message = (pendingFit == null
                     ? "Saved. The map lines up with the plan once the package lists these corners."
-                    : "Saved. This area is now located with the new map.";
+                    : "Saved. This area is now located with the new map.") + lastMove;
+                ClearAnchors(); // they are in the saved map; the next recording makes its own
                 positioning.UseRecordedMap(area.Id, pendingFit);
             }
             catch (Exception e)

@@ -556,7 +556,7 @@
     height: 44px;
 }
 
-/* 44 points high: Apple's smallest comfortable tap target (Human Interface Guidelines, Accessibility). */
+/* 44 points high: Apple's default control size on iOS, 44 x 44 pt (Human Interface Guidelines, Accessibility). */
 .door-chip {
     flex-shrink: 0;
     height: 44px;
