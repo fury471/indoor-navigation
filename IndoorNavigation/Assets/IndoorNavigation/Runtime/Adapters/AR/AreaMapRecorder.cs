@@ -204,7 +204,15 @@ namespace IndoorNavigation.Adapters.AR
             Preview = null;
             continuing = !fresh;
             positioning.PauseForRecording();
-            if (fresh) arSession.Reset(); // a fresh session: the map holds only what is seen from now on
+            if (fresh)
+            {
+                // A fresh session: the map holds only what is seen from now on. A map loaded earlier
+                // stays the session's initial world map, and a reset would re-run with it, so the new
+                // recording would start by relocalising against the old map (seen on 29 Oct). Clear it
+                // first (Unity, ARKitSessionSubsystem.ApplyWorldMap: an invalid map sets it to nil).
+                ClearWorldMap();
+                arSession.Reset();
+            }
             SetPlaneDetection(true);
             coverage.Clear();
             foreach (string id in markOrder) coverage.SetMark(id, marks[id].x, marks[id].z);
@@ -378,6 +386,7 @@ namespace IndoorNavigation.Adapters.AR
         {
             if (Session == null || !Session.running || Session.trackingState == TrackingState.None) return TrackingCondition.NotRunning;
             if (Session.notTrackingReason == NotTrackingReason.Initializing) return TrackingCondition.Initializing;
+            if (Session.notTrackingReason == NotTrackingReason.Relocalizing) return TrackingCondition.Relocalising;
             return Session.trackingState == TrackingState.Tracking && Session.notTrackingReason == NotTrackingReason.None
                 ? TrackingCondition.Normal
                 : TrackingCondition.Limited;
@@ -461,6 +470,11 @@ namespace IndoorNavigation.Adapters.AR
             }
         }
 
+        private void ClearWorldMap()
+        {
+            if (Session != null) Session.ApplyWorldMap(default(ARWorldMap));
+        }
+
         private void ReleaseRequest()
         {
             if (!saving) return;
@@ -486,6 +500,10 @@ namespace IndoorNavigation.Adapters.AR
         public void Save() => message = "Recording a world map needs the iPhone.";
 
         private void ReleaseRequest() => saving = false;
+
+        private void ClearWorldMap()
+        {
+        }
 
         private void SetPlaneDetection(bool on)
         {

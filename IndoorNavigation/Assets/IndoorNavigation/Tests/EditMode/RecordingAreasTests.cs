@@ -38,11 +38,11 @@ namespace IndoorNavigation.Core.Tests
         }
 
         [Test]
-        public void Describe_ReadsWell()
+        public void Detail_ReadsWell()
         {
-            Assert.AreEqual("f1-main · floor 1 · 10 corners · 52 MiB · saved 30 Oct 01:20",
-                RecordingAreas.Describe("f1-main", 1, 10, 54643601, new DateTime(2026, 10, 30, 1, 20, 0)));
-            Assert.AreEqual("area-2 · floor 2 · no map yet", RecordingAreas.Describe("area-2", 2, 0, 0, null));
+            Assert.AreEqual("10 corners · 52 MiB · 30 Oct 01:20", RecordingAreas.Detail(10, 54643601, new DateTime(2026, 10, 30, 1, 20, 0)));
+            Assert.AreEqual("No map yet", RecordingAreas.Detail(0, 0, null));
+            Assert.AreEqual("4 corners · 3 MiB", RecordingAreas.Detail(4, 3 * 1024 * 1024, null));
         }
     }
 
@@ -102,6 +102,26 @@ namespace IndoorNavigation.Core.Tests
             guard.AppLeftScreen(At);
             guard.Observe(TrackingCondition.NotRunning, At.AddMinutes(1), 60);
             Assert.AreEqual("the app left the screen at 22:58", guard.Reason);
+        }
+
+        [Test]
+        public void AFreshRecordingMatchingAnOldMap_IsBroken()
+        {
+            var guard = new RecordingGuard();
+            guard.Start();
+            guard.Observe(TrackingCondition.Initializing, At, 0.1);
+            guard.Observe(TrackingCondition.Relocalising, At, 1.3);
+            Assert.IsTrue(guard.Broken, "Seen on 29 Oct: a recording started after a map was loaded relocalised against it.");
+            Assert.AreEqual("the session was matching an older map", guard.Reason);
+        }
+
+        [Test]
+        public void ContinuingAMap_MayRelocaliseAgain()
+        {
+            var guard = new RecordingGuard();
+            guard.StartTracking();
+            guard.Observe(TrackingCondition.Relocalising, At, 5);
+            Assert.IsFalse(guard.Broken, "Continuing works inside the loaded map, so relocalising is not a mistake there.");
         }
 
         [Test]

@@ -235,44 +235,192 @@
     flex-grow: 1;
 }
 
-.map-list {
-    margin: 4px 0;
-}
-
-.map-row {
-    height: auto;
-    min-height: 40px;
-    margin: 2px 0;
-    padding: 6px 10px;
-    font-size: 13px;
-    -unity-text-align: middle-left;
-    white-space: normal;
-    border-radius: 10px;
-}
-
-.map-row--selected {
-    border-width: 2px;
-    border-color: var(--accent);
-}
-
-.map-row--empty {
-    color: var(--muted);
-}
-
-.new-map {
-    margin-top: 8px;
-}
-
-.new-map-name {
-    margin: 4px 1%;
-}
-
 #developer-hotspot {
     position: absolute;
     left: 0;
     top: 0;
     width: 44px;
     height: 44px;
+}
+
+/* World maps screen (developer only): status card, maps by floor, one sheet of actions at the bottom. */
+#map-library {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.maps {
+    flex-grow: 1;
+    padding: 56px 16px 28px 16px;
+    background-color: var(--ground);
+}
+
+.maps-header {
+    margin-bottom: 8px;
+}
+
+.maps-title {
+    margin: 0;
+}
+
+.maps-inline {
+    margin: 0;
+    padding: 0 14px;
+}
+
+.maps-now {
+    margin-bottom: 8px;
+}
+
+.maps-status {
+    margin-top: 8px;
+}
+
+.maps-message {
+    margin-top: 4px;
+    color: var(--text);
+}
+
+.state-pill {
+    font-size: 14px;
+    -unity-font-style: bold;
+    padding: 4px 12px;
+    border-radius: 12px;
+    color: var(--muted);
+    background-color: var(--ground);
+}
+
+.state-pill--busy {
+    color: var(--warning-text);
+    background-color: var(--warning-bg);
+}
+
+.state-pill--ok {
+    color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+.state-pill--problem {
+    color: var(--danger);
+    background-color: var(--warning-bg);
+}
+
+.maps-list {
+    flex-grow: 1;
+    margin-bottom: 8px;
+}
+
+.maps-floor-heading {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: var(--muted);
+    margin: 10px 4px 4px 4px;
+}
+
+.map-card {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    margin: 0 0 6px 0;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: var(--border);
+    background-color: var(--surface);
+}
+
+.map-card--selected {
+    border-width: 2px;
+    border-color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+.map-card--empty .map-card-name {
+    color: var(--muted);
+}
+
+.map-card-top {
+    flex-direction: row;
+    align-items: center;
+}
+
+.map-card-name {
+    flex-grow: 1;
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: var(--text);
+    -unity-text-align: middle-left;
+}
+
+.map-card-tag {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: var(--accent);
+    background-color: var(--accent-soft);
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+
+.map-card-detail {
+    font-size: 13px;
+    color: var(--muted);
+    -unity-text-align: middle-left;
+    margin-top: 2px;
+}
+
+.maps-sheet {
+    padding: 16px;
+}
+
+.maps-buttons {
+    margin-top: 4px;
+}
+
+.maps-button {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 8px 4px 0 4px;
+}
+
+.button--danger-solid {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: #FFFFFF;
+}
+
+.maps-name {
+    margin-top: 8px;
+}
+
+.maps-floor {
+    margin-top: 8px;
+}
+
+.maps-floor-label {
+    font-size: 16px;
+    color: var(--text);
+}
+
+.maps-step {
+    width: 52px;
+    margin: 0;
+    font-size: 20px;
+}
+
+.maps-floor-value {
+    width: 44px;
+    font-size: 20px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: var(--text);
+}
+
+.maps-form-message {
+    margin-top: 6px;
+    color: var(--danger);
 }
 
 /* World-map recorder (developer only): over the camera, with a crosshair in the exact middle. */

@@ -12,7 +12,10 @@ namespace IndoorNavigation.Core.Positioning
         /// <summary>Limited because ARKit is starting tracking from scratch.</summary>
         Initializing,
 
-        /// <summary>Limited for any other reason (relocalising, too few features, too much motion).</summary>
+        /// <summary>Limited while ARKit tries to match a loaded world map.</summary>
+        Relocalising,
+
+        /// <summary>Limited for any other reason (too few features, too much motion).</summary>
         Limited,
 
         Normal,
@@ -33,6 +36,7 @@ namespace IndoorNavigation.Core.Positioning
 
         private bool sawNormal;
         private bool waitingForRestart;
+        private bool fresh;
 
         public bool Broken { get; private set; }
 
@@ -48,6 +52,7 @@ namespace IndoorNavigation.Core.Positioning
         {
             sawNormal = false;
             waitingForRestart = true;
+            fresh = true;
             Broken = false;
             Reason = null;
         }
@@ -60,6 +65,7 @@ namespace IndoorNavigation.Core.Positioning
         {
             Start();
             waitingForRestart = false;
+            fresh = false;
             sawNormal = true;
         }
 
@@ -75,6 +81,15 @@ namespace IndoorNavigation.Core.Positioning
             if (condition == TrackingCondition.Normal)
             {
                 sawNormal = true;
+                return;
+            }
+
+            // A fresh recording must not be matching an older map. ARKit keeps a loaded map as the
+            // session's initial world map, and a reset re-runs with it (Unity, ARKitSessionSubsystem.ApplyWorldMap);
+            // the recorder clears it first, so this only catches a mistake.
+            if (fresh && condition == TrackingCondition.Relocalising)
+            {
+                Break("the session was matching an older map");
                 return;
             }
 

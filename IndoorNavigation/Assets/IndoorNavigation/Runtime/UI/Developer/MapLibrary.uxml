@@ -1,0 +1,63 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- Developer only: the world maps on this phone. Opened from panel W. A status card at the top,
+         the maps by floor in the middle, and one sheet at the bottom: actions for the selected map,
+         a delete confirmation, or the new-map form. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="maps">
+        <ui:VisualElement class="row maps-header">
+            <ui:Label text="World maps" class="title maps-title" />
+            <ui:VisualElement class="spacer" />
+            <ui:Button name="maps-close" text="Close" class="button button--small maps-inline" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="card maps-now">
+            <ui:VisualElement class="row">
+                <ui:Label name="maps-state" class="state-pill" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="maps-checkpoint" text="Log check point" class="button button--small maps-inline" />
+            </ui:VisualElement>
+            <ui:Label name="maps-status" class="small maps-status" />
+            <ui:Label name="maps-message" class="small maps-message" />
+        </ui:VisualElement>
+
+        <ui:ScrollView name="maps-list" class="maps-list" />
+
+        <ui:VisualElement name="maps-actions" class="sheet maps-sheet">
+            <ui:Label name="maps-selected" class="strong" />
+            <ui:Label name="maps-selected-detail" class="small" />
+            <ui:VisualElement class="row maps-buttons">
+                <ui:Button name="maps-test" text="Test" class="button maps-button" />
+                <ui:Button name="maps-continue" text="Continue" class="button maps-button" />
+                <ui:Button name="maps-delete" text="Delete" class="button button--danger maps-button" />
+            </ui:VisualElement>
+            <ui:Button name="maps-new" text="New map" class="button button--primary" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="maps-confirm" class="sheet maps-sheet">
+            <ui:Label name="maps-confirm-title" class="strong" />
+            <ui:Label text="The map and its kept copy are removed from this phone. Copy WorldMaps to the PC first if you might need it." class="small" />
+            <ui:VisualElement class="row maps-buttons">
+                <ui:Button name="maps-confirm-cancel" text="Keep it" class="button maps-button" />
+                <ui:Button name="maps-confirm-delete" text="Delete" class="button button--danger-solid maps-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="maps-form" class="sheet maps-sheet">
+            <ui:Label text="New map" class="strong" />
+            <ui:TextField name="maps-name" class="text-field maps-name" />
+            <ui:Label text="Letters, digits and hyphens, for example f1-main." class="small" />
+            <ui:VisualElement class="row maps-floor">
+                <ui:Label text="Floor" class="maps-floor-label" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="maps-floor-down" text="−" class="button button--small maps-step" />
+                <ui:Label name="maps-floor" class="maps-floor-value" />
+                <ui:Button name="maps-floor-up" text="+" class="button button--small maps-step" />
+            </ui:VisualElement>
+            <ui:Label name="maps-form-message" class="small maps-form-message" />
+            <ui:VisualElement class="row maps-buttons">
+                <ui:Button name="maps-form-cancel" text="Cancel" class="button maps-button" />
+                <ui:Button name="maps-form-start" text="Start recording" class="button button--primary maps-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

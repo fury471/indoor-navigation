@@ -94,6 +94,26 @@ namespace IndoorNavigation.Adapters.AR
             return info.HasValue ? new AreaInfo(areaId, info.Value.Floor, areaId) : null;
         }
 
+        /// <summary>
+        /// Deletes a saved map, with its kept copy (.previous) and any half-written folder (.tmp).
+        /// Returns false if there was nothing to delete.
+        /// </summary>
+        public bool Delete(string areaId)
+        {
+            if (string.IsNullOrEmpty(areaId) || areaId.IndexOfAny(new[] { '/', '\\', '.' }) >= 0)
+                throw new ArgumentException("Not a map name: " + areaId, nameof(areaId));
+
+            bool deleted = false;
+            foreach (string folder in new[] { FolderOf(areaId), FolderOf(areaId) + ".previous", FolderOf(areaId) + ".tmp" })
+            {
+                if (!Directory.Exists(folder)) continue;
+                Directory.Delete(folder, recursive: true);
+                deleted = true;
+            }
+
+            return deleted;
+        }
+
         /// <summary>The corners stored with a saved map, for continuing it; empty if there are none.</summary>
         public List<ArMark> ReadMarks(string areaId)
         {

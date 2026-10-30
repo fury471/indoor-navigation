@@ -13,6 +13,7 @@
     <ui:Template name="NavigateAr" src="Screens/NavigateAr.uxml" />
     <ui:Template name="Arrived" src="Screens/Arrived.uxml" />
     <ui:Template name="DeveloperPanel" src="Developer/DeveloperPanel.uxml" />
+    <ui:Template name="MapLibrary" src="Developer/MapLibrary.uxml" />
     <ui:Template name="MapRecorder" src="Developer/MapRecorder.uxml" />
     <ui:VisualElement name="app">
         <ui:Instance template="BuildingSearch" name="screen-V1" />
@@ -27,6 +28,7 @@
         <ui:Instance template="Arrived" name="screen-G" />
     </ui:VisualElement>
     <ui:Instance template="DeveloperPanel" name="developer-panel" />
+    <ui:Instance template="MapLibrary" name="map-library" />
     <ui:Instance template="MapRecorder" name="map-recorder" />
     <ui:VisualElement name="developer-hotspot" />
 </ui:UXML>

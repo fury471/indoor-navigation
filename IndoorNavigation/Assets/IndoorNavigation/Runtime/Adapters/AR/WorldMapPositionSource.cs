@@ -14,7 +14,7 @@ using UnityEngine.XR.ARKit;
 using UnityEngine.XR.ARSubsystems;
 #endif
 
-#pragma warning disable 0414, 0169, 0067 // some fields and events are only used on the iPhone
+#pragma warning disable 0414, 0169, 0067, 0649 // some fields and events are only used on the iPhone
 
 namespace IndoorNavigation.Adapters.AR
 {
@@ -80,6 +80,15 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>True once the session is in the current area's map frame, with or without the plan.</summary>
         public bool InMapFrame => alignment != null || inMapFrameWithoutPlan;
 
+        /// <summary>True while the area's map is waiting for the AR session before it is applied.</summary>
+        public bool IsLoading => loadPending;
+
+        /// <summary>True while ARKit is trying to match the applied map.</summary>
+        public bool IsRelocalising => waitingForRelocalisation;
+
+        /// <summary>Seconds since the map was applied, while relocalising.</summary>
+        public float RelocalisingSeconds => waitingForRelocalisation ? Time.realtimeSinceStartup - loadStartedAt : 0f;
+
         public event Action<PositionState> StateChanged;
         public event Action<PlanPose> PoseChanged;
 
@@ -113,6 +122,7 @@ namespace IndoorNavigation.Adapters.AR
 
         public void Stop()
         {
+            if (waitingForRelocalisation) AbandonMap();
             CurrentArea = null;
             loadPending = false;
             waitingForRelocalisation = false;

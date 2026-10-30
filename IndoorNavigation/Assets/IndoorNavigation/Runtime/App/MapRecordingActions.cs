@@ -66,10 +66,26 @@ namespace IndoorNavigation.App
         public void Cancel() => recorder.Cancel();
 
         // ------------------------------------------------------------------
-        // Panel W's list of maps
+        // The World maps screen
         // ------------------------------------------------------------------
 
         public string ActiveId => position.CurrentArea;
+
+        public string StatusLine => position.Status;
+
+        public MapActivity Activity
+        {
+            get
+            {
+                if (position.CurrentArea == null) return MapActivity.None;
+                if (position.InMapFrame) return MapActivity.Relocalised;
+                if (position.IsRelocalising) return MapActivity.Relocalising;
+                if (position.IsLoading) return MapActivity.Loading;
+                return MapActivity.NotLocated;
+            }
+        }
+
+        public double ActivitySeconds => position.RelocalisingSeconds;
 
         public bool Exists(string id) => !string.IsNullOrEmpty(id) && store.Has(id);
 
@@ -77,28 +93,33 @@ namespace IndoorNavigation.App
         {
             var entries = new List<MapEntry>();
             var listed = new HashSet<string>(StringComparer.Ordinal);
+            VenuePackage building = venue();
             foreach (string id in store.SavedIds())
             {
                 SavedMapInfo? info = store.TryReadInfo(id);
                 if (!info.HasValue) continue;
                 SavedMapInfo i = info.Value;
-                int floor = venue()?.Area(id)?.Floor ?? i.Floor;
+                int floor = building?.Area(id)?.Floor ?? i.Floor;
                 DateTime? local = i.SavedUtc.HasValue ? i.SavedUtc.Value.ToLocalTime() : (DateTime?)null;
-                entries.Add(new MapEntry(id, RecordingAreas.Describe(id, floor, i.Corners, i.Bytes, local), true));
+                entries.Add(new MapEntry(id, floor, RecordingAreas.Detail(i.Corners, i.Bytes, local), true));
                 listed.Add(id);
             }
 
             // The package's areas that have no map yet, so it is clear which names it expects.
-            VenuePackage building = venue();
             if (building != null)
             {
                 foreach (AreaInfo area in building.Manifest.Areas)
                 {
-                    if (listed.Contains(area.Id)) continue;
-                    entries.Add(new MapEntry(area.Id, RecordingAreas.Describe(area.Id, area.Floor, 0, 0, null), false));
+                    if (!listed.Contains(area.Id)) entries.Add(new MapEntry(area.Id, area.Floor, RecordingAreas.Detail(0, 0, null), false));
                 }
             }
 
+            entries.Sort((a, b) =>
+            {
+                if (a.Floor != b.Floor) return a.Floor.CompareTo(b.Floor);
+                if (a.HasMap != b.HasMap) return a.HasMap ? -1 : 1;
+                return string.CompareOrdinal(a.Id, b.Id);
+            });
             return entries;
         }
 
@@ -107,10 +128,27 @@ namespace IndoorNavigation.App
             if (recorder.IsRecording) return "Finish or close the recording first.";
             if (!Exists(id)) return "There is no saved map called " + id + ".";
             position.StartLocating(id);
-            return "Loading " + id + ". Stand where it was recorded and look around; the line above shows the seconds until it relocalises.";
+            return "Testing " + id + ": stand where it was recorded, phone upright, and move it slowly sideways.";
         }
 
         public bool CanContinue(string id) =>
             !recorder.IsRecording && id != null && id == position.CurrentArea && position.InMapFrame && store.Has(id);
+
+        public string Delete(string id)
+        {
+            if (recorder.IsRecording) return "Finish or close the recording first.";
+            if (string.IsNullOrEmpty(id)) return "Choose a map first.";
+            if (id == position.CurrentArea) position.Stop();
+            try
+            {
+                return store.Delete(id) ? "Deleted " + id + "." : "There was no map called " + id + ".";
+            }
+            catch (Exception e)
+            {
+                return "Could not delete " + id + ": " + e.Message;
+            }
+        }
+
+        public string LogCheckPoint() => position.LogCheckPoint();
     }
 }

@@ -48,17 +48,12 @@ namespace IndoorNavigation.Core.Positioning
             return result;
         }
 
-        /// <summary>One line for the developer panel's list, for example "f1-main · floor 1 · 10 corners · 52 MiB · saved 30 Oct 01:20".</summary>
-        public static string Describe(string areaId, int floor, int corners, long bytes, DateTime? savedLocal)
+        /// <summary>The second line of a map's card: "10 corners · 52 MiB · 30 Oct 01:20", or "No map yet".</summary>
+        public static string Detail(int corners, long bytes, DateTime? savedLocal)
         {
-            if (bytes <= 0)
-            {
-                return string.Format(CultureInfo.InvariantCulture, "{0} · floor {1} · no map yet", areaId, floor);
-            }
-
-            string saved = savedLocal.HasValue ? " · saved " + savedLocal.Value.ToString("d MMM HH:mm", CultureInfo.InvariantCulture) : "";
-            return string.Format(CultureInfo.InvariantCulture, "{0} · floor {1} · {2} corners · {3:F0} MiB{4}",
-                areaId, floor, corners, bytes / (1024.0 * 1024.0), saved);
+            if (bytes <= 0) return "No map yet";
+            string saved = savedLocal.HasValue ? " · " + savedLocal.Value.ToString("d MMM HH:mm", CultureInfo.InvariantCulture) : "";
+            return string.Format(CultureInfo.InvariantCulture, "{0} corners · {1:F0} MiB{2}", corners, bytes / (1024.0 * 1024.0), saved);
         }
     }
 }

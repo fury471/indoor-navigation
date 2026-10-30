@@ -149,14 +149,17 @@ namespace IndoorNavigation.App
             VisualElement hotspot = root.Q<VisualElement>("developer-hotspot");
             VisualElement recorderElement = root.Q<VisualElement>("map-recorder");
             if (recorderElement != null) ScreenPresenter.SetVisible(recorderElement, false);
+            VisualElement libraryElement = root.Q<VisualElement>("map-library");
+            if (libraryElement != null) ScreenPresenter.SetVisible(libraryElement, false);
             if (config.developerPanel)
             {
                 MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, mapStore, () => session.Venue);
                 MapRecorderPresenter recorderPresenter = recording == null ? null : new MapRecorderPresenter(recorderElement, recording, session);
+                MapLibraryPresenter maps = recording == null ? null : new MapLibraryPresenter(libraryElement, recording, recorderPresenter, session);
                 Func<string> positionStatus = realPosition == null ? (Func<string>)null : () => realPosition.Status;
                 Func<string> checkPoint = realPosition == null ? (Func<string>)null : realPosition.LogCheckPoint;
                 var actions = new DeveloperActions(session, placeholderRepository, placeholderPosition, placeholderAttitude, placeholderSearch);
-                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus, checkPoint, recording);
+                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, maps, positionStatus, checkPoint);
                 gameObject.AddComponent<DeveloperKeys>().Init(actions, panel, root);
             }
             else

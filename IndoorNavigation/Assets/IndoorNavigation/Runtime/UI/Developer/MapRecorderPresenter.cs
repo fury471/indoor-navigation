@@ -100,6 +100,9 @@ namespace IndoorNavigation.UI.Developer
             Render();
         }
 
+        /// <summary>Raised after the recorder closes, so the World maps screen can show again.</summary>
+        public event Action Closed;
+
         public void Close()
         {
             if (recording.IsRecording)
@@ -110,6 +113,7 @@ namespace IndoorNavigation.UI.Developer
             refresh.Pause();
             ScreenPresenter.SetVisible(root, false);
             session.LogExternal("developer", "map recorder close");
+            Closed?.Invoke();
         }
 
         private void Render()

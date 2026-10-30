@@ -43,43 +43,79 @@ namespace IndoorNavigation.UI.Developer
         void Cancel();
     }
 
-    /// <summary>One line in the developer panel's list of world maps.</summary>
+    /// <summary>One saved map (or an area the package expects) in the World maps screen.</summary>
     public readonly struct MapEntry
     {
-        public MapEntry(string id, string line, bool hasMap)
+        public MapEntry(string id, int floor, string detail, bool hasMap)
         {
             Id = id;
-            Line = line;
+            Floor = floor;
+            Detail = detail;
             HasMap = hasMap;
         }
 
         public string Id { get; }
 
-        /// <summary>"f1-main · floor 1 · 10 corners · 52 MiB · saved 30 Oct 01:20"</summary>
-        public string Line { get; }
+        public int Floor { get; }
+
+        /// <summary>"Floor 1 · 10 corners · 52 MiB · 30 Oct 01:20"</summary>
+        public string Detail { get; }
 
         public bool HasMap { get; }
     }
 
+    /// <summary>What the AR position is doing with the active map.</summary>
+    public enum MapActivity
+    {
+        /// <summary>No map is loaded.</summary>
+        None,
+
+        /// <summary>The map waits for the AR session.</summary>
+        Loading,
+
+        /// <summary>ARKit is trying to match the map.</summary>
+        Relocalising,
+
+        /// <summary>The session is in the map's frame.</summary>
+        Relocalised,
+
+        /// <summary>The area has no map, or loading it failed.</summary>
+        NotLocated,
+    }
+
     /// <summary>
-    /// The saved world maps, for panel W: list them, load one to test relocalising, and say whether
-    /// the loaded one can be continued. Implemented in the App assembly, so the UI never sees AR Foundation.
+    /// The saved world maps, for the World maps screen: list them, load one to test relocalising,
+    /// continue or delete one. Implemented in the App assembly, so the UI never sees AR Foundation.
     /// </summary>
     public interface IMapLibrary
     {
-        /// <summary>Saved maps, and the package's areas that have no map yet.</summary>
+        /// <summary>Saved maps by floor and name, then the package's areas that have no map yet.</summary>
         IReadOnlyList<MapEntry> Entries();
 
         /// <summary>The map being located now, or null.</summary>
         string ActiveId { get; }
 
+        MapActivity Activity { get; }
+
+        /// <summary>Seconds spent relocalising so far.</summary>
+        double ActivitySeconds { get; }
+
+        /// <summary>The AR position's own status line.</summary>
+        string StatusLine { get; }
+
         /// <summary>Whether a saved map with this name exists.</summary>
         bool Exists(string id);
 
-        /// <summary>Loads the map and lets ARKit relocalise against it. Returns one line for the panel.</summary>
+        /// <summary>Loads the map and lets ARKit relocalise against it. Returns one line for the screen.</summary>
         string Load(string id);
 
         /// <summary>True when this map is loaded and has relocalised, so it can be continued.</summary>
         bool CanContinue(string id);
+
+        /// <summary>Deletes the map and its kept copy. Returns one line for the screen.</summary>
+        string Delete(string id);
+
+        /// <summary>Writes the current position to the log. Returns one line for the screen.</summary>
+        string LogCheckPoint();
     }
 }
