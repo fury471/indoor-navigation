@@ -527,6 +527,7 @@ MonoBehaviour:
   xrOrigin: {fileID: 1421282530}
   raycastManager: {fileID: 1421282532}
   planeManager: {fileID: 1421282531}
+  routeMaterial: {fileID: 2100000, guid: 4b3cbfcf38993aa4a978a6906dc40fe6, type: 2}
 --- !u!114 &1118142857
 MonoBehaviour:
   m_ObjectHideFlags: 0
