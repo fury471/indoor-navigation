@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.Core.Session;
 using UnityEngine.UIElements;
 
@@ -21,13 +23,29 @@ namespace IndoorNavigation.UI.Developer
         private readonly Label positionStatus;
         private readonly Func<string> readPositionStatus;
         private readonly IVisualElementScheduledItem statusRefresh;
+        private readonly IMapLibrary library;
+        private readonly VisualElement mapList;
+        private readonly Button continueMap;
+        private readonly Button loadMap;
+        private readonly Label checkResult;
         private long firstTapTime;
         private int taps;
+        private string selectedMap;
+        private string listShown;
+        private int newMapFloor = 1;
+        private string replaceName;
+        private DateTime replaceAskedUtc;
+
+        /// <summary>Floors offered for a new map: 1 to this.</summary>
+        public const int MaxFloor = 5;
+
+        /// <summary>A second tap on Record new map within this time replaces a saved map of the same name.</summary>
+        public const double ReplaceConfirmSeconds = 10;
 
         /// <param name="recorder">The world-map recorder, or null when the position is a placeholder.</param>
         /// <param name="positionStatusText">One line from the real position source, or null.</param>
         /// <param name="logCheckPoint">Writes the current position to the log and returns one line, or null.</param>
-        /// <param name="nextArea">Locates the next area, for recording or testing its map; returns one line, or null.</param>
+        /// <param name="mapLibrary">The saved world maps, or null when the position is a placeholder.</param>
         public DeveloperPanelPresenter(
             VisualElement panel,
             VisualElement hotspot,
@@ -36,7 +54,7 @@ namespace IndoorNavigation.UI.Developer
             MapRecorderPresenter recorder = null,
             Func<string> positionStatusText = null,
             Func<string> logCheckPoint = null,
-            Func<string> nextArea = null)
+            IMapLibrary mapLibrary = null)
         {
             this.panel = panel ?? throw new ArgumentNullException(nameof(panel), "developer-panel is missing from AppShell.uxml.");
             this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -59,42 +77,73 @@ namespace IndoorNavigation.UI.Developer
             Wire("next-step", actions.NextStep);
             Wire("arrive", actions.Arrive);
 
-            // The World map group only exists when the real position is used.
+            // The World maps group only exists when the real position is used: a list of saved maps;
+            // load one to test relocalising, continue the loaded one, or record a new one by name.
             positionStatus = panel.Q<Label>("position-status");
             readPositionStatus = positionStatusText;
-            SetVisible("map-group", recorder != null);
-            if (recorder != null)
+            checkResult = panel.Q<Label>("check-result");
+            library = mapLibrary;
+            mapList = panel.Q<VisualElement>("map-list");
+            loadMap = panel.Q<Button>("load-map");
+            continueMap = panel.Q<Button>("continue-map");
+            SetVisible("map-group", recorder != null && library != null);
+            if (recorder != null && library != null)
             {
-                Wire("record-map", () =>
+                Wire("load-map", () =>
                 {
+                    Say(selectedMap == null ? "Choose a map in the list first." : library.Load(selectedMap));
+                });
+                Wire("continue-map", () =>
+                {
+                    if (selectedMap == null || !library.CanContinue(selectedMap))
+                    {
+                        Say("Load the map first and wait until it says relocalised; then you can continue it.");
+                        return;
+                    }
+
                     Close();
-                    recorder.Open();
+                    recorder.OpenContinue();
+                });
+
+                Button floorButton = panel.Q<Button>("new-map-floor");
+                TextField nameField = panel.Q<TextField>("new-map-name");
+                Wire("new-map-floor", () =>
+                {
+                    newMapFloor = newMapFloor % MaxFloor + 1;
+                    floorButton.text = "Floor " + newMapFloor;
+                });
+                Wire("new-map", () =>
+                {
+                    string name = RecordingAreas.CleanName(nameField?.value, out string problem);
+                    if (name == null)
+                    {
+                        Say(problem);
+                        return;
+                    }
+
+                    if (nameField != null) nameField.value = name;
+                    DateTime now = DateTime.UtcNow;
+                    bool confirmed = replaceName == name && (now - replaceAskedUtc).TotalSeconds <= ReplaceConfirmSeconds;
+                    if (library.Exists(name) && !confirmed)
+                    {
+                        replaceName = name;
+                        replaceAskedUtc = now;
+                        Say("A map called " + name + " exists. Tap Record new map again to replace it; the old one is kept as " + name + ".previous.");
+                        return;
+                    }
+
+                    replaceName = null;
+                    selectedMap = name;
+                    Close();
+                    recorder.OpenNew(name, newMapFloor);
                 });
             }
 
             // Check points: the panel stays open, so you can walk to the next doorway and tap again.
-            Label checkResult = panel.Q<Label>("check-result");
             SetVisible("check-point", logCheckPoint != null);
             if (logCheckPoint != null)
             {
-                Wire("check-point", () =>
-                {
-                    string result = logCheckPoint();
-                    if (checkResult != null) checkResult.text = result;
-                    Render();
-                });
-            }
-
-            // Next area: every area's map can be recorded and tested in one visit, without a route.
-            SetVisible("next-area", nextArea != null);
-            if (nextArea != null)
-            {
-                Wire("next-area", () =>
-                {
-                    string result = nextArea();
-                    if (checkResult != null) checkResult.text = result;
-                    Render();
-                });
+                Wire("check-point", () => Say(logCheckPoint()));
             }
 
             // The real position changes without the session changing (for example while relocalising),
@@ -167,9 +216,57 @@ namespace IndoorNavigation.UI.Developer
             if (element != null) ScreenPresenter.SetVisible(element, visible);
         }
 
+        private void Say(string line)
+        {
+            if (checkResult != null) checkResult.text = line ?? "";
+            Render();
+        }
+
+        /// <summary>Rebuilds the list of maps when it changed; marks the selected and the active map.</summary>
+        private void RenderMaps()
+        {
+            // Reads the saved maps' files, so only while the panel is open.
+            if (!IsOpen || library == null || mapList == null) return;
+            IReadOnlyList<MapEntry> entries = library.Entries();
+            string active = library.ActiveId;
+            if (selectedMap == null && active != null) selectedMap = active;
+
+            var shown = new System.Text.StringBuilder(selectedMap + "|" + active);
+            foreach (MapEntry e in entries) shown.Append('|').Append(e.Line);
+            if (shown.ToString() != listShown)
+            {
+                listShown = shown.ToString();
+                mapList.Clear();
+                if (entries.Count == 0)
+                {
+                    mapList.Add(new Label("No maps yet. Type a name below and tap Record new map.") { name = "map-empty" });
+                }
+
+                foreach (MapEntry entry in entries)
+                {
+                    string id = entry.Id;
+                    var row = new Button(() =>
+                    {
+                        selectedMap = id;
+                        session.LogExternal("developer", "map select " + id);
+                        Render();
+                    }) { text = (id == active ? "● " : "") + entry.Line };
+                    row.AddToClassList("map-row");
+                    row.EnableInClassList("map-row--selected", id == selectedMap);
+                    row.EnableInClassList("map-row--empty", !entry.HasMap);
+                    mapList.Add(row);
+                }
+            }
+
+            bool selectedHasMap = selectedMap != null && library.Exists(selectedMap);
+            loadMap?.SetEnabled(selectedHasMap);
+            continueMap?.SetEnabled(selectedMap != null && library.CanContinue(selectedMap));
+        }
+
         private void Render()
         {
             if (positionStatus != null) positionStatus.text = readPositionStatus?.Invoke() ?? "";
+            RenderMaps();
             showing.text = "Showing " + session.Screen + " · " + session.State + " · " + session.Study.Condition + " · " + session.Study.ParticipantCode;
         }
     }

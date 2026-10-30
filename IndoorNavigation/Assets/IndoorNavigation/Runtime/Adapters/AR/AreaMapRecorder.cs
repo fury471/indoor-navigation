@@ -29,8 +29,11 @@ namespace IndoorNavigation.Adapters.AR
     /// Saving follows the localisation lab's recorder (ARKit's GetARWorldMapAsync).
     /// While recording, ARKit's feature points (what a world map is made of) and the path walked are
     /// collected in <see cref="Coverage"/>, for the overlay's live map.
-    /// Every recording starts in a fresh AR session, so the map holds only what was seen while
-    /// recording: a floor 2 map recorded after walking up from floor 1 must not hold floor 1 too.
+    /// A map is named by whoever records it. A new map starts in a fresh AR session, so it holds only
+    /// what was seen while recording it. An existing map can be continued: load it, let ARKit
+    /// relocalise, and record on in the map's own frame, so the saved map holds the old and the new.
+    /// A recording that is interrupted (the app leaves the screen, or tracking restarts) is not saved,
+    /// because it would mix two frames (<see cref="RecordingGuard"/>).
     /// </summary>
     public sealed class AreaMapRecorder : MonoBehaviour
     {
@@ -61,6 +64,9 @@ namespace IndoorNavigation.Adapters.AR
         private List<ArMark> pendingMarks;
         private string message = "";
         private readonly MapCoverage coverage = new MapCoverage();
+        private readonly RecordingGuard guard = new RecordingGuard();
+        private float recordingStartedAt;
+        private bool continuing;
 
 #if UNITY_IOS && !UNITY_EDITOR
         private ARWorldMapRequest request;
@@ -127,32 +133,107 @@ namespace IndoorNavigation.Adapters.AR
 
         public bool IsMarked(string markerId) => marks.ContainsKey(markerId);
 
-        /// <summary>Starts recording the area the position source is locating. Returns false with a reason if it cannot.</summary>
-        public bool Begin(out string reason)
+        /// <summary>
+        /// Starts a new map called <paramref name="newArea"/>'s id, in a fresh AR session. A saved map
+        /// with the same name is replaced when this one is saved (the old one is kept as .previous).
+        /// </summary>
+        public bool BeginNew(AreaInfo newArea, out string reason)
         {
-            AreaInfo current = positioning.CurrentArea == null ? null : areas(positioning.CurrentArea);
-            if (current == null)
+            if (IsRecording || saving)
             {
-                reason = "Download a building first; the area comes from its package.";
+                reason = "A recording is already running.";
                 return false;
             }
 
-            area = current;
+            if (newArea == null || string.IsNullOrEmpty(newArea.Id))
+            {
+                reason = "Name the map first.";
+                return false;
+            }
+
+            area = newArea;
             marks.Clear();
             markOrder.Clear();
-            Preview = null;
-            message = HasPlanMarkers
-                ? "Aim the circle at a door corner on the floor and mark it."
-                : "Mark door corners in route order, as you face each door from the corridor: left, then right.";
-            positioning.PauseForRecording();
-            arSession.Reset(); // a fresh session: the map holds only what is seen from now on
-            SetPlaneDetection(true);
-            coverage.Clear();
-            SetPointClouds(true);
-            IsRecording = true;
-            Report("map", "recording started for " + area.Id + " in a fresh AR session");
+            positioning.StartLocating(area.Id);
+            StartRecording(fresh: true);
             reason = null;
             return true;
+        }
+
+        /// <summary>
+        /// Continues the map the position source has just relocalised in: records on in the same
+        /// session and frame, keeping its marked corners, so the saved map holds the old and the new.
+        /// </summary>
+        public bool BeginContinue(out string reason)
+        {
+            string id = positioning.CurrentArea;
+            if (IsRecording || saving)
+            {
+                reason = "A recording is already running.";
+                return false;
+            }
+
+            if (id == null || !store.Has(id))
+            {
+                reason = "Choose a saved map and tap Load and test first.";
+                return false;
+            }
+
+            if (!positioning.InMapFrame)
+            {
+                reason = "Wait until " + id + " has relocalised, then tap Continue recording.";
+                return false;
+            }
+
+            area = areas(id) ?? store.TryReadArea(id) ?? new AreaInfo(id, 0, id);
+            marks.Clear();
+            markOrder.Clear();
+            foreach (ArMark m in store.ReadMarks(id))
+            {
+                if (!marks.ContainsKey(m.Id)) markOrder.Add(m.Id);
+                marks[m.Id] = new Vector3((float)m.X, (float)m.Y, (float)m.Z);
+            }
+
+            StartRecording(fresh: false);
+            reason = null;
+            return true;
+        }
+
+        private void StartRecording(bool fresh)
+        {
+            Preview = null;
+            continuing = !fresh;
+            positioning.PauseForRecording();
+            if (fresh) arSession.Reset(); // a fresh session: the map holds only what is seen from now on
+            SetPlaneDetection(true);
+            coverage.Clear();
+            foreach (string id in markOrder) coverage.SetMark(id, marks[id].x, marks[id].z);
+            SetPointClouds(true);
+            if (fresh) guard.Start();
+            else guard.StartTracking();
+            recordingStartedAt = Time.realtimeSinceStartup;
+            IsRecording = true;
+            UpdatePreview();
+            if (continuing)
+            {
+                message = $"Continuing {area.Id} with its {markOrder.Count} corners. The live map shows only what you add now. Don't leave the app until it says Saved.";
+                Report("map", $"recording continued for {area.Id} from its saved map, {markOrder.Count} corners");
+            }
+            else
+            {
+                message = HasPlanMarkers
+                    ? "Aim the circle at a door corner on the floor and mark it. Don't leave the app until it says Saved."
+                    : "Mark door corners in route order, as you face each door from the corridor: left, then right. Don't leave the app until it says Saved.";
+                Report("map", "recording started for " + area.Id + " (floor " + area.Floor.ToString(CultureInfo.InvariantCulture) + ") in a fresh AR session");
+            }
+        }
+
+        /// <summary>The app left the screen: the AR session is interrupted, so the recording cannot be saved.</summary>
+        private void OnApplicationPause(bool paused)
+        {
+            if (!paused || !IsRecording || guard.Broken) return;
+            guard.AppLeftScreen(DateTime.Now);
+            Report("map", "recording interrupted: " + guard.Reason);
         }
 
         public void Cancel()
@@ -166,7 +247,12 @@ namespace IndoorNavigation.Adapters.AR
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
 
-        public bool CanSave => IsRecording && !saving && MappingDone && (HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder);
+        public bool CanSave => IsRecording && !saving && !guard.Broken && MappingDone && (HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder);
+
+        /// <summary>"Recording 4:12 · 85 m walked", or why the recording broke.</summary>
+        private string ProgressLine => guard.Broken
+            ? "Recording interrupted (" + guard.Reason + "). This map would not hold together, so it can't be saved. Close, then record again, or load the last saved map and continue it."
+            : RecordingProgress.Line(Time.realtimeSinceStartup - recordingStartedAt, coverage.PathMetres);
 
         /// <summary>One or two lines for the recorder overlay.</summary>
         public string Status
@@ -183,14 +269,14 @@ namespace IndoorNavigation.Adapters.AR
                     }
 
                     string widths = doors.Count == 0 ? "no door complete yet" : string.Join("  ", doors);
-                    return $"Mapping: {MappingText}  ·  {widths}\n{message}";
+                    return $"{ProgressLine}\nMapping: {MappingText}  ·  {widths}\n{message}";
                 }
 
                 var parts = new List<string>();
                 foreach (string id in MarkerIds) parts.Add(id + (IsMarked(id) ? " ✓" : " –"));
                 string marked = string.Join("  ", parts);
                 string fit = Preview == null ? "" : string.Format(CultureInfo.InvariantCulture, "  ·  fit {0:F2} m{1}", Preview.RmsErrorMetres, Preview.IsGood ? "" : " (aim more carefully)");
-                return $"Mapping: {MappingText}  ·  {marked}{fit}\n{message}";
+                return $"{ProgressLine}\nMapping: {MappingText}  ·  {marked}{fit}\n{message}";
             }
         }
 
@@ -242,6 +328,12 @@ namespace IndoorNavigation.Adapters.AR
 
         public void Save()
         {
+            if (guard.Broken)
+            {
+                message = "This recording was interrupted, so it can't be saved. Close, then record again.";
+                return;
+            }
+
             if (!CanSave)
             {
                 bool marked = HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder;
@@ -273,7 +365,22 @@ namespace IndoorNavigation.Adapters.AR
         private void Update()
         {
             if (saving) PollSave();
-            if (IsRecording) UpdateCoverage();
+            if (!IsRecording) return;
+
+            bool wasBroken = guard.Broken;
+            guard.Observe(Condition(), DateTime.Now, Time.realtimeSinceStartup - recordingStartedAt);
+            if (guard.Broken && !wasBroken) Report("map", "recording interrupted: " + guard.Reason);
+            UpdateCoverage();
+        }
+
+        /// <summary>ARKit's tracking, reduced to what <see cref="RecordingGuard"/> needs.</summary>
+        private TrackingCondition Condition()
+        {
+            if (Session == null || !Session.running || Session.trackingState == TrackingState.None) return TrackingCondition.NotRunning;
+            if (Session.notTrackingReason == NotTrackingReason.Initializing) return TrackingCondition.Initializing;
+            return Session.trackingState == TrackingState.Tracking && Session.notTrackingReason == NotTrackingReason.None
+                ? TrackingCondition.Normal
+                : TrackingCondition.Limited;
         }
 
         /// <summary>Adds this frame's feature points and the phone's position, in session coordinates.</summary>

@@ -51,6 +51,7 @@ namespace IndoorNavigation.App
         [SerializeField] private ARPlaneManager planeManager;
 
         private AppSession session;
+        private AreaMapStore mapStore;
 
         private void Start()
         {
@@ -85,7 +86,7 @@ namespace IndoorNavigation.App
             if (config.position == PortVersion.Real && onPhone)
             {
                 ARSession arSessionComponent = RequireArReferences();
-                var mapStore = new AreaMapStore(Path.Combine(Application.persistentDataPath, "WorldMaps"));
+                mapStore = new AreaMapStore(Path.Combine(Application.persistentDataPath, "WorldMaps"));
                 realPosition = gameObject.AddComponent<WorldMapPositionSource>();
                 realPosition.Init(arSessionComponent, xrOrigin, arCamera, mapStore, AreaById);
                 recorder = gameObject.AddComponent<AreaMapRecorder>();
@@ -150,13 +151,12 @@ namespace IndoorNavigation.App
             if (recorderElement != null) ScreenPresenter.SetVisible(recorderElement, false);
             if (config.developerPanel)
             {
-                MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, () => session.Venue);
+                MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, mapStore, () => session.Venue);
                 MapRecorderPresenter recorderPresenter = recording == null ? null : new MapRecorderPresenter(recorderElement, recording, session);
                 Func<string> positionStatus = realPosition == null ? (Func<string>)null : () => realPosition.Status;
                 Func<string> checkPoint = realPosition == null ? (Func<string>)null : realPosition.LogCheckPoint;
-                Func<string> nextArea = recording == null ? (Func<string>)null : recording.NextArea;
                 var actions = new DeveloperActions(session, placeholderRepository, placeholderPosition, placeholderAttitude, placeholderSearch);
-                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus, checkPoint, nextArea);
+                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, recorderPresenter, positionStatus, checkPoint, recording);
                 gameObject.AddComponent<DeveloperKeys>().Init(actions, panel, root);
             }
             else
@@ -174,6 +174,12 @@ namespace IndoorNavigation.App
             }
             host.Refresh();
             Run(session.StartAsync());
+        }
+
+        /// <summary>Leaving the app interrupts the AR session; the log says when, for reading relocalisation and recording results.</summary>
+        private void OnApplicationPause(bool paused)
+        {
+            session?.LogExternal("app", paused ? "left the screen" : "back on screen");
         }
 
         private void OnDestroy()
@@ -202,10 +208,10 @@ namespace IndoorNavigation.App
         private static VisualElement ScreenElement(VisualElement root, string code) => root.Q<VisualElement>("screen-" + code);
 
         /// <summary>
-        /// The venue's area with this id, or the two-floor test area; read when needed, because the
+        /// The venue's area with this id, else the saved map's own area; read when needed, because the
         /// venue loads after start-up.
         /// </summary>
-        private AreaInfo AreaById(string areaId) => RecordingAreas.Find(session?.Venue, areaId);
+        private AreaInfo AreaById(string areaId) => RecordingAreas.Find(session?.Venue, areaId, mapStore == null ? null : (Func<string, AreaInfo>)mapStore.TryReadArea);
 
         /// <summary>The real position needs the AR objects from the scene; says which one is missing.</summary>
         private ARSession RequireArReferences()

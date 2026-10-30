@@ -23,13 +23,16 @@ namespace IndoorNavigation.Adapters.AR
     /// the area's map and lets ARKit relocalise against it; once tracking is stable, the camera's
     /// pose in the session is turned into a plan pose with the area's <see cref="PlanAlignment"/>.
     /// The relocalisation check follows the localisation lab: "relocalising" must be seen first,
-    /// then two seconds of normal tracking. Works only on the iPhone; in the Editor the composition
-    /// root uses the placeholder instead.
+    /// then two seconds of normal tracking. While ARKit is relocalising, the app keeps waiting
+    /// instead of applying the map again (<see cref="RelocalisationPolicy"/>). Works only on the
+    /// iPhone; in the Editor the composition root uses the placeholder instead.
     /// </summary>
     public sealed class WorldMapPositionSource : MonoBehaviour, IPositionSource
     {
-        public const float RelocaliseTimeoutSeconds = 45f;
         public const float StableTrackingSeconds = 2f;
+
+        /// <summary>While relocalising, a progress line goes to the log this often.</summary>
+        public const float ProgressLogSeconds = 30f;
         public const float LostAfterSeconds = 1f;
 
         /// <summary>A new pose is reported only after this much movement or turning.</summary>
@@ -57,6 +60,7 @@ namespace IndoorNavigation.Adapters.AR
         private int checkPoints;
         private string lastTracking;
         private float trackingChangedAt;
+        private float lastProgressLog;
 
         /// <summary>True when the session is in the map's frame but the package lacks the corners' plan positions.</summary>
         private bool inMapFrameWithoutPlan;
@@ -72,6 +76,9 @@ namespace IndoorNavigation.Adapters.AR
 
         /// <summary>The current alignment, or null while the area is not located.</summary>
         public PlanAlignment Alignment => alignment;
+
+        /// <summary>True once the session is in the current area's map frame, with or without the plan.</summary>
+        public bool InMapFrame => alignment != null || inMapFrameWithoutPlan;
 
         public event Action<PositionState> StateChanged;
         public event Action<PlanPose> PoseChanged;
@@ -234,6 +241,7 @@ namespace IndoorNavigation.Adapters.AR
 
                 appliedFrame = Time.frameCount;
                 loadStartedAt = Time.realtimeSinceStartup;
+                lastProgressLog = 0f;
                 observedRelocalising = false;
                 trackingSince = -1f;
                 waitingForRelocalisation = true;
@@ -287,11 +295,20 @@ namespace IndoorNavigation.Adapters.AR
                 }
             }
 
-            if (now - loadStartedAt >= RelocaliseTimeoutSeconds)
+            float waited = now - loadStartedAt;
+            if (RelocalisationPolicy.ShouldApplyAgain(waited, observedRelocalising))
             {
-                Report("position", observedRelocalising ? "timed out before tracking was stable" : "timed out; relocalising never seen");
+                Report("position", "relocalising never started; applying the map again");
                 AbandonMap();
-                loadPending = true; // try again; the visitor keeps looking around
+                loadPending = true;
+                return;
+            }
+
+            Status = $"{CurrentArea}: {RelocalisationPolicy.Progress(waited)} (try {attempts})";
+            if (waited - lastProgressLog >= ProgressLogSeconds)
+            {
+                lastProgressLog = waited;
+                Report("position", string.Format(CultureInfo.InvariantCulture, "still relocalising after {0:F0} s", waited));
             }
         }
 

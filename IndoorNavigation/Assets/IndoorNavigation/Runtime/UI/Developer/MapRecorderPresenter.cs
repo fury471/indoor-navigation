@@ -78,10 +78,23 @@ namespace IndoorNavigation.UI.Developer
             ScreenPresenter.SetVisible(root, false);
         }
 
-        public void Open()
+        /// <summary>Opens the recorder on a new map with this name and floor.</summary>
+        public void OpenNew(string name, int floor)
         {
-            session.LogExternal("developer", "map recorder open");
-            reason = recording.Begin(out string why) ? null : why;
+            session.LogExternal("developer", "map recorder open new " + name);
+            Show(recording.BeginNew(name, floor, out string why) ? null : why);
+        }
+
+        /// <summary>Opens the recorder on the map that has just relocalised, to add to it.</summary>
+        public void OpenContinue()
+        {
+            session.LogExternal("developer", "map recorder open continue");
+            Show(recording.BeginContinue(out string why) ? null : why);
+        }
+
+        private void Show(string why)
+        {
+            reason = why;
             ScreenPresenter.SetVisible(root, true);
             refresh.Resume();
             Render();

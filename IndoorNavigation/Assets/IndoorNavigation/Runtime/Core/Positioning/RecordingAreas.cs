@@ -1,50 +1,64 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using IndoorNavigation.Core.Venue;
 
 namespace IndoorNavigation.Core.Positioning
 {
     /// <summary>
-    /// The areas whose world maps can be recorded and tested from the developer panel, so every
-    /// map can be collected in one lab visit instead of waiting until a route reaches each floor.
-    /// They are the package's areas, then one test area that exists only for an experiment: both
-    /// floors in a single map, walked by the stairs, to compare with one map per floor (time to
-    /// relocalise, failures, and relocalising on the wrong floor, which the check points' height shows).
+    /// The world maps the developer panel can record, test and continue. A map is named by the person
+    /// recording it ("f1-main"), so maps can be made before the package lists them; the package's
+    /// areas then use the same names. A name found in the package is that area; otherwise the saved
+    /// map itself says which floor it is on.
     /// </summary>
     public static class RecordingAreas
     {
-        public const string BothFloorsId = "both-floors";
+        public const int MaxNameLength = 32;
 
-        /// <summary>The test area. Floor 1 is where its recording starts.</summary>
-        public static AreaInfo BothFloors { get; } = new AreaInfo(BothFloorsId, 1, "Floors 1 and 2 in one map (test)");
-
-        /// <summary>The package's area with this id, or the test area, or null.</summary>
-        public static AreaInfo Find(VenuePackage venue, string areaId)
+        /// <summary>The package's area with this id, else the saved map's own area, else null.</summary>
+        public static AreaInfo Find(VenuePackage venue, string areaId, Func<string, AreaInfo> savedArea)
         {
-            AreaInfo area = venue?.Area(areaId);
-            if (area != null) return area;
-            return areaId == BothFloorsId && venue != null ? BothFloors : null;
+            if (string.IsNullOrEmpty(areaId)) return null;
+            return venue?.Area(areaId) ?? savedArea?.Invoke(areaId);
         }
 
-        /// <summary>The package's area ids in manifest order, then the test area.</summary>
-        public static IReadOnlyList<string> Ids(VenuePackage venue)
+        /// <summary>
+        /// Turns a typed name into a map name: lower case, letters, digits and hyphens, spaces become
+        /// hyphens. Returns null with a reason when nothing usable is left.
+        /// </summary>
+        public static string CleanName(string typed, out string problem)
         {
-            var ids = new List<string>();
-            if (venue == null) return ids;
-            foreach (AreaInfo area in venue.Manifest.Areas) ids.Add(area.Id);
-            ids.Add(BothFloorsId);
-            return ids;
-        }
-
-        /// <summary>The id after <paramref name="current"/>, wrapping round; the first id when current is not in the list.</summary>
-        public static string Next(IReadOnlyList<string> ids, string current)
-        {
-            if (ids == null || ids.Count == 0) return null;
-            for (int i = 0; i < ids.Count; i++)
+            problem = null;
+            var name = new StringBuilder();
+            foreach (char c in (typed ?? "").Trim().ToLowerInvariant())
             {
-                if (ids[i] == current) return ids[(i + 1) % ids.Count];
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) name.Append(c);
+                else if ((c == ' ' || c == '-' || c == '_') && name.Length > 0 && name[name.Length - 1] != '-') name.Append('-');
             }
 
-            return ids[0];
+            string result = name.ToString().Trim('-');
+            if (result.Length == 0)
+            {
+                problem = "Type a name with letters or digits, for example f1-main.";
+                return null;
+            }
+
+            if (result.Length > MaxNameLength) result = result.Substring(0, MaxNameLength).Trim('-');
+            return result;
+        }
+
+        /// <summary>One line for the developer panel's list, for example "f1-main · floor 1 · 10 corners · 52 MiB · saved 30 Oct 01:20".</summary>
+        public static string Describe(string areaId, int floor, int corners, long bytes, DateTime? savedLocal)
+        {
+            if (bytes <= 0)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "{0} · floor {1} · no map yet", areaId, floor);
+            }
+
+            string saved = savedLocal.HasValue ? " · saved " + savedLocal.Value.ToString("d MMM HH:mm", CultureInfo.InvariantCulture) : "";
+            return string.Format(CultureInfo.InvariantCulture, "{0} · floor {1} · {2} corners · {3:F0} MiB{4}",
+                areaId, floor, corners, bytes / (1024.0 * 1024.0), saved);
         }
     }
 }

@@ -231,6 +231,42 @@
     font-size: 14px;
 }
 
+.developer-scroll {
+    flex-grow: 1;
+}
+
+.map-list {
+    margin: 4px 0;
+}
+
+.map-row {
+    height: auto;
+    min-height: 40px;
+    margin: 2px 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    -unity-text-align: middle-left;
+    white-space: normal;
+    border-radius: 10px;
+}
+
+.map-row--selected {
+    border-width: 2px;
+    border-color: var(--accent);
+}
+
+.map-row--empty {
+    color: var(--muted);
+}
+
+.new-map {
+    margin-top: 8px;
+}
+
+.new-map-name {
+    margin: 4px 1%;
+}
+
 #developer-hotspot {
     position: absolute;
     left: 0;

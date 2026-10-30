@@ -8,10 +8,30 @@ using UnityEngine;
 
 namespace IndoorNavigation.Adapters.AR
 {
+    /// <summary>What the developer panel lists about a saved map.</summary>
+    public readonly struct SavedMapInfo
+    {
+        public SavedMapInfo(string id, int floor, int corners, long bytes, DateTime? savedUtc)
+        {
+            Id = id;
+            Floor = floor;
+            Corners = corners;
+            Bytes = bytes;
+            SavedUtc = savedUtc;
+        }
+
+        public string Id { get; }
+        public int Floor { get; }
+        public int Corners { get; }
+        public long Bytes { get; }
+        public DateTime? SavedUtc { get; }
+    }
+
     /// <summary>
-    /// Where recorded world maps live on the phone: one folder per area under
-    /// Documents/WorldMaps, holding the ARKit map and the alignment that ties it to the plan.
-    /// The files can be copied off the phone with Apple Devices, and later go into the venue package.
+    /// Where recorded world maps live on the phone: one folder per map under
+    /// Documents/WorldMaps, named by whoever recorded it, holding the ARKit map and the alignment
+    /// that ties it to the plan. The files can be copied off the phone with Apple Devices, and later
+    /// go into the venue package, whose areas use the same names.
     /// </summary>
     public sealed class AreaMapStore
     {
@@ -29,6 +49,58 @@ namespace IndoorNavigation.Adapters.AR
             File.Exists(Path.Combine(FolderOf(areaId), AlignmentFileName));
 
         public byte[] ReadMap(string areaId) => File.ReadAllBytes(Path.Combine(FolderOf(areaId), MapFileName));
+
+        /// <summary>The saved maps, by name. Folders being written (.tmp) and kept copies (.previous) are left out.</summary>
+        public IReadOnlyList<string> SavedIds()
+        {
+            var ids = new List<string>();
+            if (!Directory.Exists(Root)) return ids;
+            foreach (string folder in Directory.GetDirectories(Root))
+            {
+                string id = Path.GetFileName(folder);
+                if (id.IndexOf('.') >= 0) continue;
+                if (Has(id)) ids.Add(id);
+            }
+
+            ids.Sort(StringComparer.Ordinal);
+            return ids;
+        }
+
+        /// <summary>A saved map's floor, corners, size and time, or null if it is missing or unreadable.</summary>
+        public SavedMapInfo? TryReadInfo(string areaId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(areaId) || !Has(areaId)) return null;
+                AlignmentRecord record = JsonUtility.FromJson<AlignmentRecord>(
+                    File.ReadAllText(Path.Combine(FolderOf(areaId), AlignmentFileName)));
+                if (record == null) return null;
+                long bytes = new FileInfo(Path.Combine(FolderOf(areaId), MapFileName)).Length;
+                DateTime? saved = DateTime.TryParse(record.savedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime t)
+                    ? t
+                    : (DateTime?)null;
+                return new SavedMapInfo(areaId, record.floor, record.markers?.Length ?? 0, bytes, saved);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>The area a saved map stands for, when the package does not list it yet.</summary>
+        public AreaInfo TryReadArea(string areaId)
+        {
+            SavedMapInfo? info = TryReadInfo(areaId);
+            return info.HasValue ? new AreaInfo(areaId, info.Value.Floor, areaId) : null;
+        }
+
+        /// <summary>The corners stored with a saved map, for continuing it; empty if there are none.</summary>
+        public List<ArMark> ReadMarks(string areaId)
+        {
+            string json = File.ReadAllText(Path.Combine(FolderOf(areaId), AlignmentFileName));
+            AlignmentRecord record = JsonUtility.FromJson<AlignmentRecord>(json);
+            return record?.markers == null ? new List<ArMark>() : record.ToArMarks();
+        }
 
         /// <summary>Reads and checks the alignment file; throws <see cref="InvalidDataException"/> if it is unusable.</summary>
         public AlignmentRecord ReadAlignment(string areaId, int mapBytes)

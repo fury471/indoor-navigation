@@ -8,6 +8,25 @@
             <ui:Button name="close" text="Close" class="button button--small" />
         </ui:VisualElement>
         <ui:Label name="showing" class="small" />
+        <ui:ScrollView name="developer-scroll" class="developer-scroll">
+        <ui:VisualElement name="map-group" class="developer-group">
+            <ui:Label text="World maps (real position)" class="small" />
+            <ui:Label name="position-status" class="small" />
+            <ui:VisualElement name="map-list" class="map-list" />
+            <ui:VisualElement class="developer-buttons">
+                <ui:Button name="load-map" text="Load and test" />
+                <ui:Button name="continue-map" text="Continue recording" />
+                <ui:Button name="check-point" text="Log check point" />
+            </ui:VisualElement>
+            <ui:VisualElement class="new-map">
+                <ui:TextField name="new-map-name" label="New map" class="new-map-name" />
+                <ui:VisualElement class="developer-buttons">
+                    <ui:Button name="new-map-floor" text="Floor 1" />
+                    <ui:Button name="new-map" text="Record new map" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:Label name="check-result" class="small" />
+        </ui:VisualElement>
         <ui:VisualElement class="developer-group">
             <ui:Label text="Getting ready" class="small" />
             <ui:VisualElement class="developer-buttons">
@@ -39,16 +58,7 @@
                 <ui:Button name="arrive" text="Arrived" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement name="map-group" class="developer-group">
-            <ui:Label text="World map (real position)" class="small" />
-            <ui:Label name="position-status" class="small" />
-            <ui:VisualElement class="developer-buttons">
-                <ui:Button name="next-area" text="Next area" />
-                <ui:Button name="record-map" text="Record map" />
-                <ui:Button name="check-point" text="Log check point" />
-            </ui:VisualElement>
-            <ui:Label name="check-result" class="small" />
-        </ui:VisualElement>
         <ui:Label text="Triple-tap the top-left corner to open. Every tap is logged." class="small" />
+        </ui:ScrollView>
     </ui:VisualElement>
 </ui:UXML>
