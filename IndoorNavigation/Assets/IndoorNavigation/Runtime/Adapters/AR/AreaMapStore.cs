@@ -323,6 +323,24 @@ namespace IndoorNavigation.Adapters.AR
             return marks;
         }
 
+        /// <summary>
+        /// Resolve persisted anchor identities, never by proximity. Legacy records without an
+        /// identity keep their saved coordinates; a missing identified anchor is not a valid pose.
+        /// </summary>
+        public List<ArMark> ResolveMarks(IReadOnlyDictionary<string, ArMark> trackedAnchors)
+        {
+            var result = new List<ArMark>();
+            if (markers == null) return result;
+            foreach (MarkerRecord marker in markers)
+            {
+                if (string.IsNullOrEmpty(marker.anchorId))
+                    result.Add(new ArMark(marker.id, marker.arX, marker.arY, marker.arZ));
+                else if (trackedAnchors.TryGetValue(marker.anchorId, out ArMark pose))
+                    result.Add(new ArMark(marker.id, pose.X, pose.Y, pose.Z));
+            }
+            return result;
+        }
+
         /// <summary>The plan positions stored with the recording, for markers that had one.</summary>
         public List<MarkerInfo> RecordedPlanMarkers()
         {
@@ -350,6 +368,8 @@ namespace IndoorNavigation.Adapters.AR
     public sealed class MarkerRecord
     {
         public string id;
+        /// <summary>ARKit anchor identity within this world map. Optional for older recordings.</summary>
+        public string anchorId;
         public double arX;
         public double arY;
         public double arZ;

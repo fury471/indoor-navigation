@@ -31,7 +31,7 @@ You need:
 
 Then:
 1. Clone the repo and open the folder `IndoorNavigation/` in Unity Hub. Let the packages resolve.
-2. **Window → General → Test Runner → EditMode → Run All.** Expect 286 tests to pass.
+2. **Window → General → Test Runner → EditMode → Run All.** Expect 292 tests (286 Core and six adapter regression tests). The live corner-anchor fix has passed compilation and 289 offline tests; its full Unity run is pending (see `Docs/device-tests.md`).
 3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard (on screen 1, choose the floor, then **Tell the app where I am** works with sample doors):
 
    | Key | Does |

@@ -108,6 +108,20 @@ namespace IndoorNavigation.Adapters.AR
             foreach (LineRenderer post in doorPosts) SetActive(post, false);
         }
 
+        /// <summary>Recording and restored map corners already have session poses, including their individual heights.</summary>
+        public void ShowCorners(IReadOnlyList<ArMark> corners)
+        {
+            if (corners == null || doorMaterial == null)
+            {
+                HideDoors();
+                return;
+            }
+            int used = 0;
+            foreach (ArMark corner in corners)
+                Post(used++, new Vector3((float)corner.X, (float)corner.Y, (float)corner.Z));
+            for (int i = used; i < doorPosts.Count; i++) SetActive(doorPosts[i], false);
+        }
+
         private void Post(int index, Vector3 foot)
         {
             while (doorPosts.Count <= index) doorPosts.Add(NewLine("Door corner", doorMaterial, 0.04f));

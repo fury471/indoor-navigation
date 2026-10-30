@@ -39,9 +39,8 @@ namespace IndoorNavigation.Adapters.AR
     /// walk and moves its anchors with it ("ARKit may automatically update the properties of anchors";
     /// an anchor "helps ARKit to optimize world-tracking accuracy in the area around that anchor",
     /// Apple, ARAnchor and ARSessionDelegate), but a position written down at the moment of marking
-    /// stays where it was. So just before saving, each corner takes its anchor's position, and the
-    /// recorder logs how far they moved. Builds up to 9 saved the positions from the moment of marking,
-    /// which put the door posts off their corners after relocalising (30 Oct).
+    /// stays where it was. Live corners follow the anchor; its identity is saved beside the corner
+    /// so loading and continuing the map can reuse the anchor ARKit restores.
     /// </summary>
     public sealed class AreaMapRecorder : MonoBehaviour
     {
@@ -54,6 +53,7 @@ namespace IndoorNavigation.Adapters.AR
         public const int MinimumDoorsInRouteOrder = 2;
 
         private readonly Dictionary<string, Vector3> marks = new Dictionary<string, Vector3>();
+        private readonly Dictionary<string, Vector3> initiallyMarked = new Dictionary<string, Vector3>();
         private readonly List<string> markOrder = new List<string>();
         private readonly Dictionary<string, string> doorLabels = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly HashSet<string> roomDoors = new HashSet<string>(StringComparer.Ordinal);
@@ -68,6 +68,10 @@ namespace IndoorNavigation.Adapters.AR
         private Func<string, AreaInfo> areas;
         private ARAnchorManager anchorManager;
         private readonly Dictionary<string, ARAnchor> anchors = new Dictionary<string, ARAnchor>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> restoredAnchorIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly HashSet<ARAnchor> ownedAnchors = new HashSet<ARAnchor>();
+        private readonly Dictionary<string, int> anchorRequests = new Dictionary<string, int>(StringComparer.Ordinal);
+        private int nextAnchorRequest;
         private int anchorGeneration;
         private string lastMove = "";
 
@@ -76,6 +80,7 @@ namespace IndoorNavigation.Adapters.AR
         private float saveStartedAt;
         private PlanAlignment pendingFit;
         private List<ArMark> pendingMarks;
+        private Dictionary<string, string> pendingAnchorIds;
         private string message = "";
         private readonly MapCoverage coverage = new MapCoverage();
         private readonly RecordingGuard guard = new RecordingGuard();
@@ -154,7 +159,7 @@ namespace IndoorNavigation.Adapters.AR
             positioning = positionSource ?? throw new ArgumentNullException(nameof(positionSource));
             areas = areaLookup ?? throw new ArgumentNullException(nameof(areaLookup));
             pointClouds = pointCloudManager; // optional: without it the live map shows only the path
-            anchorManager = anchorsManager; // optional: without it corners keep the positions they were marked at
+            anchorManager = anchorsManager; // required to save tracked corners; unavailable anchors block saving
         }
 
         public bool IsMarked(string markerId) => marks.ContainsKey(markerId);
@@ -225,6 +230,9 @@ namespace IndoorNavigation.Adapters.AR
                 if (!marks.ContainsKey(m.Id)) markOrder.Add(m.Id);
                 marks[m.Id] = new Vector3((float)m.X, (float)m.Y, (float)m.Z);
             }
+            AlignmentRecord saved = store.ReadAlignment(id, checked((int)store.TryReadInfo(id).Value.Bytes));
+            foreach (MarkerRecord marker in saved.markers)
+                if (!string.IsNullOrEmpty(marker.anchorId)) restoredAnchorIds[marker.id] = marker.anchorId;
 
             loadedMarkCount = markOrder.Count;
             doorLabels.Clear();
@@ -307,16 +315,27 @@ namespace IndoorNavigation.Adapters.AR
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
 
-        public bool CanSave => IsRecording && !saving && !guard.Broken && MappingDone && SaveBlocker() == null;
+        public bool CanSave => IsRecording && !saving && !guard.Broken && TrackingReady && MappingDone && SaveBlocker() == null;
 
         /// <summary>Why the marks are not enough to save yet, or null when they are.</summary>
         private string SaveBlocker()
         {
+            string anchorProblem = AnchorBlocker();
+            if (anchorProblem != null) return anchorProblem;
             if (HasPlanMarkers) return Preview != null ? null : "Mark at least two door corners first.";
             if (GoodDoors() >= MinimumDoorsInRouteOrder) return null;
             return CompleteDoors() > GoodDoors()
                 ? $"Mark both corners of at least {MinimumDoorsInRouteOrder} doors at a door's width. Tap a door marked check and choose Mark again."
                 : $"Mark both corners of at least {MinimumDoorsInRouteOrder} doors first.";
+        }
+
+        private string AnchorBlocker()
+        {
+            if (anchorRequests.Count > 0) return "Wait for the door anchors to finish being created.";
+            foreach (string id in markOrder)
+                if (!anchors.TryGetValue(id, out ARAnchor anchor) || anchor == null || anchor.trackingState != TrackingState.Tracking)
+                    return "Corner " + id + " has no tracked anchor yet. Look around its door; if it does not recover, mark it again.";
+            return null;
         }
 
         /// <summary>"Recording 4:12 · 85 m walked · map 12.3 MiB", or why the recording broke.</summary>
@@ -405,6 +424,7 @@ namespace IndoorNavigation.Adapters.AR
             get
             {
                 if (!IsRecording) return message;
+                string hint = AnchorBlocker() ?? message;
                 if (!HasPlanMarkers)
                 {
                     var doors = new List<string>();
@@ -414,14 +434,14 @@ namespace IndoorNavigation.Adapters.AR
                     }
 
                     string widths = doors.Count == 0 ? "no door complete yet" : string.Join("  ", doors);
-                    return $"{ProgressLine}\nMapping: {MappingText}  ·  {widths}\n{message}";
+                    return $"{ProgressLine}\nMapping: {MappingText}  ·  {widths}\n{hint}";
                 }
 
                 var parts = new List<string>();
                 foreach (string id in MarkerIds) parts.Add(id + (IsMarked(id) ? " ✓" : " –"));
                 string marked = string.Join("  ", parts);
                 string fit = Preview == null ? "" : string.Format(CultureInfo.InvariantCulture, "  ·  fit {0:F2} m{1}", Preview.RmsErrorMetres, Preview.IsGood ? "" : " (aim more carefully)");
-                return $"{ProgressLine}\nMapping: {MappingText}  ·  {marked}{fit}\n{message}";
+                return $"{ProgressLine}\nMapping: {MappingText}  ·  {marked}{fit}\n{hint}";
             }
         }
 
@@ -462,8 +482,15 @@ namespace IndoorNavigation.Adapters.AR
         private async void AnchorMark(string id, Vector3 sessionPoint)
         {
             RemoveAnchor(id);
-            if (!AnchorsAvailable || origin == null) return;
+            if (!AnchorsAvailable || origin == null)
+            {
+                message = "No anchor available for " + id + ". Wait for tracking, then mark it again before saving.";
+                Report("map", message);
+                return;
+            }
             int generation = anchorGeneration;
+            int token = ++nextAnchorRequest;
+            anchorRequests[id] = token;
             try
             {
                 var pose = new Pose(origin.TrackablesParent.TransformPoint(sessionPoint), Quaternion.identity);
@@ -471,45 +498,75 @@ namespace IndoorNavigation.Adapters.AR
                 ARAnchor anchor = result.status.IsSuccess() ? result.value : null;
                 if (anchor == null)
                 {
-                    Report("map", "no anchor for " + id + ": it keeps the position it was marked at");
+                    message = "No anchor for " + id + ". Mark this corner again before saving.";
+                    Report("map", message);
                     return;
                 }
 
                 bool current = generation == anchorGeneration && IsRecording
-                    && marks.TryGetValue(id, out Vector3 now) && (now - sessionPoint).sqrMagnitude < 1e-6f
-                    && !anchors.ContainsKey(id);
-                if (current) anchors[id] = anchor;
+                    && anchorRequests.TryGetValue(id, out int latest) && latest == token && marks.ContainsKey(id);
+                if (current)
+                {
+                    anchors[id] = anchor;
+                    ownedAnchors.Add(anchor);
+                }
                 else RemoveFromSession(anchor);
             }
             catch (Exception e)
             {
                 Report("map", "no anchor for " + id + ": " + e.Message);
             }
+            finally
+            {
+                if (generation == anchorGeneration && anchorRequests.TryGetValue(id, out int latest) && latest == token)
+                    anchorRequests.Remove(id);
+            }
         }
 
-        /// <summary>A continued map's corners get anchors too, once it has relocalised, after the map's own restored anchors are removed.</summary>
+        /// <summary>Keep restored anchors. Only legacy corners without identities need new anchors.</summary>
         private void AnchorLoadedMarks()
         {
             if (!AnchorsAvailable) return;
-            var restored = new List<ARAnchor>();
-            foreach (ARAnchor anchor in anchorManager.trackables) restored.Add(anchor);
-            foreach (ARAnchor anchor in restored) RemoveFromSession(anchor);
-            foreach (string id in markOrder) AnchorMark(id, marks[id]);
+            BindRestoredAnchors();
+            foreach (string id in markOrder)
+                if (!restoredAnchorIds.ContainsKey(id)) AnchorMark(id, marks[id]);
+            if (restoredAnchorIds.Count < markOrder.Count)
+            {
+                message += " Older corners have no saved anchor identity: check each against its physical corner and mark again if displaced.";
+                Report("map", "legacy corners anchored at saved coordinates; this does not repair earlier drift");
+            }
+        }
+
+        private void BindRestoredAnchors()
+        {
+            if (!AnchorsAvailable) return;
+            foreach (ARAnchor anchor in anchorManager.trackables)
+                foreach (KeyValuePair<string, string> pair in restoredAnchorIds)
+                    if (anchor.trackableId.ToString() == pair.Value) anchors[pair.Key] = anchor;
         }
 
         private void RemoveAnchor(string id)
         {
+            if (id == null) return;
+            anchorRequests.Remove(id); // invalidate even if the asynchronous request has not returned
+            restoredAnchorIds.Remove(id);
             if (id == null || !anchors.TryGetValue(id, out ARAnchor anchor)) return;
             anchors.Remove(id);
+            ownedAnchors.Remove(anchor);
             RemoveFromSession(anchor);
         }
 
         /// <summary>Removes every anchor this recorder made; anchors still being created are dropped when they arrive.</summary>
-        private void ClearAnchors()
+        private void ClearAnchors(bool removeOwned = true)
         {
             anchorGeneration++;
-            foreach (ARAnchor anchor in anchors.Values) RemoveFromSession(anchor);
+            if (removeOwned)
+                foreach (ARAnchor anchor in ownedAnchors) RemoveFromSession(anchor);
+            ownedAnchors.Clear();
+            restoredAnchorIds.Clear();
+            anchorRequests.Clear();
             anchors.Clear();
+            initiallyMarked.Clear();
             lastMove = "";
         }
 
@@ -527,12 +584,13 @@ namespace IndoorNavigation.Adapters.AR
         }
 
         /// <summary>
-        /// Just before saving: each anchored corner takes the position ARKit now gives its anchor, and
-        /// the log says how far the corners moved since they were marked (the drift ARKit corrected).
+        /// Updates the live geometry from tracked anchors; at save time also logs displacement from
+        /// each corner's first sample in this recording. Anchor corrections are not accuracy measurements.
         /// </summary>
-        private void MoveMarksToAnchors()
+        private void MoveMarksToAnchors(bool report = false)
         {
-            lastMove = "";
+            if (report) lastMove = "";
+            BindRestoredAnchors();
             if (anchors.Count == 0 || origin == null) return;
             Transform frame = origin.TrackablesParent;
             int moved = 0;
@@ -541,7 +599,9 @@ namespace IndoorNavigation.Adapters.AR
             foreach (KeyValuePair<string, ARAnchor> pair in new List<KeyValuePair<string, ARAnchor>>(anchors))
             {
                 ARAnchor anchor = pair.Value;
-                if (anchor == null || anchor.trackingState == TrackingState.None || !marks.TryGetValue(pair.Key, out Vector3 was)) continue;
+                if (anchor == null || anchor.trackingState != TrackingState.Tracking || !marks.TryGetValue(pair.Key, out Vector3 was)) continue;
+                if (!initiallyMarked.ContainsKey(pair.Key)) initiallyMarked[pair.Key] = was;
+                if (report) was = initiallyMarked[pair.Key];
                 Vector3 now = frame.InverseTransformPoint(anchor.transform.position);
                 float dx = now.x - was.x, dz = now.z - was.z;
                 float shift = (float)Math.Sqrt(dx * dx + dz * dz);
@@ -558,6 +618,7 @@ namespace IndoorNavigation.Adapters.AR
 
             if (moved == 0) return;
             UpdatePreview();
+            if (!report) return;
             Report("map", string.Format(CultureInfo.InvariantCulture,
                 "corners moved with ARKit's anchors before saving: {0} of {1}, mean {2:F2} m, largest {3:F2} m ({4})",
                 moved, markOrder.Count, total / moved, largest, largestId ?? "-"));
@@ -573,12 +634,19 @@ namespace IndoorNavigation.Adapters.AR
 
         private bool MappingDone => Session != null && Session.worldMappingStatus == ARWorldMappingStatus.Mapped;
 
+        private bool TrackingReady => Condition() == TrackingCondition.Normal;
+
         private string MappingText => Session == null ? "waiting for ARKit" : Session.worldMappingStatus.ToString();
 
         /// <summary>Marks a door corner: the floor point under the given screen point, usually the crosshair.</summary>
         public bool Mark(string markerId, Vector2 screenPoint)
         {
-            if (!IsRecording || saving) return false;
+            if (!IsRecording || saving || guard.Broken) return false;
+            if (Condition() != TrackingCondition.Normal)
+            {
+                message = "Wait for normal tracking before marking a door corner.";
+                return false;
+            }
 
             var hits = new List<ARRaycastHit>();
             if (!raycasts.Raycast(screenPoint, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
@@ -597,6 +665,7 @@ namespace IndoorNavigation.Adapters.AR
 
             if (!marks.ContainsKey(markerId)) markOrder.Add(markerId);
             marks[markerId] = origin.TrackablesParent.InverseTransformPoint(world);
+            initiallyMarked[markerId] = marks[markerId];
             AnchorMark(markerId, marks[markerId]);
             coverage.SetMark(markerId, marks[markerId].x, marks[markerId].z);
             Report("map", string.Format(CultureInfo.InvariantCulture, "marked {0} at {1:F2}, {2:F2}, {3:F2}", markerId, marks[markerId].x, marks[markerId].y, marks[markerId].z));
@@ -643,7 +712,7 @@ namespace IndoorNavigation.Adapters.AR
                 return;
             }
 
-            if (IsRecording && !saving) MoveMarksToAnchors(); // where ARKit now puts each corner
+            if (IsRecording && !saving) MoveMarksToAnchors(report: true);
             if (!CanSave)
             {
                 message = SaveBlocker() ?? "Walk slowly around until Mapping says Mapped.";
@@ -655,6 +724,8 @@ namespace IndoorNavigation.Adapters.AR
                 ReleaseSizeRequest();
                 pendingFit = Preview;
                 pendingMarks = Marks();
+                pendingAnchorIds = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (string id in markOrder) pendingAnchorIds[id] = anchors[id].trackableId.ToString();
                 request = Session.GetARWorldMapAsync();
                 saving = true;
                 saveStartedAt = Time.realtimeSinceStartup;
@@ -672,12 +743,20 @@ namespace IndoorNavigation.Adapters.AR
 
         private void Update()
         {
-            if (saving) PollSave();
             if (!IsRecording) return;
 
             bool wasBroken = guard.Broken;
             guard.Observe(Condition(), DateTime.Now, Time.realtimeSinceStartup - recordingStartedAt);
             if (guard.Broken && !wasBroken) Report("map", "recording interrupted: " + guard.Reason);
+            if (guard.Broken)
+            {
+                ReleaseRequest(); // never commit a map after a reset/interruption
+                ReleaseSizeRequest();
+                return;
+            }
+            if (Condition() == TrackingCondition.Normal) MoveMarksToAnchors();
+            if (saving) PollSave();
+            if (!IsRecording) return;
             UpdateCoverage();
             MeasureSize();
         }
@@ -800,6 +879,7 @@ namespace IndoorNavigation.Adapters.AR
                         if (managed.Length == 0) throw new InvalidOperationException("The world map is empty.");
 
                         AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit, doorLabels, roomDoors);
+                        foreach (MarkerRecord marker in record.markers) marker.anchorId = pendingAnchorIds[marker.id];
                         store.Save(area.Id, managed, record, CoverageRecord.From(coverage));
                         mapBytes = managed.Length;
                         mapBytesAreSaved = true;
@@ -819,7 +899,7 @@ namespace IndoorNavigation.Adapters.AR
                 message = (pendingFit == null
                     ? "Saved. The map lines up with the plan once the package lists these corners."
                     : "Saved. This area is now located with the new map.") + lastMove;
-                ClearAnchors(); // they are in the saved map; the next recording makes its own
+                ClearAnchors(removeOwned: false); // keep live anchors for the overlay and future Continue
                 positioning.UseRecordedMap(area.Id, pendingFit);
             }
             catch (Exception e)
@@ -853,6 +933,8 @@ namespace IndoorNavigation.Adapters.AR
 
         private bool MappingDone => false;
 
+        private bool TrackingReady => false;
+
         private string MappingText => "needs the iPhone";
 
         public bool Mark(string markerId, Vector2 screenPoint)
@@ -883,6 +965,35 @@ namespace IndoorNavigation.Adapters.AR
         {
             ReleaseRequest();
             ReleaseSizeRequest();
+            if (IsRecording)
+            {
+                guard.AppLeftScreen(DateTime.Now);
+                ClearAnchors();
+            }
+        }
+
+        /// <summary>Live session-space corners, including an immediately marked corner awaiting its anchor.</summary>
+        public IReadOnlyList<ArMark> VisibleMarks
+        {
+            get
+            {
+                var visible = new List<ArMark>();
+                if (!IsRecording || guard.Broken || !TrackingReady) return visible;
+                foreach (string id in markOrder)
+                {
+                    if (anchors.TryGetValue(id, out ARAnchor anchor) && anchor != null && anchor.trackingState == TrackingState.Tracking)
+                    {
+                        Vector3 p = origin.TrackablesParent.InverseTransformPoint(anchor.transform.position);
+                        visible.Add(new ArMark(id, p.x, p.y, p.z));
+                    }
+                    else if (anchorRequests.ContainsKey(id))
+                    {
+                        Vector3 p = marks[id];
+                        visible.Add(new ArMark(id, p.x, p.y, p.z));
+                    }
+                }
+                return visible;
+            }
         }
 
         private void SetPointClouds(bool on)

@@ -112,6 +112,7 @@ namespace IndoorNavigation.App
                 realPosition.Init(arSessionComponent, xrOrigin, arCamera, raycastManager, planeManager, mapStore, AreaById, PackageAreas);
                 recorder = gameObject.AddComponent<AreaMapRecorder>();
                 recorder.Init(arSessionComponent, xrOrigin, raycastManager, planeManager, mapStore, realPosition, AreaById, PointCloudsForRecording(), AnchorsForRecording());
+                mapRecorder = recorder;
                 position = realPosition;
                 realPositionSource = realPosition;
                 overlay = gameObject.AddComponent<ArRouteOverlay>();
@@ -211,9 +212,21 @@ namespace IndoorNavigation.App
         /// panel W, through the current alignment. Five times a second is smooth enough, as the lines
         /// stay put in the room between updates.
         /// </summary>
-        private void Update()
+        private AreaMapRecorder mapRecorder;
+
+        private void LateUpdate()
         {
-            if (overlay == null || session == null || Time.realtimeSinceStartup < nextOverlayAt) return;
+            if (overlay == null || session == null) return;
+            // Always show the corner just marked, including the first half of a door. No saved
+            // alignment or developer toggle is needed. LateUpdate follows AR trackable updates.
+            if (mapRecorder != null && mapRecorder.IsRecording)
+            {
+                overlay.HidePath();
+                overlay.ShowCorners(mapRecorder.VisibleMarks);
+                nextOverlayAt = 0f;
+                return;
+            }
+            if (Time.realtimeSinceStartup < nextOverlayAt) return;
             nextOverlayAt = Time.realtimeSinceStartup + OverlaySeconds;
 
             PlanAlignment alignment = realPositionSource.Alignment;
@@ -227,7 +240,11 @@ namespace IndoorNavigation.App
                 overlay.HidePath();
             }
 
-            if (showDoorsInAr && alignment != null)
+            if (showDoorsInAr && found && realPositionSource.MapCorners != null)
+            {
+                overlay.ShowCorners(realPositionSource.MapCorners);
+            }
+            else if (showDoorsInAr && found)
             {
                 // Only the doors in the frame the position is in now: before the package places every
                 // recording on one plan, each recording has its own.

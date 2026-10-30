@@ -188,3 +188,12 @@
 - Layout checked with the HTML replica at 390×694 and 390×848 with five chips, recording and naming: the crosshair stays clear while recording.
 - Source commits: 91184b5 (wording), 1944743 (chips) and the corner anchors on top of them.
 - Result: to be tested (`Docs/build-7-guide.md` parts D and E), with the checks listed under builds 8 and 9.
+
+## Live corner-anchor fix — local source updated 30 Oct 2026
+
+- Applied the prepared door-marker patch to the original local project, on top of `d9c6369`.
+- Corners appear during recording, including the first corner, and follow tracked anchor poses. Saved anchor identities reconnect corners after relocalisation; Continue keeps restored anchors. Saving requires normal tracking, no pending anchor requests, and a tracked anchor for every corner.
+- Validation on the updated local source: Core, Adapters and App compile against the installed Unity 6000.3.24f1 dependencies with Editor and iOS-player definitions; both test assemblies compile. All 286 existing Core tests and three engine-independent adapter tests pass in the offline NUnit runner. This does not constitute an iOS player build.
+- Full Unity EditMode run attempted, but Unity refused to open the project because another instance already had it open. The three Unity-dependent tests (JSON persistence, legacy JSON and corner rendering) remain pending. Run EditMode **Run All** in the open Editor; expected total is 292 tests.
+- Device result: pending; no new export or IPA produced. Test first-corner visibility with Doors in AR off, additional scanning and return to doors, undo/remark, save and cold relocalisation, then Continue and save again. Check that interruption prevents saving. Physical drift still requires measurement on the iPhone.
+- Older maps without anchor identities remain readable, but their displaced corners must be checked and remarked or recorded again. Adding anchors at old coordinates cannot repair earlier drift.

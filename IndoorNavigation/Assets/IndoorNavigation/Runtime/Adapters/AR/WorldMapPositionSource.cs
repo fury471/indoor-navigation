@@ -7,11 +7,11 @@ using IndoorNavigation.Core.Venue;
 using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 
 #if UNITY_IOS && !UNITY_EDITOR
 using Unity.Collections;
 using UnityEngine.XR.ARKit;
-using UnityEngine.XR.ARSubsystems;
 #endif
 
 #pragma warning disable 0414, 0169, 0067, 0649 // some fields and events are only used on the iPhone
@@ -58,6 +58,9 @@ namespace IndoorNavigation.Adapters.AR
         private AreaMapStore store;
         private Func<string, AreaInfo> areas;
         private Func<IReadOnlyList<AreaInfo>> packageAreas;
+        private ARAnchorManager anchorManager;
+        private AlignmentRecord mapRecord;
+        private bool useAnchorAlignment;
 
         private int floor;
         private PlanAlignment alignment;
@@ -97,6 +100,37 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>True once the session is in the current map's frame, so the map can be continued.</summary>
         public bool InMapFrame => inMapFrame;
 
+        /// <summary>Tracked corners in the loaded map's frame; null when a manual door fix owns the alignment.</summary>
+        public IReadOnlyList<ArMark> MapCorners => inMapFrame && useAnchorAlignment && mapRecord != null
+            ? mapRecord.ResolveMarks(ReadAnchorPoses()) : null;
+
+        private Dictionary<string, ArMark> ReadAnchorPoses()
+        {
+            var poses = new Dictionary<string, ArMark>(StringComparer.Ordinal);
+            if (anchorManager == null || origin.TrackablesParent == null) return poses;
+            foreach (ARAnchor anchor in anchorManager.trackables)
+            {
+                if (anchor == null || anchor.trackingState != TrackingState.Tracking) continue;
+                string id = anchor.trackableId.ToString();
+                Vector3 p = origin.TrackablesParent.InverseTransformPoint(anchor.transform.position);
+                poses[id] = new ArMark(id, p.x, p.y, p.z);
+            }
+            return poses;
+        }
+
+        private void RefreshAnchorAlignment()
+        {
+            if (!useAnchorAlignment || !inMapFrame || mapRecord == null) return;
+            List<ArMark> live = mapRecord.ResolveMarks(ReadAnchorPoses());
+            // Do not change the fit's marker set when a corner temporarily loses tracking.
+            if (live.Count != mapRecord.markers.Length) return;
+            IReadOnlyList<MarkerInfo> fallback = mapRecord.RecordedPlanMarkers();
+            // Without a published plan, the saved coordinates define a stable plan frame.
+            if (fallback.Count < PlanAlignment.MinimumMarkers) fallback = DoorList.RecordingFrame(mapRecord.ToArMarks());
+            PlanAlignment updated = MarkerPairing.TryFit(areas(CurrentArea)?.Markers, fallback, live, out _);
+            if (updated != null) alignment = updated;
+        }
+
         /// <summary>True while the area's map is waiting for the AR session before it is applied.</summary>
         public bool IsLoading => loadPending;
 
@@ -135,6 +169,9 @@ namespace IndoorNavigation.Adapters.AR
             store = mapStore ?? throw new ArgumentNullException(nameof(mapStore));
             areas = areaLookup ?? throw new ArgumentNullException(nameof(areaLookup));
             packageAreas = packageAreaList ?? throw new ArgumentNullException(nameof(packageAreaList));
+            anchorManager = xrOrigin.GetComponent<ARAnchorManager>();
+            if (anchorManager == null) anchorManager = xrOrigin.gameObject.AddComponent<ARAnchorManager>();
+            anchorManager.enabled = true;
         }
 
         public void StartLocating(string areaId)
@@ -153,6 +190,8 @@ namespace IndoorNavigation.Adapters.AR
             floor = floorNumber;
             alignment = null;
             pendingAlignment = null;
+            mapRecord = null;
+            useAnchorAlignment = false;
             waitingForRelocalisation = false;
             inMapFrame = false;
             attempts = 0;
@@ -171,6 +210,8 @@ namespace IndoorNavigation.Adapters.AR
 
         public void Stop()
         {
+            mapRecord = null;
+            useAnchorAlignment = false;
             if (waitingForRelocalisation) AbandonMap();
             EndDoorFix();
             CurrentArea = null;
@@ -190,6 +231,8 @@ namespace IndoorNavigation.Adapters.AR
         /// </summary>
         public void PauseForRecording()
         {
+            mapRecord = null;
+            useAnchorAlignment = false;
             loadPending = false;
             if (waitingForRelocalisation)
             {
@@ -215,6 +258,8 @@ namespace IndoorNavigation.Adapters.AR
             loadPending = false;
             waitingForRelocalisation = false;
             inMapFrame = true;
+            mapRecord = store.ReadAlignment(areaId, checked((int)store.TryReadInfo(areaId).Value.Bytes));
+            useAnchorAlignment = true;
             alignment = fitted ?? RecordingFrameFit(store.ReadMarks(areaId));
             if (alignment == null)
             {
@@ -230,6 +275,7 @@ namespace IndoorNavigation.Adapters.AR
         public void BeginDoorFix(DoorInfo door)
         {
             if (door == null) return;
+            useAnchorAlignment = false; // do not overwrite a deliberate manual fix with an automatic refit
             if (loadPending || waitingForRelocalisation)
             {
                 // Stop trying the map. A reset without a map gives a fresh session to mark in.
@@ -395,6 +441,7 @@ namespace IndoorNavigation.Adapters.AR
             {
                 byte[] bytes = store.ReadMap(CurrentArea);
                 AlignmentRecord record = store.ReadAlignment(CurrentArea, bytes.Length);
+                mapRecord = record;
                 pendingAlignment = MarkerPairing.TryFit(
                     areas(CurrentArea)?.Markers, record.RecordedPlanMarkers(), record.ToArMarks(), out string problem);
                 if (pendingAlignment != null)
@@ -462,6 +509,7 @@ namespace IndoorNavigation.Adapters.AR
                     {
                         waitingForRelocalisation = false;
                         inMapFrame = true;
+                        useAnchorAlignment = true;
                         Report("position", string.Format(CultureInfo.InvariantCulture, "relocalised in {0:F1} s", now - loadStartedAt));
                         if (pendingAlignment == null)
                         {
@@ -500,6 +548,8 @@ namespace IndoorNavigation.Adapters.AR
 
         private void AbandonMap()
         {
+            useAnchorAlignment = false;
+            mapRecord = null;
             waitingForRelocalisation = false;
             if (Session != null) Session.ApplyWorldMap(default(ARWorldMap));
             arSession.Reset();
@@ -611,6 +661,7 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             notTrackingSince = -1f;
+            RefreshAnchorAlignment();
 
             // The camera in session coordinates. Facing uses forward + up, which points where the top
             // of the phone points when it lies flat and where the camera looks when it is held upright.
