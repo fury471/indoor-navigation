@@ -140,8 +140,17 @@ namespace IndoorNavigation.Adapters.AR
         public void StartLocating(string areaId)
         {
             string map = ChooseMap(areaId);
+            int mapFloor = (map == null ? null : areas(map))?.Floor ?? (areaId == null ? null : areas(areaId))?.Floor ?? 0;
+            Begin(map, areaId, mapFloor, areaId ?? "this floor");
+        }
+
+        public void StartLocatingOnFloor(int floorNumber) =>
+            Begin(LatestMapOnFloor(floorNumber), null, floorNumber, "floor " + floorNumber.ToString(CultureInfo.InvariantCulture));
+
+        private void Begin(string map, string areaId, int floorNumber, string what)
+        {
             CurrentArea = map ?? areaId;
-            floor = (map == null ? null : areas(map))?.Floor ?? (areaId == null ? null : areas(areaId))?.Floor ?? 0;
+            floor = floorNumber;
             alignment = null;
             pendingAlignment = null;
             waitingForRelocalisation = false;
@@ -156,8 +165,8 @@ namespace IndoorNavigation.Adapters.AR
                 ? $"{map}: loading the world map"
                 : "No world map to try here; start at a door";
             Report("position", map != null
-                ? "world map " + map + " chosen for " + (areaId ?? "this floor")
-                : "no world map for " + (areaId ?? "this floor") + "; doors only");
+                ? "world map " + map + " chosen for " + what
+                : "no world map for " + what + "; doors only");
         }
 
         public void Stop()
@@ -264,8 +273,12 @@ namespace IndoorNavigation.Adapters.AR
         {
             if (!string.IsNullOrEmpty(areaId) && store.Has(areaId)) return areaId;
             int? wanted = string.IsNullOrEmpty(areaId) ? null : areas(areaId)?.Floor;
-            if (wanted == null) return null;
+            return wanted == null ? null : LatestMapOnFloor(wanted.Value);
+        }
 
+        /// <summary>The most recently saved map on this floor, or null.</summary>
+        private string LatestMapOnFloor(int wanted)
+        {
             string best = null;
             DateTime bestTime = DateTime.MinValue;
             foreach (string id in store.SavedIds())
@@ -274,7 +287,7 @@ namespace IndoorNavigation.Adapters.AR
                 if (!info.HasValue) continue;
                 int mapFloor = areas(id)?.Floor ?? info.Value.Floor;
                 DateTime saved = info.Value.SavedUtc ?? DateTime.MinValue;
-                if (mapFloor == wanted.Value && (best == null || saved > bestTime))
+                if (mapFloor == wanted && (best == null || saved > bestTime))
                 {
                     best = id;
                     bestTime = saved;
@@ -296,7 +309,7 @@ namespace IndoorNavigation.Adapters.AR
                     IReadOnlyList<MarkerInfo> markers = area.Markers.Count >= PlanAlignment.MinimumMarkers
                         ? area.Markers
                         : DoorList.RecordingFrame(store.ReadMarks(id));
-                    list.AddRange(DoorList.FromMarkers(id, area.Floor, markers, store.ReadDoorLabels(id)));
+                    list.AddRange(DoorList.FromMarkers(id, area.Floor, markers, store.ReadDoorLabels(id), store.ReadRoomDoors(id)));
                     done.Add(id);
                 }
                 catch (Exception e)

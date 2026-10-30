@@ -2,11 +2,11 @@
 
 Build 7 (`export-position-007`) makes finding the position quick and dependable (decision record 11):
 
-- **Screen 1** tries the floor's world map while it tells you how to hold the phone. After about 10 s with the phone up, or at once on a tap, it offers **Start at a door**: a list of named doors, your floor first.
-- **Screen 1b** shows the chosen door with a small drawing. You mark its left corner, then its right corner, where the frame meets the floor. If the width doesn't match the door, it asks you to mark again. Then you're placed: position, heading and floor.
+- **Screen 1** first asks **Which floor are you on?**, then tries that floor's world map while it tells you how to hold the phone. After about 10 s with the phone up it shows a **reminder** ("Still recognising this floor… or try another way"), and **Tell the app where I am** becomes the main button. Nothing switches by itself: the map keeps trying until you tap it. Then **Where are you?** lists the rooms people start in (*VR lab*, *Toilets*) and the corridor doors (*Lift*), your floor first, with a button to go back to the map.
+- **Screen 1b** shows the chosen door with a small drawing, and says whether to stand inside the room or in the corridor. You mark its left corner, then its right corner, where the frame meets the floor. If the width doesn't match the door, it asks you to mark again. Then you're placed: position, heading and floor.
 - **Fixing again:** "Fix position" on the 2D map, "Arrows look wrong?" in AR, and the "position uncertain" banner open the door list without interrupting tracking. After a floor change on a route, the app asks for a door on the new floor.
 - **Arrows in AR:** the next 15 m of the route as a blue line on the floor, with a post where it ends.
-- **For you, in panel W:** **Find position again** opens screen 1 from anywhere, and **Doors in AR** puts an orange post on every door corner, so you can see drift as you walk. In the recorder, **tap a door chip to name the door** ("VR lab", "Lift").
+- **For you, in panel W:** **Find position again** opens screen 1 from anywhere, and **Doors in AR** puts an orange post on every door corner, so you can see drift as you walk. In the recorder, **tap a door chip to name the door** ("VR lab", "Lift"), and switch on **People may start inside this room** for doors into start rooms.
 
 Until the package lists the corners on the real plan, each floor's recording is that floor's plan. So everything can be tested in the lab straight after recording.
 
@@ -15,9 +15,9 @@ Until the package lists the corners on the real plan, each floor's recording is 
 1. Open Unity and wait for the import. It creates `.meta` files for the new files: `Doors.cs`, `LocateGuide.cs`, `RouteAhead.cs`, `ArRouteOverlay.cs`, `MarkDoor.uxml`, `MarkDoorPresenter.cs` and `DoorFixTests.cs`. Commit only after they exist.
 2. **A material for the AR lines.** Project window → `Assets/IndoorNavigation/Materials` → right-click → **Create → Material**, name it `RouteMaterial`. In the Inspector set **Shader** to **Universal Render Pipeline → Unlit**. The colour doesn't matter; the app tints it blue for the route and orange for door posts.
 3. Open the `App` scene, select the object with **Composition Root**, and drag `RouteMaterial` into the new **Route Material** field. Check that **Raycast Manager** and **Plane Manager** are still set. Save the scene.
-4. **Test Runner → EditMode → Run All.** Expect **282** passed.
+4. **Test Runner → EditMode → Run All.** Expect **285** passed.
 5. **Press Play** and try the new flow with the placeholders:
-   - on screen 1, tap **Start at a door instead**, choose *VR lab (sample)*, tap **Mark left corner** and **Mark right corner**: you reach screen 2;
+   - on screen 1, choose **Floor 1**; hold ↑ (raise) for a while in the Editor or just tap **Tell the app where I am**: *VR lab (sample)* appears twice, under "in a room" and under "at a door, in the corridor". Choose the room one, tap **Mark left corner** and **Mark right corner**: you reach screen 2;
    - W → **Find position again** opens screen 1 with a **Back** button;
    - run the scenario to the stairs and confirm the floor: screen 1 opens with "You're on floor 2"; press F (position found) or mark *Lift (sample)*.
 
@@ -44,9 +44,9 @@ GitHub → new release `export-position-007` on the pushed commit with the ZIP �
 
 ## D. Quick check at home (15 min)
 
-1. W → World maps → **New map** `home`, floor 1. Mark both corners of two doors. After each door, **tap its chip and name it** (for example *Kitchen*, *Bedroom*). Walk around both doors, save when Mapped.
+1. W → World maps → **New map** `home`, floor 1. Mark both corners of two doors, from the hallway side. After each door, **tap its chip and name it** (for example *Kitchen*, *Bedroom*); for *Bedroom* also switch on **People may start inside this room**. Walk around both doors and inside the bedroom, save when Mapped.
 2. Close the app completely and open it. Screen 1: hold the phone low, then raise it; the hint should change. Wait: either the map is recognised (screen 2), or after about 10 s the doors appear.
-3. W → **Find position again** → choose *Kitchen* → mark left, then right. You should reach the screen you came from within a few seconds. Try once marking the corners the wrong way round, or a wrong corner: it should ask you to mark again.
+3. W → **Find position again** → choose *Kitchen* (at a door) → mark left, then right. Then go into the bedroom, face its door, and choose *Bedroom* under "in a room". You should reach the screen you came from within a few seconds. Try once marking the corners the wrong way round, or a wrong corner: it should ask you to mark again.
 4. W → **Doors in AR** on. Raise the phone: orange posts should stand on the corners of both doors. Walk to the other door: are the posts still on its corners? Note roughly how far off they are.
 
 Tell me if anything behaves differently.
@@ -58,10 +58,11 @@ Do one floor completely before the next. Building empty, normal lighting, Auto-L
 **For each floor (about 40 min):**
 
 1. **Record.** W → World maps → **New map**, name `f<floor>` (for example `f1`), the floor's number.
-2. **Mark the doors.** Mark both corners of **every door where people may start, arrive or turn**: the VR lab, the lift, the stairs door, the toilets, and at least one more door on a different wall. Stand on the **corridor side**, facing the door, about 1.5 m away: left corner, then right corner. After each door, **tap its chip and name it** with the name a visitor would use. Photograph each door.
+2. **Mark the doors.** Mark both corners of **every door where people may start, arrive or turn**: the VR lab, the lift, the stairs door, the toilets, and at least one more door on a different wall. Always mark from the **corridor side**, facing the door, about 1.5 m away: left corner, then right corner. After each door, **tap its chip**: name it with the name a visitor would use, and for a room people may start in (VR lab, toilets) switch on **People may start inside this room**. Photograph each door from both sides.
+   **Inside each start room,** walk around slowly with the phone up and stop a few steps in front of the door, facing it, as a visitor would; the map then also knows the room.
 3. **Walk the area** with the phone upright: each corridor in both directions, and at each named door stop and slowly turn left and right. After 3–5 minutes, save when Mapped. For more of the floor: **Test**, then **Continue**, and keep going (old corners and names stay).
-4. **Test the automatic start, 3 times.** Close the app completely, open it, stand somewhere different each time (near the lift, the VR lab, the far end), and hold the phone up. Note the seconds until screen 2, or "doors" if the door list opened first.
-5. **Test the door fix at 3 different doors.** W → **Find position again** → the door → mark. Note the seconds and whether it ever asked to mark again.
+4. **Test the automatic start, 4 times.** Close the app completely, open it, choose the floor, stand somewhere different each time (inside the VR lab, near the lift, the far end of the corridor, inside a toilet area), and hold the phone up. Note the seconds until screen 2. If the reminder appears, keep waiting up to 1 minute before giving up, and note "no".
+5. **Test the door fix at 3 doors from the corridor and in 2 rooms from inside.** W → **Find position again** → the room or door → mark. Note the seconds and whether it ever asked to mark again. After a fix from inside, Doors in AR shows how far off the posts are (expect up to about 0.2 m towards the room).
 6. **Drift.** After a door fix, turn **Doors in AR** on and walk to each other named door. At each one, stand in the middle of the doorway, **Log check point**, and note how far the orange posts are from the real corners (by eye, in cm).
 7. **Phone held low (decision record 9).** Walk between two named doors holding the phone at map-reading tilt, then flat, logging a check point in each doorway without raising it.
 
@@ -89,4 +90,4 @@ Apple Devices → iPhone → Files → Indoor Navigation → drag `WorldMaps` an
 | `UI/Screens/NavigateMap.*`, `NavigateAr.*` | Fix position buttons |
 | `UI/Developer/*` | Door names in the recorder; Find position again and Doors in AR in panel W |
 | `App/CompositionRoot.cs` | Wiring, sample doors for the Editor, the overlay five times a second |
-| `Tests/EditMode/DoorFixTests.cs` | 24 tests: doors, door fix, hints, route ahead, the flow, screen codes |
+| `Tests/EditMode/DoorFixTests.cs` | 27 tests: doors (also from inside a room), door fix, hints, route ahead, the flow, screen codes |

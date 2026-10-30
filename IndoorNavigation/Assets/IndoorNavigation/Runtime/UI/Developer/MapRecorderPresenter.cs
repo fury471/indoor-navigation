@@ -59,6 +59,7 @@ namespace IndoorNavigation.UI.Developer
         private readonly VisualElement doorSheet;
         private readonly Label doorTitle;
         private readonly TextField doorName;
+        private readonly Toggle doorRoom;
         private string editingDoor;
 
         public MapRecorderPresenter(VisualElement root, IMapRecording recording, AppSession session)
@@ -100,6 +101,7 @@ namespace IndoorNavigation.UI.Developer
             doorSheet = root.Q<VisualElement>("door-sheet");
             doorTitle = root.Q<Label>("door-title");
             doorName = root.Q<TextField>("door-name");
+            doorRoom = root.Q<Toggle>("door-room");
             root.Q<Button>("door-done").clicked += () => CloseDoorSheet(redoDoor: false);
             root.Q<Button>("door-redo").clicked += () => CloseDoorSheet(redoDoor: true);
             ScreenPresenter.SetVisible(doorSheet, false);
@@ -195,6 +197,7 @@ namespace IndoorNavigation.UI.Developer
                 double? width = recording.DoorWidth(door);
                 bool check = width.HasValue && !recording.IsPlausibleDoor(width.Value);
                 string label = recording.DoorLabel(door);
+                if (label != null && recording.DoorLeadsToRoom(door)) label += " (room)";
                 string text = (label == null ? door : door + " · " + label) + " · " + (width.HasValue
                     ? width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m"
                     : "one corner");
@@ -228,6 +231,7 @@ namespace IndoorNavigation.UI.Developer
             editingDoor = door;
             doorTitle.text = "Door " + door;
             doorName.SetValueWithoutNotify(recording.DoorLabel(door) ?? "");
+            doorRoom.SetValueWithoutNotify(recording.DoorLeadsToRoom(door));
             ScreenPresenter.SetVisible(doorSheet, true);
         }
 
@@ -241,6 +245,7 @@ namespace IndoorNavigation.UI.Developer
 
             string typed = doorName.value ?? "";
             if (typed.Trim() != (recording.DoorLabel(door) ?? "")) recording.SetDoorLabel(door, typed);
+            recording.SetDoorLeadsToRoom(door, doorRoom.value);
             if (redoDoor)
             {
                 redo.Clear();

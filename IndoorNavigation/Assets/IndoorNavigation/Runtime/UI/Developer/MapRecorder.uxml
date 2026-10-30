@@ -23,6 +23,7 @@
                 <ui:Label name="door-title" class="strong" />
                 <ui:TextField name="door-name" class="text-field" />
                 <ui:Label text="What visitors call it, such as VR lab, Lift or Toilets. They choose doors by this name." class="small" />
+                <ui:Toggle name="door-room" label="People may start inside this room" class="door-room" />
                 <ui:VisualElement class="row recorder-row">
                     <ui:Button name="door-redo" text="Mark again" class="button recorder-button" />
                     <ui:Button name="door-done" text="Done" class="button button--primary recorder-button recorder-button--wide" />

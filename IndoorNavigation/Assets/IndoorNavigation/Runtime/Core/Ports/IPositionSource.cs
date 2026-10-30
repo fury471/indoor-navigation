@@ -41,9 +41,9 @@ namespace IndoorNavigation.Core.Ports
 
     /// <summary>
     /// The phone's position on the venue plan. Placeholder: developer-panel buttons and Editor keys.
-    /// Real: two ways to the first fix, then ARKit's own tracking (decision record 11). The floor's
-    /// world map is tried automatically when locating starts; at any time the person can instead
-    /// stand at a known door and mark its two floor corners, which fixes the position at once.
+    /// Real: two ways to the first fix, then ARKit's own tracking (decision record 11). The person
+    /// names the floor and its world map is tried; whenever they choose, they can instead say which
+    /// room or door they are at and mark that door's two floor corners, which fixes the position at once.
     /// Adapters raise PoseChanged only when the pose has moved noticeably, not every frame, and set
     /// <see cref="Pose"/> before raising StateChanged with Found.
     /// </summary>
@@ -60,6 +60,12 @@ namespace IndoorNavigation.Core.Ports
         /// another area on the same floor. With no map to try, only a door fix can find the position.
         /// </summary>
         void StartLocating(string areaId);
+
+        /// <summary>
+        /// Starts finding the position on a floor the user has named: tries that floor's world map.
+        /// With no map for the floor, only a door fix can find the position.
+        /// </summary>
+        void StartLocatingOnFloor(int floor);
 
         /// <summary>True while a world map is being tried automatically.</summary>
         bool TryingMap { get; }

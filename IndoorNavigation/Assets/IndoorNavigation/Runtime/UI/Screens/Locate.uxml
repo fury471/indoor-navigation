@@ -1,19 +1,31 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- 1 · Finding your position (decision record 11). The camera shows through. While the floor's
-         world map is tried, a hint says how to hold the phone; after a while, or on request, the
-         doors to start at. Opened again during the visit by "Fix position" and after a floor change. -->
+    <!-- 1 · Finding your position (decision record 11). The camera shows through. First "Which floor
+         are you on?"; then the floor's world map is tried while a hint says how to hold the phone.
+         After a while a reminder offers another way; "Where are you?" (rooms and doors) opens only
+         when the person chooses it. Opened again during the visit by "Fix position" and after a
+         floor change. -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen screen--transparent">
         <ui:Label name="building" class="chip locate-chip" />
         <ui:VisualElement class="spacer" picking-mode="Ignore" />
         <ui:VisualElement class="sheet locate-sheet">
             <ui:Label name="title" class="title" />
+            <ui:VisualElement name="floor-section" class="locate-doors">
+                <ui:Label text="Choose the floor you're on now." class="small locate-door-intro" />
+                <ui:ScrollView name="floor-list" vertical-scroller-visibility="Hidden" horizontal-scroller-visibility="Hidden" class="locate-door-list" />
+            </ui:VisualElement>
+            <ui:VisualElement name="floor-row" class="row locate-floor-row">
+                <ui:Label name="floor-chosen" class="small locate-floor-chosen" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="change-floor" text="Change floor" class="button button--small locate-change" />
+            </ui:VisualElement>
             <ui:Label name="hint" class="body locate-hint" />
             <ui:Label name="status" class="small" />
-            <ui:Button name="show-doors" text="Start at a door instead" class="button" />
+            <ui:Button name="show-doors" text="Tell the app where I am" class="button" />
             <ui:VisualElement name="door-section" class="locate-doors">
                 <ui:Label name="door-intro" class="small locate-door-intro" />
                 <ui:ScrollView name="door-list" vertical-scroller-visibility="Hidden" horizontal-scroller-visibility="Hidden" class="locate-door-list" />
+                <ui:Button name="hide-doors" text="Keep trying to recognise the floor" class="button button--small" />
             </ui:VisualElement>
             <ui:Button name="close" text="Back" class="button" />
         </ui:VisualElement>

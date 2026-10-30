@@ -13,7 +13,7 @@ Owner: Fury (fury471). Licence: MIT.
 | Walking skeleton: ten visitor screens, the session statechart, route planner, sample two-floor package, developer panel | Done; device-tested 26 Oct |
 | Real phone attitude (raise for AR, lower for 2D) | Done; device-tested 26 Oct |
 | Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
-| **Start at a door** when the map is slow: mark a named door's two corners (decision 11); Fix position at any time; route ahead drawn in AR | Build 7 code done and tested in the Editor; device test pending |
+| **Where are you?** when the map is slow: mark the door of the room you're in, or of the corridor door you're at (decision 11); Fix position at any time; route ahead drawn in AR | Build 7 code done and tested in the Editor; device test pending |
 | World-map library on the phone: name, test, continue and delete maps, name doors (developer only) | Builds 4–7 |
 | Floor plan and miniature of the real building | Converter works on practice scans. RoomPlan failed in the lab on 29 Oct, so the plan will come from the evacuation plans (not built yet) |
 | Low-phone prompt (decision 9), minimap in AR | Next |
@@ -31,8 +31,8 @@ You need:
 
 Then:
 1. Clone the repo and open the folder `IndoorNavigation/` in Unity Hub. Let the packages resolve.
-2. **Window → General → Test Runner → EditMode → Run All.** Expect 282 tests to pass.
-3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard (on screen 1, **Start at a door instead** works with sample doors):
+2. **Window → General → Test Runner → EditMode → Run All.** Expect 285 tests to pass.
+3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard (on screen 1, choose the floor, then **Tell the app where I am** works with sample doors):
 
    | Key | Does |
    |---|---|

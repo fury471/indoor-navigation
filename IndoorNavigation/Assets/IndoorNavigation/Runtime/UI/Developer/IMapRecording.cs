@@ -40,6 +40,12 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>Names a door, so visitors can choose it for a door fix; empty removes the name.</summary>
         void SetDoorLabel(string door, string label);
 
+        /// <summary>True when people may start inside the room behind this door.</summary>
+        bool DoorLeadsToRoom(string door);
+
+        /// <summary>Offers the room behind this door as a place to start in (screen 1, "In a room").</summary>
+        void SetDoorLeadsToRoom(string door, bool room);
+
         /// <summary>True when the last corner can be undone (not one that came with a continued map).</summary>
         bool CanUndo { get; }
 

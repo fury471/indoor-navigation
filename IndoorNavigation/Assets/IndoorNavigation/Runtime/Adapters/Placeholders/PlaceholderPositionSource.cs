@@ -37,6 +37,8 @@ namespace IndoorNavigation.Adapters.Placeholders
             SetState(PositionState.Searching);
         }
 
+        public void StartLocatingOnFloor(int floor) => StartLocating("floor " + floor);
+
         public void Stop()
         {
             CurrentArea = null;
@@ -87,7 +89,7 @@ namespace IndoorNavigation.Adapters.Placeholders
         /// <summary>"Position found": the room was recognised at the current pose.</summary>
         public void SetFound()
         {
-            if (CurrentArea == null) return;
+            CurrentArea = CurrentArea ?? "";
             TryingMap = false;
             FixingDoor = null;
             SetState(PositionState.Found);

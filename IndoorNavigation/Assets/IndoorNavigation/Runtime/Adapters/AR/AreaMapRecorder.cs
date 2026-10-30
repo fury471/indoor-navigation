@@ -48,6 +48,7 @@ namespace IndoorNavigation.Adapters.AR
         private readonly Dictionary<string, Vector3> marks = new Dictionary<string, Vector3>();
         private readonly List<string> markOrder = new List<string>();
         private readonly Dictionary<string, string> doorLabels = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly HashSet<string> roomDoors = new HashSet<string>(StringComparer.Ordinal);
 
         private ARSession arSession;
         private XROrigin origin;
@@ -166,6 +167,7 @@ namespace IndoorNavigation.Adapters.AR
             marks.Clear();
             markOrder.Clear();
             doorLabels.Clear();
+            roomDoors.Clear();
             loadedMarkCount = 0;
             mapBytes = 0;
             positioning.StartLocating(area.Id);
@@ -211,6 +213,8 @@ namespace IndoorNavigation.Adapters.AR
             loadedMarkCount = markOrder.Count;
             doorLabels.Clear();
             foreach (KeyValuePair<string, string> pair in store.ReadDoorLabels(id)) doorLabels[pair.Key] = pair.Value;
+            roomDoors.Clear();
+            foreach (string door in store.ReadRoomDoors(id)) roomDoors.Add(door);
             mapBytes = store.TryReadInfo(id)?.Bytes ?? 0;
             StartRecording(fresh: false, earlier: store.ReadCoverage(id));
             reason = null;
@@ -328,6 +332,21 @@ namespace IndoorNavigation.Adapters.AR
             if (clean == null) doorLabels.Remove(door);
             else doorLabels[door] = clean;
             Report("map", clean == null ? "door " + door + " unnamed" : "door " + door + " named " + clean);
+        }
+
+        /// <summary>True when people may start inside the room behind this door.</summary>
+        public bool DoorLeadsToRoom(string door) => door != null && roomDoors.Contains(door);
+
+        /// <summary>
+        /// Marks the door as the way into a room people may start in, such as the VR lab: screen 1 then
+        /// also offers "Inside &lt;name&gt;", fixed from inside the room facing this door.
+        /// </summary>
+        public void SetDoorLeadsToRoom(string door, bool room)
+        {
+            if (string.IsNullOrEmpty(door) || roomDoors.Contains(door) == room) return;
+            if (room) roomDoors.Add(door);
+            else roomDoors.Remove(door);
+            Report("map", "door " + door + (room ? " leads to a start room" : " is not a start room"));
         }
 
         /// <summary>The last corner can be undone, unless it came with the map being continued.</summary>
@@ -587,7 +606,7 @@ namespace IndoorNavigation.Adapters.AR
                         byte[] managed = bytes.ToArray();
                         if (managed.Length == 0) throw new InvalidOperationException("The world map is empty.");
 
-                        AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit, doorLabels);
+                        AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit, doorLabels, roomDoors);
                         store.Save(area.Id, managed, record, CoverageRecord.From(coverage));
                         mapBytes = managed.Length;
                         mapBytesAreSaved = true;

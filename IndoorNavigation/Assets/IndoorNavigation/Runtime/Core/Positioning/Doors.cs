@@ -10,11 +10,14 @@ namespace IndoorNavigation.Core.Positioning
     /// A door whose two floor corners are known on the plan: where its frame meets the floor, left
     /// and right as seen from the corridor (decision record 7). Standing in front of it and marking
     /// both corners with the phone fixes the position, the heading and the floor at once
-    /// (decision record 11).
+    /// (decision record 11). A door into a room people may start in can also be fixed from inside
+    /// the room (<see cref="FromInside"/>): seen from there, left and right are swapped.
     /// </summary>
     public sealed class DoorInfo
     {
-        public DoorInfo(string id, string areaId, int floor, string label, double leftX, double leftZ, double rightX, double rightZ)
+        public DoorInfo(
+            string id, string areaId, int floor, string label, double leftX, double leftZ, double rightX, double rightZ,
+            bool leadsToRoom = false, bool inside = false)
         {
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("A door needs an id.", nameof(id));
             Id = id;
@@ -25,6 +28,8 @@ namespace IndoorNavigation.Core.Positioning
             LeftZ = leftZ;
             RightX = rightX;
             RightZ = rightZ;
+            LeadsToRoom = leadsToRoom || inside;
+            Inside = inside;
         }
 
         /// <summary>The door's id in its area, such as "d3"; its corners are "d3-left" and "d3-right".</summary>
@@ -43,10 +48,26 @@ namespace IndoorNavigation.Core.Positioning
         public double RightX { get; }
         public double RightZ { get; }
 
-        /// <summary>Unique across areas: "area/door".</summary>
-        public string Key => AreaId + "/" + Id;
+        /// <summary>True when the door opens into a room people may start in, named by <see cref="Label"/>.</summary>
+        public bool LeadsToRoom { get; }
 
-        public string DisplayName => Label ?? "Door " + Id;
+        /// <summary>True for the door as seen from inside its room: Left and Right are the inside view's.</summary>
+        public bool Inside { get; }
+
+        /// <summary>Unique across areas: "area/door", with "/inside" for the view from inside the room.</summary>
+        public string Key => AreaId + "/" + Id + (Inside ? "/inside" : "");
+
+        /// <summary>"VR lab", "Door d3"; from inside, the room's name ("VR lab"), or "Room behind d3".</summary>
+        public string DisplayName => Inside ? Label ?? "Room behind " + Id : Label ?? "Door " + Id;
+
+        /// <summary>
+        /// The same door seen from inside its room: what is left from the corridor is right from
+        /// inside. The corners stay where the corridor side was recorded, so a fix from inside is off
+        /// by about the depth of the door frame, towards the room; the heading is not affected.
+        /// </summary>
+        public DoorInfo FromInside() => Inside
+            ? this
+            : new DoorInfo(Id, AreaId, Floor, Label, RightX, RightZ, LeftX, LeftZ, leadsToRoom: true, inside: true);
 
         public double WidthMetres
         {
@@ -68,9 +89,13 @@ namespace IndoorNavigation.Core.Positioning
     {
         /// <summary>
         /// The doors among an area's markers: every "dN-left" with its "dN-right". Labels are looked
-        /// up by door id ("d3"); a door without a label is shown as "Door d3".
+        /// up by door id ("d3"); a door without a label is shown as "Door d3". A door listed in
+        /// <paramref name="rooms"/> opens into a room people may start in, and comes twice: as seen
+        /// from the corridor, and as seen from inside the room.
         /// </summary>
-        public static List<DoorInfo> FromMarkers(string areaId, int floor, IReadOnlyList<MarkerInfo> markers, IReadOnlyDictionary<string, string> labels = null)
+        public static List<DoorInfo> FromMarkers(
+            string areaId, int floor, IReadOnlyList<MarkerInfo> markers, IReadOnlyDictionary<string, string> labels = null,
+            ICollection<string> rooms = null)
         {
             var doors = new List<DoorInfo>();
             if (markers == null) return doors;
@@ -95,7 +120,10 @@ namespace IndoorNavigation.Core.Positioning
                 if (!left.TryGetValue(door, out MarkerInfo l) || !right.TryGetValue(door, out MarkerInfo r)) continue;
                 string label = null;
                 if (labels != null) labels.TryGetValue(door, out label);
-                doors.Add(new DoorInfo(door, areaId, floor, label, l.X, l.Z, r.X, r.Z));
+                bool room = rooms != null && rooms.Contains(door);
+                var info = new DoorInfo(door, areaId, floor, label, l.X, l.Z, r.X, r.Z, leadsToRoom: room);
+                doors.Add(info);
+                if (room) doors.Add(info.FromInside()); // also offered as "in a room"
             }
 
             return doors;
@@ -127,8 +155,9 @@ namespace IndoorNavigation.Core.Positioning
 
         /// <summary>
         /// The doors in the order to offer them: the given floor first, then the others by floor;
-        /// on each floor the nearest to the last known position first (when there is one on that
-        /// floor), otherwise named doors before unnamed ones, then by name.
+        /// on each floor the rooms (doors seen from inside) before the corridor doors; then the
+        /// nearest to the last known position first (when there is one on that floor), otherwise
+        /// named doors before unnamed ones, then by name.
         /// </summary>
         public static List<DoorInfo> Sorted(IEnumerable<DoorInfo> doors, int preferredFloor, PlanPose? near)
         {
@@ -138,6 +167,7 @@ namespace IndoorNavigation.Core.Positioning
                 bool aHere = a.Floor == preferredFloor, bHere = b.Floor == preferredFloor;
                 if (aHere != bHere) return aHere ? -1 : 1;
                 if (a.Floor != b.Floor) return a.Floor.CompareTo(b.Floor);
+                if (a.Inside != b.Inside) return a.Inside ? -1 : 1;
                 if (near.HasValue && near.Value.Floor == a.Floor)
                 {
                     int byDistance = a.DistanceTo(near.Value).CompareTo(b.DistanceTo(near.Value));

@@ -98,6 +98,35 @@ namespace IndoorNavigation.Core.Session
         /// </summary>
         public bool Relocating { get; private set; }
 
+        /// <summary>True while screen 1 asks "Which floor are you on?".</summary>
+        public bool ChoosingFloor { get; private set; }
+
+        /// <summary>
+        /// The floors to choose from: the package's, and any floor with doors recorded on this phone
+        /// (named "Floor N"), by number.
+        /// </summary>
+        public IReadOnlyList<FloorInfo> Floors
+        {
+            get
+            {
+                var byNumber = new SortedDictionary<int, FloorInfo>();
+                if (Venue != null)
+                {
+                    foreach (FloorInfo floor in Venue.Manifest.Floors) byNumber[floor.Number] = floor;
+                }
+
+                foreach (DoorInfo door in position.Doors)
+                {
+                    if (!byNumber.ContainsKey(door.Floor))
+                    {
+                        byNumber[door.Floor] = new FloorInfo(door.Floor, "Floor " + door.Floor.ToString(CultureInfo.InvariantCulture));
+                    }
+                }
+
+                return new List<FloorInfo>(byNumber.Values);
+            }
+        }
+
         /// <summary>True when the position must be found again because the user changed floor.</summary>
         public bool RelocatingAfterFloorChange { get; private set; }
 
@@ -308,18 +337,30 @@ namespace IndoorNavigation.Core.Session
             return null;
         }
 
+        /// <summary>
+        /// Screen 1 begins with "Which floor are you on?" (decision record 11): the floor's world map is
+        /// then the one to try. A building with one floor skips the question.
+        /// </summary>
         private void StartLocating()
         {
             AreaInfo start = Venue.Area(Venue.StartAreaId);
-            UserFloor = start.Floor;
+            UserFloor = start?.Floor ?? UserFloor;
             View.ShowFloor(UserFloor);
-            position.StartLocating(start.Id);
-            StartGuide();
+            guide.Stop();
+            IReadOnlyList<FloorInfo> floors = Floors;
+            if (floors.Count == 1)
+            {
+                ChooseFloor(floors[0].Number);
+                return;
+            }
+
+            ChoosingFloor = true;
+            Log("locate", "which floor?");
         }
 
         private void StartGuide()
         {
-            guide.Start(clock.UtcNow, position.TryingMap);
+            guide.Start(clock.UtcNow, withMap: position.TryingMap);
             lastLocateSecond = 0;
             Log("locate", position.TryingMap ? "trying the world map" : "no world map to try; doors only");
         }
@@ -355,6 +396,7 @@ namespace IndoorNavigation.Core.Session
             guide.Stop();
             Relocating = false;
             RelocatingAfterFloorChange = false;
+            ChoosingFloor = false;
             if (pose.Floor != UserFloor && !AwaitingFloorChange)
             {
                 UserFloor = pose.Floor;
@@ -366,16 +408,49 @@ namespace IndoorNavigation.Core.Session
         // Finding the position: 1 and 1b (decision record 11)
         // ------------------------------------------------------------------
 
-        /// <summary>1: "Start at a door". Shows the door list without waiting for the map.</summary>
+        /// <summary>1: "Which floor are you on?" The floor's world map is tried from now on.</summary>
+        public void ChooseFloor(int floor)
+        {
+            if (State != SessionState.Locating && !Relocating) return;
+            ChoosingFloor = false;
+            UserFloor = floor;
+            View.ShowFloor(floor);
+            Log("locate", "floor " + floor.ToString(CultureInfo.InvariantCulture) + " chosen");
+            position.StartLocatingOnFloor(floor);
+            StartGuide();
+            NotifyChanged();
+        }
+
+        /// <summary>1: "Change" next to the floor: back to the floor question; stops trying the map.</summary>
+        public void ChangeFloor()
+        {
+            if ((State != SessionState.Locating && !Relocating) || position.FixingDoor != null) return;
+            position.Stop();
+            guide.Stop();
+            ChoosingFloor = true;
+            Log("locate", "change floor");
+            NotifyChanged();
+        }
+
+        /// <summary>1: "Tell the app where I am". Opens the rooms and doors; the map keeps trying meanwhile.</summary>
         public void ShowDoors()
         {
-            if (Panel != LocatePanel.Locate && State != SessionState.Locating) return;
+            if ((Panel != LocatePanel.Locate && State != SessionState.Locating) || ChoosingFloor) return;
             if (guide.Hint != LocateHint.UseDoor)
             {
                 guide.ShowDoors();
                 Log("locate", "door list opened by the user");
             }
 
+            NotifyChanged();
+        }
+
+        /// <summary>1: "Keep trying the map": closes the rooms and doors again, while a map is being tried.</summary>
+        public void HideDoors()
+        {
+            if (guide.Hint != LocateHint.UseDoor || !guide.MapToTry) return;
+            guide.HideDoors();
+            Log("locate", "back to the map");
             NotifyChanged();
         }
 
@@ -427,7 +502,8 @@ namespace IndoorNavigation.Core.Session
         {
             if (State == SessionState.ChoosingBuilding || State == SessionState.GettingData || State == SessionState.Locating) return;
             Relocating = true;
-            guide.Start(clock.UtcNow, mapToTry: false);
+            ChoosingFloor = false;
+            guide.Start(clock.UtcNow, withMap: false);
             lastLocateSecond = 0;
             Log("locate", "fix position opened");
             NotifyChanged();
@@ -440,6 +516,7 @@ namespace IndoorNavigation.Core.Session
             if (position.FixingDoor != null) position.CancelDoorFix();
             Relocating = false;
             RelocatingAfterFloorChange = false;
+            ChoosingFloor = false;
             guide.Stop();
             Log("locate", "closed without a new fix");
             NotifyChanged();
@@ -455,6 +532,7 @@ namespace IndoorNavigation.Core.Session
             if (Fire(SessionTrigger.ChangeBuilding))
             {
                 Relocating = false;
+                ChoosingFloor = false;
                 guide.Stop();
                 position.Stop();
                 await LoadVenueListAsync();
@@ -627,9 +705,9 @@ namespace IndoorNavigation.Core.Session
 
             // Each floor is located on its own: its world map is tried, or the user marks a door
             // there, such as the lift's (decision record 11).
-            AreaInfo area = Venue.AreaOnFloor(floor);
-            position.StartLocating(area?.Id);
+            position.StartLocatingOnFloor(floor);
             Relocating = true;
+            ChoosingFloor = false;
             RelocatingAfterFloorChange = true;
             StartGuide();
             NotifyChanged();

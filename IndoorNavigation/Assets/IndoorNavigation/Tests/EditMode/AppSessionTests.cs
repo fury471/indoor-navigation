@@ -81,7 +81,11 @@ namespace IndoorNavigation.Core.Tests
 
             Run(session.DownloadAsync(SampleVenue.VenueId));
             Assert.AreEqual(SessionState.Locating, session.State);
-            Assert.AreEqual("area-1", position.LocatingArea, "The start area's world map is loaded.");
+            Assert.IsTrue(session.ChoosingFloor, "Screen 1 first asks which floor you are on.");
+            Assert.AreEqual(0, position.StartLocatingCalls, "No map is tried before the floor is known.");
+
+            session.ChooseFloor(1);
+            Assert.AreEqual(1, position.LocatingFloor, "That floor's world map is tried.");
             Assert.AreEqual(1, session.UserFloor);
 
             position.SetFound(SampleVenue.StartPose);
@@ -120,7 +124,7 @@ namespace IndoorNavigation.Core.Tests
 
             session.ConfirmFloor(2);
             Assert.AreEqual(2, session.UserFloor);
-            Assert.AreEqual("area-2", position.LocatingArea, "A confirmed floor change tries the next floor's map.");
+            Assert.AreEqual(2, position.LocatingFloor, "A confirmed floor change tries the next floor's map.");
             Assert.AreEqual("1", session.Screen, "The position is found again on the new floor (decision record 11).");
 
             position.SetFound(new PlanPose(2, 20.0, 2.8, 180));

@@ -64,6 +64,10 @@ namespace IndoorNavigation.App
 
         public void SetDoorLabel(string door, string label) => recorder.SetDoorLabel(door, label);
 
+        public bool DoorLeadsToRoom(string door) => recorder.DoorLeadsToRoom(door);
+
+        public void SetDoorLeadsToRoom(string door, bool room) => recorder.SetDoorLeadsToRoom(door, room);
+
         public bool CanUndo => recorder.CanUndo;
 
         public void UndoLastMark() => recorder.UndoLastMark();

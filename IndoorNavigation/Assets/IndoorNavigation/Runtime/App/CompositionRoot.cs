@@ -33,10 +33,11 @@ namespace IndoorNavigation.App
         /// <summary>Where the placeholder position is "found": floor 1, by node j-vr-lab in the sample package.</summary>
         private static readonly PlanPose SampleStartPose = new PlanPose(1, 11.9, 15.0, 0);
 
-        /// <summary>Doors of the sample package for a door fix in the Editor: by the VR lab, the stairs and the lifts.</summary>
+        /// <summary>Doors of the sample package for a door fix in the Editor: the VR lab (also from inside), the stairs and the lifts.</summary>
         private static readonly DoorInfo[] SampleDoors =
         {
-            new DoorInfo("d1", "area-1", 1, "VR lab (sample)", 11.45, 14.0, 12.35, 14.0),
+            new DoorInfo("d1", "area-1", 1, "VR lab (sample)", 11.45, 14.0, 12.35, 14.0, leadsToRoom: true),
+            new DoorInfo("d1", "area-1", 1, "VR lab (sample)", 11.45, 14.0, 12.35, 14.0, leadsToRoom: true).FromInside(),
             new DoorInfo("d2", "area-1", 1, "Stairs (sample)", 19.55, 2.8, 20.45, 2.8),
             new DoorInfo("d1", "area-2", 2, "Lift (sample)", 11.45, 33.0, 12.35, 33.0),
             new DoorInfo("d2", "area-2", 2, "Stairs (sample)", 19.55, 2.8, 20.45, 2.8),

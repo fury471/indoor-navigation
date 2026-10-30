@@ -161,6 +161,28 @@ namespace IndoorNavigation.Adapters.AR
             return labels;
         }
 
+        /// <summary>The doors of a saved map that open into a room people may start in; empty if none or unreadable.</summary>
+        public HashSet<string> ReadRoomDoors(string areaId)
+        {
+            var rooms = new HashSet<string>(StringComparer.Ordinal);
+            try
+            {
+                string json = File.ReadAllText(Path.Combine(FolderOf(areaId), AlignmentFileName));
+                AlignmentRecord record = JsonUtility.FromJson<AlignmentRecord>(json);
+                if (record?.doorLabels == null) return rooms;
+                foreach (DoorLabelRecord door in record.doorLabels)
+                {
+                    if (door != null && door.room && !string.IsNullOrEmpty(door.door)) rooms.Add(door.door);
+                }
+            }
+            catch (Exception)
+            {
+                // Without the flag the door is still offered from the corridor.
+            }
+
+            return rooms;
+        }
+
         /// <summary>Reads and checks the alignment file; throws <see cref="InvalidDataException"/> if it is unusable.</summary>
         public AlignmentRecord ReadAlignment(string areaId, int mapBytes)
         {
@@ -233,7 +255,7 @@ namespace IndoorNavigation.Adapters.AR
         /// <param name="fit">The fit at recording time, or null when the plan positions come later.</param>
         public static AlignmentRecord From(
             string areaId, int floor, int mapBytes, IReadOnlyList<ArMark> marks, IReadOnlyList<MarkerInfo> planMarkers, PlanAlignment fit,
-            IReadOnlyDictionary<string, string> labels = null)
+            IReadOnlyDictionary<string, string> labels = null, ICollection<string> rooms = null)
         {
             var plan = new Dictionary<string, MarkerInfo>(StringComparer.Ordinal);
             if (planMarkers != null)
@@ -262,12 +284,19 @@ namespace IndoorNavigation.Adapters.AR
                 markers = markers,
             };
 
-            if (labels != null)
+            if (labels != null || rooms != null)
             {
                 var named = new List<DoorLabelRecord>();
-                foreach (KeyValuePair<string, string> pair in labels)
+                var doors = new HashSet<string>(StringComparer.Ordinal);
+                if (labels != null) foreach (string door in labels.Keys) doors.Add(door);
+                if (rooms != null) foreach (string door in rooms) doors.Add(door);
+                foreach (string door in doors)
                 {
-                    if (!string.IsNullOrWhiteSpace(pair.Value)) named.Add(new DoorLabelRecord { door = pair.Key, label = pair.Value.Trim() });
+                    string label = null;
+                    if (labels != null) labels.TryGetValue(door, out label);
+                    bool room = rooms != null && rooms.Contains(door);
+                    if (string.IsNullOrWhiteSpace(label) && !room) continue;
+                    named.Add(new DoorLabelRecord { door = door, label = string.IsNullOrWhiteSpace(label) ? null : label.Trim(), room = room });
                 }
 
                 named.Sort((a, b) => string.CompareOrdinal(a.door, b.door));
@@ -312,6 +341,9 @@ namespace IndoorNavigation.Adapters.AR
     {
         public string door;
         public string label;
+
+        /// <summary>True when the door opens into a room people may start in, so it is also offered from inside.</summary>
+        public bool room;
     }
 
     [Serializable]

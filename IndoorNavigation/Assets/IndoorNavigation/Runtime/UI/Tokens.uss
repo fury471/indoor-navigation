@@ -726,3 +726,23 @@
     flex-basis: 0;
     margin: 8px 4px 0 4px;
 }
+
+.door-room {
+    margin: 6px 0 2px 0;
+    font-size: 15px;
+}
+
+.locate-floor-row {
+    flex-shrink: 0;
+    margin-bottom: 4px;
+}
+
+.locate-floor-chosen {
+    color: var(--text);
+    -unity-font-style: bold;
+}
+
+.locate-change {
+    margin: 0;
+    padding: 0 14px;
+}

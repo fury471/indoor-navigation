@@ -107,6 +107,15 @@ namespace IndoorNavigation.Core.Tests
 
         public int StartLocatingCalls { get; private set; }
 
+        /// <summary>The floor last asked for with StartLocatingOnFloor, or null.</summary>
+        public int? LocatingFloor { get; private set; }
+
+        public void StartLocatingOnFloor(int floor)
+        {
+            StartLocating(null);
+            LocatingFloor = floor;
+        }
+
         public void Stop() => LocatingArea = null;
 
         // Door fix: the first mark takes the left corner, the second fixes the position at the door.

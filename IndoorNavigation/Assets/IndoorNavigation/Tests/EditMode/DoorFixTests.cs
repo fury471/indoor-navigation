@@ -77,6 +77,30 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual("Lift", upstairs[0].DisplayName);
         }
 
+        [Test]
+        public void ADoorIntoAStartRoom_IsOfferedFromInsideToo_WithLeftAndRightSwapped()
+        {
+            var markers = new List<MarkerInfo>
+            {
+                new MarkerInfo("d1-left", 0, 0), new MarkerInfo("d1-right", 0.9, 0),
+                new MarkerInfo("d2-left", 5, 0), new MarkerInfo("d2-right", 5.9, 0),
+            };
+            var labels = new Dictionary<string, string> { ["d1"] = "VR lab", ["d2"] = "Lift" };
+
+            List<DoorInfo> doors = DoorList.FromMarkers("f1", 1, markers, labels, new HashSet<string> { "d1" });
+
+            Assert.AreEqual(3, doors.Count, "The lift is not a room to start in.");
+            DoorInfo inside = doors.Find(d => d.Inside);
+            Assert.AreEqual("f1/d1/inside", inside.Key);
+            Assert.AreEqual("VR lab", inside.DisplayName);
+            Assert.AreEqual(0.9, inside.LeftX, 1e-9, "Left from inside is right from the corridor.");
+            Assert.AreEqual(0.0, inside.RightX, 1e-9);
+            Assert.IsTrue(doors.Find(d => d.Key == "f1/d1").LeadsToRoom);
+
+            List<DoorInfo> sorted = DoorList.Sorted(doors, 1, null);
+            Assert.IsTrue(sorted[0].Inside, "Rooms come first on each floor.");
+        }
+
         private static List<string> Names(List<DoorInfo> doors) => doors.ConvertAll(d => d.DisplayName);
     }
 
@@ -131,6 +155,30 @@ namespace IndoorNavigation.Core.Tests
         }
 
         [Test]
+        public void FromInsideTheRoom_ThePositionIsInsideTheRoom_FacingTheDoor()
+        {
+            // The corridor is at larger z than the door (as in TwoCorners_FixPositionAndHeading), so the
+            // room is at smaller z. Standing inside, facing the door, the person's left corner is the
+            // corridor's right one.
+            DoorInfo fromInside = Door.FromInside();
+            ArMark left = ToAr("l", 10.9, 5.0, -50, 8, 1);
+            ArMark right = ToAr("r", 10.0, 5.0, -50, 8, 1);
+
+            PlanAlignment fit = DoorFix.TryFit(fromInside, left, right, out string problem);
+            Assert.IsNull(problem);
+
+            ArMark phone = ToAr("p", 10.45, 3.5, -50, 8, 1);
+            ArMark ahead = ToAr("a", 10.45, 4.5, -50, 8, 1);
+            PlanPose pose = fit.ToPlanPose(1, phone.X, phone.Z, ahead.X - phone.X, ahead.Z - phone.Z);
+            Assert.AreEqual(3.5, pose.Z, 1e-6, "Inside the room, not mirrored into the corridor.");
+            Assert.AreEqual(180, pose.HeadingDegrees, 1e-6, "Facing the door, down the plan.");
+
+            // Treating the same marks as a corridor fix would mirror the position across the door.
+            PlanAlignment wrong = DoorFix.TryFit(Door, left, right, out _);
+            Assert.AreEqual(6.5, wrong.ToPlan(phone.X, phone.Z).Z, 1e-6);
+        }
+
+        [Test]
         public void AWidthThatDoesNotMatchTheDoor_IsRefused()
         {
             ArMark left = ToAr("l", 10.0, 5.0, 0, 0, 0);
@@ -161,10 +209,10 @@ namespace IndoorNavigation.Core.Tests
         private static readonly DateTime T0 = new DateTime(2026, 10, 31, 10, 0, 0, DateTimeKind.Utc);
 
         [Test]
-        public void AsksToRaise_ThenToLookAround_ThenOffersDoors()
+        public void AsksToRaise_ThenToLookAround_ThenReminds_ButNeverSwitchesByItself()
         {
             var guide = new LocateGuide();
-            guide.Start(T0, mapToTry: true);
+            guide.Start(T0, withMap: true);
             Assert.AreEqual(LocateHint.RaisePhone, guide.Hint);
 
             guide.Update(T0.AddSeconds(3), phoneRaised: false);
@@ -177,29 +225,38 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual(LocateHint.LookAround, guide.Hint, "9 s raised so far (from 3 s on): the time held low does not count.");
 
             guide.Update(T0.AddSeconds(14.5), phoneRaised: true);
-            Assert.AreEqual(LocateHint.UseDoor, guide.Hint);
+            Assert.AreEqual(LocateHint.TakingLong, guide.Hint, "A reminder, not the door list.");
 
-            guide.Update(T0.AddSeconds(15), phoneRaised: false);
-            Assert.AreEqual(LocateHint.UseDoor, guide.Hint, "Once offered, the doors stay.");
+            guide.Update(T0.AddSeconds(60), phoneRaised: false);
+            Assert.AreEqual(LocateHint.TakingLong, guide.Hint, "The reminder stays; the list opens only on request.");
+
+            guide.ShowDoors();
+            Assert.AreEqual(LocateHint.UseDoor, guide.Hint);
+            guide.Update(T0.AddSeconds(61), phoneRaised: true);
+            Assert.AreEqual(LocateHint.UseDoor, guide.Hint);
+            guide.HideDoors();
+            Assert.AreEqual(LocateHint.TakingLong, guide.Hint, "Back to the map, with the reminder.");
         }
 
         [Test]
-        public void HeldLowTheWholeTime_DoorsAreOfferedAfterTheTotalTime()
+        public void HeldLowTheWholeTime_TheReminderComesAfterTheTotalTime()
         {
             var guide = new LocateGuide();
-            guide.Start(T0, mapToTry: true);
+            guide.Start(T0, withMap: true);
             guide.Update(T0.AddSeconds(24), false);
             Assert.AreEqual(LocateHint.RaisePhone, guide.Hint);
-            guide.Update(T0.AddSeconds(LocateGuide.SecondsBeforeDoor), false);
-            Assert.AreEqual(LocateHint.UseDoor, guide.Hint);
+            guide.Update(T0.AddSeconds(LocateGuide.SecondsBeforeReminder), false);
+            Assert.AreEqual(LocateHint.TakingLong, guide.Hint);
         }
 
         [Test]
         public void WithoutAMap_DoorsAtOnce()
         {
             var guide = new LocateGuide();
-            guide.Start(T0, mapToTry: false);
-            Assert.AreEqual(LocateHint.UseDoor, guide.Hint);
+            guide.Start(T0, withMap: false);
+            Assert.AreEqual(LocateHint.UseDoor, guide.Hint, "With no map to try, the list is the only way.");
+            guide.HideDoors();
+            Assert.AreEqual(LocateHint.UseDoor, guide.Hint, "Nothing to go back to.");
         }
     }
 
@@ -264,6 +321,7 @@ namespace IndoorNavigation.Core.Tests
             session = new AppSession(new FakeDirectory(venue), new FakeRepository(venue), position, search, attitude, log, clock, new StudySettings());
             Run(session.StartAsync());
             Run(session.DownloadAsync(SampleVenue.VenueId));
+            session.ChooseFloor(1);
         }
 
         private static void Run(Task task) => task.GetAwaiter().GetResult();
@@ -279,7 +337,7 @@ namespace IndoorNavigation.Core.Tests
         }
 
         [Test]
-        public void Screen1_GuidesFromRaisingThePhone_ToTheDoors()
+        public void Screen1_GuidesFromRaisingThePhone_ToAReminder_AndTheUserChooses()
         {
             Assert.AreEqual("1", session.Screen);
             Assert.AreEqual(LocateHint.RaisePhone, session.LocateHint);
@@ -288,9 +346,29 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual(LocateHint.LookAround, session.LocateHint);
 
             Hold(80, 10);
+            Assert.AreEqual(LocateHint.TakingLong, session.LocateHint, "Only a reminder.");
+            Assert.AreEqual(1, log.Count("locate", "hint TakingLong"));
+
+            session.ShowDoors();
             Assert.AreEqual(LocateHint.UseDoor, session.LocateHint);
-            Assert.AreEqual(1, log.Count("locate", "hint UseDoor"));
             Assert.AreEqual("VR lab", session.Doors[0].DisplayName, "The user's floor first.");
+
+            session.HideDoors();
+            Assert.AreEqual(LocateHint.TakingLong, session.LocateHint, "Keep trying the map.");
+        }
+
+        [Test]
+        public void TheFloorCanBeChanged_BeforeThePositionIsFound()
+        {
+            session.ChangeFloor();
+            Assert.IsTrue(session.ChoosingFloor);
+            Assert.AreEqual(2, session.Floors.Count, "The sample package's two floors.");
+
+            session.ChooseFloor(2);
+            Assert.IsFalse(session.ChoosingFloor);
+            Assert.AreEqual(2, position.LocatingFloor);
+            Assert.AreEqual(2, session.UserFloor);
+            Assert.AreEqual("Lift", session.Doors[0].DisplayName, "Floor 2's doors first now.");
         }
 
         [Test]

@@ -38,10 +38,14 @@ namespace IndoorNavigation.UI.Screens
             DoorInfo fixing = Session.FixingDoor;
             if (fixing == null) return;
 
-            door.text = fixing.DisplayName + " · floor " + fixing.Floor.ToString(CultureInfo.InvariantCulture);
+            string floor = " · floor " + fixing.Floor.ToString(CultureInfo.InvariantCulture);
+            door.text = (fixing.Inside ? "Inside " + fixing.DisplayName : fixing.Label != null ? fixing.Label + " door" : fixing.DisplayName) + floor;
             bool leftNext = Session.CornersMarked == 0;
+            string stand = fixing.Inside
+                ? "Stand inside the room, a few steps from its door, facing the door."
+                : "Stand in the corridor in front of the door, facing it.";
             step.text = leftNext
-                ? "Stand in front of the door, facing it. Put the circle where the LEFT side of the frame meets the floor, then tap Mark."
+                ? stand + " Put the circle where the LEFT side of the frame meets the floor, then tap Mark."
                 : "Now the RIGHT side of the frame, where it meets the floor.";
             mark.text = leftNext ? "Mark left corner" : "Mark right corner";
 
