@@ -1,4 +1,4 @@
-# World maps: guide for builds 4 and 5
+# World maps: guide for builds 4 to 6
 
 Build 4 (`export-position-004`, 30 Oct) made the world-map recorder a small map library: you name each map, test how well it relocalises, and continue it later to make it bigger. A recording that is interrupted can't be saved.
 
@@ -6,7 +6,20 @@ Build 5 (`export-position-005`, 30 Oct) fixes why build 4 could not relocalise e
 
 **The bug.** ARKit keeps a loaded world map as the session's initial world map, and a session reset runs again with it ("This is equivalent to setting the initialWorldMap property", Unity, ARKitSessionSubsystem.ApplyWorldMap). The app loads `area-1`'s map at start, so every new recording began by relocalising against that old map, and the saved map was spoiled. The logs of 29 Oct show it: right after `recording started`, tracking went to `Limited Relocalizing`. The LocalisationLab scene never had this, because it recorded in a fresh launch with no map loaded. Build 5 clears the old map before a new recording starts, and the recorder refuses to save if a new recording is ever found relocalising.
 
-## A. Commit and build 5 (about 1 h, mostly waiting)
+Build 6 (`export-position-006`, 30 Oct) makes both screens fit any number of doors and maps (panels no longer shrink into each other), replaces the grid of Mark buttons with one Mark button, Undo and door chips, keeps what a recording covered next to its map so that continuing shows it, and shows the map's size while recording.
+
+## A. Commit and build (about 1 h, mostly waiting)
+
+For build 6: no new files. Run All (expect 258 passed), then
+```powershell
+git add Docs/world-map-guide.md IndoorNavigation/Assets/IndoorNavigation/Runtime/Core/Positioning IndoorNavigation/Assets/IndoorNavigation/Runtime/Adapters/AR IndoorNavigation/Assets/IndoorNavigation/Runtime/App IndoorNavigation/Assets/IndoorNavigation/Runtime/UI IndoorNavigation/Assets/IndoorNavigation/Tests/EditMode
+git diff --cached --stat
+git commit -m "feat(position): recorder fits any number of doors, shows earlier coverage and map size"
+git push
+```
+The stat should list 13 files. Leave `ProjectSettings.asset` out unless you changed it on purpose. Then build, zip and release `export-position-006` as below.
+
+The steps used for build 5:
 
 1. Open Unity and wait for the import. It creates `MapLibrary.uxml.meta` and `MapLibraryPresenter.cs.meta`; commit only after both exist.
 2. **Test Runner → EditMode → Run All.** Expect 257 passed.
@@ -30,6 +43,8 @@ Panel W → **World maps**. From top to bottom:
 | Status card | A pill: *No map loaded*, *Loading*, *Relocalising 23 s*, *Relocalised · f1-main* or *Not located*; the position's own status line; the result of your last tap. **Log check point** is here too. |
 | Maps | Grouped by floor. Each card: the name, then corners · size · when saved. *In use* marks the map being located. Areas the package expects but which have no map yet are grey ("No map yet"). Tap a card to select it. |
 | Bottom sheet | For the selected map: **Test** (load it and count the seconds until it relocalises), **Continue** (once it has relocalised: record on in the same map, keeping its corners), **Delete** (asks first; removes the map and its kept copy). **New map** opens a form: a name, the floor with − and +, and **Start recording**. |
+
+**The recorder** (build 6): the top card shows the map's name, `Recording 1:05 · 12 m walked · map 4.2 MiB` (the size is measured every 20 s; when continuing it starts with the saved size) and what to do next. At the bottom: a row of door chips (`d2 · 0.91 m`, amber when the width doesn't look like a door; tap one to mark that door's two corners again), **Undo** (removes the last corner, but never one that came with a continued map), **Mark d3-left** (always the next corner), **Close** and **Save map**. When you continue a map, what it covered before is drawn grey on the live map, under the new coverage; maps saved before build 6 have no stored coverage, and the recorder says so.
 
 Selecting a grey area and tapping **New map** fills in its name and floor. Reusing an existing name asks for a second tap; the old map is kept as `.previous` until the new one is saved. Closing the recorder brings you back to this screen.
 

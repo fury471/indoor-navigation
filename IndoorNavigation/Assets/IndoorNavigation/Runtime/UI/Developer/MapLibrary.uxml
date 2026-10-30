@@ -20,7 +20,7 @@
             <ui:Label name="maps-message" class="small maps-message" />
         </ui:VisualElement>
 
-        <ui:ScrollView name="maps-list" class="maps-list" />
+        <ui:ScrollView name="maps-list" vertical-scroller-visibility="Hidden" horizontal-scroller-visibility="Hidden" class="maps-list" />
 
         <ui:VisualElement name="maps-actions" class="sheet maps-sheet">
             <ui:Label name="maps-selected" class="strong" />

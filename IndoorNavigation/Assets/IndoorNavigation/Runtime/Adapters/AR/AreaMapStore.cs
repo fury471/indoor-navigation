@@ -38,6 +38,9 @@ namespace IndoorNavigation.Adapters.AR
         public const string MapFileName = "environment.worldmap";
         public const string AlignmentFileName = "alignment.json";
 
+        /// <summary>What the recording covered, for the live map when the map is continued. Optional.</summary>
+        public const string CoverageFileName = "coverage.json";
+
         public AreaMapStore(string root) => Root = root;
 
         public string Root { get; }
@@ -114,6 +117,20 @@ namespace IndoorNavigation.Adapters.AR
             return deleted;
         }
 
+        /// <summary>What a saved map's recording covered, or null for maps saved before this was kept.</summary>
+        public CoverageRecord ReadCoverage(string areaId)
+        {
+            try
+            {
+                string file = Path.Combine(FolderOf(areaId), CoverageFileName);
+                return File.Exists(file) ? JsonUtility.FromJson<CoverageRecord>(File.ReadAllText(file)) : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         /// <summary>The corners stored with a saved map, for continuing it; empty if there are none.</summary>
         public List<ArMark> ReadMarks(string areaId)
         {
@@ -142,7 +159,7 @@ namespace IndoorNavigation.Adapters.AR
         /// Writes both files to a temporary folder first and swaps it in only when both are written,
         /// so a crash never leaves a map without its alignment. The previous recording is kept once.
         /// </summary>
-        public void Save(string areaId, byte[] map, AlignmentRecord record)
+        public void Save(string areaId, byte[] map, AlignmentRecord record, CoverageRecord coverage = null)
         {
             Directory.CreateDirectory(Root);
             string final = FolderOf(areaId);
@@ -153,6 +170,7 @@ namespace IndoorNavigation.Adapters.AR
             Directory.CreateDirectory(temporary);
             File.WriteAllBytes(Path.Combine(temporary, MapFileName), map);
             File.WriteAllText(Path.Combine(temporary, AlignmentFileName), JsonUtility.ToJson(record, true));
+            if (coverage != null) File.WriteAllText(Path.Combine(temporary, CoverageFileName), JsonUtility.ToJson(coverage));
 
             if (Directory.Exists(final))
             {
@@ -263,5 +281,55 @@ namespace IndoorNavigation.Adapters.AR
 
         public double planX;
         public double planZ;
+    }
+
+    /// <summary>The coverage file: the live map's cells and path in session metres. Field names are the JSON keys.</summary>
+    [Serializable]
+    public sealed class CoverageRecord
+    {
+        public int schemaVersion = 1;
+        public int[] cellI;
+        public int[] cellJ;
+        public int[] cellPoints;
+        public float[] pathX;
+        public float[] pathZ;
+
+        public static CoverageRecord From(MapCoverage coverage)
+        {
+            var (cells, path) = coverage.Snapshot();
+            var record = new CoverageRecord
+            {
+                cellI = new int[cells.Count],
+                cellJ = new int[cells.Count],
+                cellPoints = new int[cells.Count],
+                pathX = new float[path.Count],
+                pathZ = new float[path.Count],
+            };
+            for (int k = 0; k < cells.Count; k++)
+            {
+                record.cellI[k] = cells[k].I;
+                record.cellJ[k] = cells[k].J;
+                record.cellPoints[k] = cells[k].Points;
+            }
+
+            for (int k = 0; k < path.Count; k++)
+            {
+                record.pathX[k] = (float)path[k].X;
+                record.pathZ[k] = (float)path[k].Z;
+            }
+
+            return record;
+        }
+
+        /// <summary>Loads this record into the coverage as the earlier layer.</summary>
+        public void LoadInto(MapCoverage coverage)
+        {
+            if (schemaVersion != 1 || cellI == null || cellJ == null || cellPoints == null) return;
+            int cells = Math.Min(cellI.Length, Math.Min(cellJ.Length, cellPoints.Length));
+            for (int k = 0; k < cells; k++) coverage.AddEarlier(cellI[k], cellJ[k], cellPoints[k]);
+            if (pathX == null || pathZ == null) return;
+            int points = Math.Min(pathX.Length, pathZ.Length);
+            for (int k = 0; k < points; k++) coverage.AddEarlierPath(pathX[k], pathZ[k]);
+        }
     }
 }

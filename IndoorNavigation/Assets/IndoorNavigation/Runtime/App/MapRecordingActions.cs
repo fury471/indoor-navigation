@@ -38,11 +38,31 @@ namespace IndoorNavigation.App
             ? null
             : recorder.AreaId + (recorder.AreaName == recorder.AreaId ? "" : " · " + recorder.AreaName);
 
-        public string Status => recorder.Status;
+        public string Progress => recorder.ProgressLine;
 
-        public IReadOnlyList<string> MarkerIds => recorder.MarkerIds;
+        public string Message => recorder.Message;
+
+        public IReadOnlyList<string> MarkedIds => recorder.MarkedIds;
+
+        public string NextMarkerId => recorder.NextMarkerId;
+
+        public double? DoorWidth(string door)
+        {
+            foreach ((string d, double width) in recorder.DoorWidths)
+            {
+                if (d == door) return width;
+            }
+
+            return null;
+        }
+
+        public bool IsPlausibleDoor(double width) => MarkerPairing.IsPlausibleDoor(width);
 
         public bool IsMarked(string markerId) => recorder.IsMarked(markerId);
+
+        public bool CanUndo => recorder.CanUndo;
+
+        public void UndoLastMark() => recorder.UndoLastMark();
 
         public bool CanSave => recorder.CanSave;
 
@@ -59,7 +79,7 @@ namespace IndoorNavigation.App
 
         public bool BeginContinue(out string reason) => recorder.BeginContinue(out reason);
 
-        public void Mark(string markerId) => recorder.Mark(markerId, new Vector2(Screen.width / 2f, Screen.height / 2f));
+        public bool Mark(string markerId) => recorder.Mark(markerId, new Vector2(Screen.width / 2f, Screen.height / 2f));
 
         public void Save() => recorder.Save();
 

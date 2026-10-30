@@ -67,9 +67,19 @@ namespace IndoorNavigation.Adapters.AR
         private readonly RecordingGuard guard = new RecordingGuard();
         private float recordingStartedAt;
         private bool continuing;
+        private int loadedMarkCount;
+        private long mapBytes;
+        private bool mapBytesAreSaved;
+        private float nextSizeAt;
+
+        /// <summary>While recording, the map's size is measured this often (it means asking ARKit for the whole map).</summary>
+        public const float SizeEverySeconds = 20f;
 
 #if UNITY_IOS && !UNITY_EDITOR
         private ARWorldMapRequest request;
+        private ARWorldMapRequest sizeRequest;
+        private bool sizing;
+        private float sizeStartedAt;
 #endif
 
         public bool IsRecording { get; private set; }
@@ -154,8 +164,10 @@ namespace IndoorNavigation.Adapters.AR
             area = newArea;
             marks.Clear();
             markOrder.Clear();
+            loadedMarkCount = 0;
+            mapBytes = 0;
             positioning.StartLocating(area.Id);
-            StartRecording(fresh: true);
+            StartRecording(fresh: true, earlier: null);
             reason = null;
             return true;
         }
@@ -194,12 +206,14 @@ namespace IndoorNavigation.Adapters.AR
                 marks[m.Id] = new Vector3((float)m.X, (float)m.Y, (float)m.Z);
             }
 
-            StartRecording(fresh: false);
+            loadedMarkCount = markOrder.Count;
+            mapBytes = store.TryReadInfo(id)?.Bytes ?? 0;
+            StartRecording(fresh: false, earlier: store.ReadCoverage(id));
             reason = null;
             return true;
         }
 
-        private void StartRecording(bool fresh)
+        private void StartRecording(bool fresh, CoverageRecord earlier)
         {
             Preview = null;
             continuing = !fresh;
@@ -215,7 +229,10 @@ namespace IndoorNavigation.Adapters.AR
             }
             SetPlaneDetection(true);
             coverage.Clear();
+            earlier?.LoadInto(coverage);
             foreach (string id in markOrder) coverage.SetMark(id, marks[id].x, marks[id].z);
+            mapBytesAreSaved = !fresh && mapBytes > 0;
+            nextSizeAt = Time.realtimeSinceStartup + SizeEverySeconds;
             SetPointClouds(true);
             if (fresh) guard.Start();
             else guard.StartTracking();
@@ -224,7 +241,9 @@ namespace IndoorNavigation.Adapters.AR
             UpdatePreview();
             if (continuing)
             {
-                message = $"Continuing {area.Id} with its {markOrder.Count} corners. The live map shows only what you add now. Don't leave the app until it says Saved.";
+                message = coverage.HasEarlier
+                    ? $"Continuing {area.Id}: its {markOrder.Count} corners and what it covered are kept (grey on the live map). Don't leave the app until it says Saved."
+                    : $"Continuing {area.Id}: its {markOrder.Count} corners are kept. This map was saved before coverage was stored, so the live map shows only what you add now. Don't leave the app until it says Saved.";
                 Report("map", $"recording continued for {area.Id} from its saved map, {markOrder.Count} corners");
             }
             else
@@ -249,6 +268,7 @@ namespace IndoorNavigation.Adapters.AR
             if (!IsRecording) return;
             IsRecording = false;
             ReleaseRequest();
+            ReleaseSizeRequest();
             SetPlaneDetection(false);
             SetPointClouds(false);
             Report("map", "recording cancelled");
@@ -257,10 +277,52 @@ namespace IndoorNavigation.Adapters.AR
 
         public bool CanSave => IsRecording && !saving && !guard.Broken && MappingDone && (HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder);
 
-        /// <summary>"Recording 4:12 · 85 m walked", or why the recording broke.</summary>
-        private string ProgressLine => guard.Broken
-            ? "Recording interrupted (" + guard.Reason + "). This map would not hold together, so it can't be saved. Close, then record again, or load the last saved map and continue it."
-            : RecordingProgress.Line(Time.realtimeSinceStartup - recordingStartedAt, coverage.PathMetres);
+        /// <summary>"Recording 4:12 · 85 m walked · map 12.3 MiB", or why the recording broke.</summary>
+        public string ProgressLine => !IsRecording
+            ? ""
+            : guard.Broken
+                ? "Recording interrupted (" + guard.Reason + "). It can't be saved: close, then record again, or test the last saved map and continue it."
+                : RecordingProgress.Line(Time.realtimeSinceStartup - recordingStartedAt, coverage.PathMetres + coverage.EarlierPathMetres, mapBytes, mapBytesAreSaved);
+
+        /// <summary>The last hint or result for the person recording.</summary>
+        public string Message => message;
+
+        /// <summary>The corners marked so far, in the order they were first marked (a continued map's first).</summary>
+        public IReadOnlyList<string> MarkedIds => markOrder;
+
+        /// <summary>The corner to mark next: the package's next unmarked marker, or the next corner in route order; null when all are marked.</summary>
+        public string NextMarkerId
+        {
+            get
+            {
+                if (area == null) return null;
+                if (!HasPlanMarkers) return MarkerPairing.CornerId(markOrder.Count);
+                foreach (MarkerInfo marker in area.Markers)
+                {
+                    if (!marks.ContainsKey(marker.Id)) return marker.Id;
+                }
+
+                return null;
+            }
+        }
+
+        /// <summary>Each door with both corners marked, and its width.</summary>
+        public IReadOnlyList<(string Door, double Width)> DoorWidths => MarkerPairing.DoorWidths(Marks());
+
+        /// <summary>The last corner can be undone, unless it came with the map being continued.</summary>
+        public bool CanUndo => IsRecording && !saving && markOrder.Count > loadedMarkCount;
+
+        public void UndoLastMark()
+        {
+            if (!CanUndo) return;
+            string id = markOrder[markOrder.Count - 1];
+            markOrder.RemoveAt(markOrder.Count - 1);
+            marks.Remove(id);
+            coverage.RemoveMark(id);
+            UpdatePreview();
+            message = "Removed " + id + ". Mark it again when the circle is on the corner.";
+            Report("map", "unmarked " + id);
+        }
 
         /// <summary>One or two lines for the recorder overlay.</summary>
         public string Status
@@ -296,15 +358,15 @@ namespace IndoorNavigation.Adapters.AR
         private string MappingText => Session == null ? "waiting for ARKit" : Session.worldMappingStatus.ToString();
 
         /// <summary>Marks a door corner: the floor point under the given screen point, usually the crosshair.</summary>
-        public void Mark(string markerId, Vector2 screenPoint)
+        public bool Mark(string markerId, Vector2 screenPoint)
         {
-            if (!IsRecording || saving) return;
+            if (!IsRecording || saving) return false;
 
             var hits = new List<ARRaycastHit>();
             if (!raycasts.Raycast(screenPoint, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
             {
                 message = "No floor under the crosshair yet. Move the phone slowly over the floor and try again.";
-                return;
+                return false;
             }
 
             Vector3 world = hits[0].pose.position; // hits are sorted nearest first
@@ -312,7 +374,7 @@ namespace IndoorNavigation.Adapters.AR
             if (camera.position.y - world.y < MinimumDropToFloorMetres)
             {
                 message = "That looks like a table, not the floor. Aim at the door corner on the floor.";
-                return;
+                return false;
             }
 
             if (!marks.ContainsKey(markerId)) markOrder.Add(markerId);
@@ -332,6 +394,8 @@ namespace IndoorNavigation.Adapters.AR
                     ? "Marked. Mark more doors if you like, then walk slowly until Mapping says Mapped, and save."
                     : "Marked. Now mark " + MarkerPairing.CornerId(markOrder.Count) + ".";
             }
+
+            return true;
         }
 
         public void Save()
@@ -353,6 +417,7 @@ namespace IndoorNavigation.Adapters.AR
 
             try
             {
+                ReleaseSizeRequest();
                 pendingFit = Preview;
                 pendingMarks = Marks();
                 request = Session.GetARWorldMapAsync();
@@ -379,6 +444,63 @@ namespace IndoorNavigation.Adapters.AR
             guard.Observe(Condition(), DateTime.Now, Time.realtimeSinceStartup - recordingStartedAt);
             if (guard.Broken && !wasBroken) Report("map", "recording interrupted: " + guard.Reason);
             UpdateCoverage();
+            MeasureSize();
+        }
+
+        /// <summary>
+        /// Every <see cref="SizeEverySeconds"/>, asks ARKit for the current map and notes its serialized
+        /// size, so the recorder can show how big the map is getting. Only while mapping is far enough
+        /// for ARKit to give a map, and never while saving.
+        /// </summary>
+        private void MeasureSize()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (sizing)
+            {
+                ARWorldMapRequestStatus status = sizeRequest.status;
+                if (status == ARWorldMapRequestStatus.Pending && now - sizeStartedAt < SaveTimeoutSeconds) return;
+                try
+                {
+                    if (status == ARWorldMapRequestStatus.Success)
+                    {
+                        using (ARWorldMap worldMap = sizeRequest.GetWorldMap())
+                        using (NativeArray<byte> bytes = worldMap.Serialize(Allocator.Temp))
+                        {
+                            mapBytes = bytes.Length;
+                            mapBytesAreSaved = false;
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // A failed measurement only means the size line is older; the recording is unaffected.
+                }
+
+                ReleaseSizeRequest();
+                nextSizeAt = now + SizeEverySeconds;
+                return;
+            }
+
+            if (saving || guard.Broken || now < nextSizeAt || Session == null) return;
+            ARWorldMappingStatus mapping = Session.worldMappingStatus;
+            if (mapping != ARWorldMappingStatus.Extending && mapping != ARWorldMappingStatus.Mapped) return;
+            try
+            {
+                sizeRequest = Session.GetARWorldMapAsync();
+                sizing = true;
+                sizeStartedAt = now;
+            }
+            catch (Exception)
+            {
+                nextSizeAt = now + SizeEverySeconds;
+            }
+        }
+
+        private void ReleaseSizeRequest()
+        {
+            if (!sizing) return;
+            sizing = false;
+            sizeRequest.Dispose();
         }
 
         /// <summary>ARKit's tracking, reduced to what <see cref="RecordingGuard"/> needs.</summary>
@@ -443,7 +565,9 @@ namespace IndoorNavigation.Adapters.AR
                         if (managed.Length == 0) throw new InvalidOperationException("The world map is empty.");
 
                         AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit);
-                        store.Save(area.Id, managed, record);
+                        store.Save(area.Id, managed, record, CoverageRecord.From(coverage));
+                        mapBytes = managed.Length;
+                        mapBytesAreSaved = true;
                         string fitText = pendingFit == null
                             ? "plan positions come later"
                             : string.Format(CultureInfo.InvariantCulture, "fit {0:F2} m", pendingFit.RmsErrorMetres);
@@ -495,11 +619,19 @@ namespace IndoorNavigation.Adapters.AR
 
         private string MappingText => "needs the iPhone";
 
-        public void Mark(string markerId, Vector2 screenPoint) => message = "Recording a world map needs the iPhone.";
+        public bool Mark(string markerId, Vector2 screenPoint)
+        {
+            message = "Recording a world map needs the iPhone.";
+            return false;
+        }
 
         public void Save() => message = "Recording a world map needs the iPhone.";
 
         private void ReleaseRequest() => saving = false;
+
+        private void ReleaseSizeRequest()
+        {
+        }
 
         private void ClearWorldMap()
         {
@@ -511,7 +643,11 @@ namespace IndoorNavigation.Adapters.AR
         }
 #endif
 
-        private void OnDisable() => ReleaseRequest();
+        private void OnDisable()
+        {
+            ReleaseRequest();
+            ReleaseSizeRequest();
+        }
 
         private void SetPointClouds(bool on)
         {

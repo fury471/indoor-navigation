@@ -142,13 +142,22 @@ namespace IndoorNavigation.Core.Positioning
         /// <summary>After this long, the line suggests saving and continuing later.</summary>
         public const int LongRecordingSeconds = 600;
 
-        /// <summary>"Recording 4:12 · 85 m walked", with a nudge on long recordings.</summary>
-        public static string Line(double seconds, double metresWalked)
+        /// <summary>
+        /// "Recording 4:12 · 85 m walked · map 12.3 MiB", with a nudge on long recordings. The size is
+        /// the last measured size of the map (0 when not measured yet); <paramref name="sizeIsSaved"/>
+        /// says it is the saved map's size, before anything new was measured.
+        /// </summary>
+        public static string Line(double seconds, double metresWalked, long mapBytes = 0, bool sizeIsSaved = false)
         {
             int s = (int)Math.Max(0, seconds);
             string line = string.Format(CultureInfo.InvariantCulture, "Recording {0}:{1:D2} · {2:F0} m walked", s / 60, s % 60, metresWalked);
+            if (mapBytes > 0)
+            {
+                line += string.Format(CultureInfo.InvariantCulture, " · map {0:F1} MiB{1}", mapBytes / (1024.0 * 1024.0), sizeIsSaved ? " saved" : "");
+            }
+
             return s >= LongRecordingSeconds
-                ? line + " · long: save now, then Continue recording to add more"
+                ? line + " · long: save now, then Continue to add more"
                 : line;
         }
     }

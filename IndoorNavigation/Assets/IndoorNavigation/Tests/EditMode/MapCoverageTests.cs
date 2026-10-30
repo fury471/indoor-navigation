@@ -103,5 +103,39 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual("10 points · 0.5 m² covered · 3 m walked", c.Summary());
             Assert.AreEqual("10 points · 0.5 m²", c.ShortSummary());
         }
+
+        [Test]
+        public void AContinuedMap_ShowsTheEarlierLayer_AndSavesBothTogether()
+        {
+            var c = new MapCoverage();
+            c.AddEarlier(0, 0, 12);
+            c.AddEarlier(3, 1, 4);
+            c.AddEarlierPath(0, 0);
+            c.AddEarlierPath(3, 4);
+            Assert.IsTrue(c.HasEarlier);
+            Assert.AreEqual(16, c.PointCount);
+            Assert.AreEqual(5, c.EarlierPathMetres, 1e-9);
+
+            for (ulong i = 0; i < 3; i++) c.AddPoint(i, 0.1, 0.1);   // new points over an earlier cell
+            c.AddPoint(9, 5.1, 5.1);                                  // and over a new one
+            CoverageCell shared = c.Cells.Single(x => x.I == 0 && x.J == 0);
+            Assert.AreEqual(15, shared.Points);
+            Assert.AreEqual(12, shared.EarlierPoints);
+            Assert.AreEqual(0, c.Cells.Single(x => x.I == 10).EarlierPoints);
+            Assert.AreEqual(4, c.Cells.Single(x => x.I == 3).Points, "An earlier cell not seen again is kept.");
+            Assert.AreEqual(1, c.CoveredCellCount, "12 + 3 points covers; 4 and 1 do not.");
+
+            c.SetViewer(1, 1, 0, 1);
+            var (cells, path) = c.Snapshot();
+            Assert.AreEqual(3, cells.Count);
+            Assert.AreEqual(3, path.Count, "The earlier path, then the new one.");
+
+            c.SetMark("d1-left", 1, 1);
+            c.RemoveMark("d1-left");
+            Assert.AreEqual(0, c.Marks.Count);
+            c.Clear();
+            Assert.IsFalse(c.HasEarlier);
+            Assert.AreEqual(0, c.PointCount);
+        }
     }
 }

@@ -14,12 +14,30 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>"area-1 · Floor 1, VR lab corridor"</summary>
         string AreaLabel { get; }
 
-        /// <summary>Mapping status, which markers are marked, the fit, and the next step.</summary>
-        string Status { get; }
+        /// <summary>"Recording 4:12 · 85 m walked · map 12.3 MiB", or why the recording broke.</summary>
+        string Progress { get; }
 
-        IReadOnlyList<string> MarkerIds { get; }
+        /// <summary>The last hint or result: what to do next.</summary>
+        string Message { get; }
+
+        /// <summary>The corners marked so far, in marking order.</summary>
+        IReadOnlyList<string> MarkedIds { get; }
+
+        /// <summary>The corner to mark next, or null when every expected corner is marked.</summary>
+        string NextMarkerId { get; }
+
+        /// <summary>Width of a door whose two corners are marked, or null.</summary>
+        double? DoorWidth(string door);
+
+        /// <summary>True if this width looks like a door (0.6–2.5 m).</summary>
+        bool IsPlausibleDoor(double width);
 
         bool IsMarked(string markerId);
+
+        /// <summary>True when the last corner can be undone (not one that came with a continued map).</summary>
+        bool CanUndo { get; }
+
+        void UndoLastMark();
 
         bool CanSave { get; }
 
@@ -35,8 +53,8 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>Continues the map that has just relocalised, keeping its corners. Returns false with a reason if it cannot.</summary>
         bool BeginContinue(out string reason);
 
-        /// <summary>Marks the marker (a door-frame corner) under the crosshair in the middle of the screen.</summary>
-        void Mark(string markerId);
+        /// <summary>Marks the marker (a door-frame corner) under the crosshair in the middle of the screen. False if no floor was found there.</summary>
+        bool Mark(string markerId);
 
         void Save();
 

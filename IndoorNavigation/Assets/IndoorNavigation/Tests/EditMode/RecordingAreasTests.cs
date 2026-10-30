@@ -155,7 +155,9 @@ namespace IndoorNavigation.Core.Tests
         public void RecordingProgress_ShowsTimeAndDistance_AndNudgesLongRecordings()
         {
             Assert.AreEqual("Recording 4:12 · 85 m walked", RecordingProgress.Line(252.7, 85.2));
-            StringAssert.EndsWith("save now, then Continue recording to add more", RecordingProgress.Line(600, 300));
+            StringAssert.EndsWith("save now, then Continue to add more", RecordingProgress.Line(600, 300));
+            Assert.AreEqual("Recording 1:05 · 12 m walked · map 4.2 MiB", RecordingProgress.Line(65, 12, (long)(4.2 * 1024 * 1024)));
+            Assert.AreEqual("Recording 0:03 · 0 m walked · map 4.0 MiB saved", RecordingProgress.Line(3, 0, 4 * 1024 * 1024, sizeIsSaved: true));
             Assert.AreEqual("Recording 0:00 · 0 m walked", RecordingProgress.Line(-1, 0));
         }
     }

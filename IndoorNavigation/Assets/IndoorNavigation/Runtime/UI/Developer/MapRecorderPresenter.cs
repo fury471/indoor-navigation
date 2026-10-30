@@ -8,12 +8,15 @@ using UnityEngine.UIElements;
 namespace IndoorNavigation.UI.Developer
 {
     /// <summary>
-    /// The world-map recorder overlay, opened from the developer panel. One button per marker (a door-frame corner)
-    /// ("Mark A", "Mark B" …), then Save. The status refreshes four times a second, because
-    /// ARKit's mapping status changes without any change in the session.
+    /// The world-map recorder overlay, opened from the World maps screen. One Mark button names the
+    /// next door-frame corner; Undo removes the last one; a row of door chips shows each door's width,
+    /// and tapping a chip marks that door's two corners again. Nothing grows with the number of doors.
+    /// The status refreshes four times a second, because ARKit's mapping status changes without any
+    /// change in the session.
     /// A live map shows what the recording has covered, seen from above, centred on the phone and
     /// turned so that the way it faces is up: floor squares shaded by ARKit's feature points (what a
-    /// world map is made of; empty means not mapped yet), the path walked and the marked corners.
+    /// world map is made of; empty means not mapped yet), the path walked and the marked corners. When a
+    /// saved map is continued, what it covered before is drawn in a quieter colour underneath.
     /// ARKit's status badge only describes what the camera sees now (Apple, ARFrame.WorldMappingStatus).
     /// </summary>
     public sealed class MapRecorderPresenter
@@ -27,14 +30,19 @@ namespace IndoorNavigation.UI.Developer
         private static readonly CustomStyleProperty<Color> PathColour = new CustomStyleProperty<Color>("--coverage-path");
         private static readonly CustomStyleProperty<Color> YouColour = new CustomStyleProperty<Color>("--coverage-you");
         private static readonly CustomStyleProperty<Color> MarkColour = new CustomStyleProperty<Color>("--coverage-mark");
+        private static readonly CustomStyleProperty<Color> EarlierColour = new CustomStyleProperty<Color>("--coverage-earlier");
 
         private readonly VisualElement root;
         private readonly IMapRecording recording;
         private readonly AppSession session;
         private readonly Label area;
+        private readonly Label progress;
         private readonly Label status;
-        private readonly VisualElement markers;
+        private readonly ScrollView doors;
+        private readonly Button mark;
+        private readonly Button undo;
         private readonly Button save;
+        private readonly List<string> redo = new List<string>();
         private readonly IVisualElementScheduledItem refresh;
         private readonly VisualElement coverageView;
         private readonly Label mapping;
@@ -43,8 +51,9 @@ namespace IndoorNavigation.UI.Developer
         private Color pathColour = new Color(0.85f, 0.28f, 0.06f);
         private Color youColour = new Color(0.15f, 0.39f, 0.92f);
         private Color markColour = new Color(0.95f, 0.82f, 0.61f);
+        private Color earlierColour = new Color(0.62f, 0.66f, 0.7f);
         private string reason;
-        private string builtFor;
+        private string doorsShown;
 
         public MapRecorderPresenter(VisualElement root, IMapRecording recording, AppSession session)
         {
@@ -53,9 +62,27 @@ namespace IndoorNavigation.UI.Developer
             this.session = session ?? throw new ArgumentNullException(nameof(session));
 
             area = root.Q<Label>("area");
+            progress = root.Q<Label>("progress");
             status = root.Q<Label>("status");
-            markers = root.Q<VisualElement>("markers");
+            doors = root.Q<ScrollView>("doors");
+            mark = root.Q<Button>("mark");
+            undo = root.Q<Button>("undo");
             save = root.Q<Button>("save");
+            mark.clicked += () =>
+            {
+                string id = NextToMark();
+                if (id == null) return;
+                session.LogExternal("developer", "map mark " + id);
+                if (recording.Mark(id) && redo.Count > 0 && redo[0] == id) redo.RemoveAt(0);
+                Render();
+            };
+            undo.clicked += () =>
+            {
+                session.LogExternal("developer", "map undo");
+                recording.UndoLastMark();
+                redo.Clear();
+                Render();
+            };
             save.clicked += () =>
             {
                 session.LogExternal("developer", "map save");
@@ -95,6 +122,8 @@ namespace IndoorNavigation.UI.Developer
         private void Show(string why)
         {
             reason = why;
+            redo.Clear();
+            doorsShown = null;
             ScreenPresenter.SetVisible(root, true);
             refresh.Resume();
             Render();
@@ -118,11 +147,72 @@ namespace IndoorNavigation.UI.Developer
 
         private void Render()
         {
-            area.text = "World map · " + (recording.AreaLabel ?? "no area");
-            status.text = reason ?? recording.Status;
+            area.text = recording.AreaLabel ?? "No map";
+            progress.text = reason == null ? recording.Progress : "";
+            status.text = reason ?? recording.Message;
             save.SetEnabled(recording.CanSave);
-            BuildMarkerButtons();
+            undo.SetEnabled(recording.CanUndo);
+            string next = NextToMark();
+            mark.SetEnabled(recording.IsRecording && next != null);
+            mark.text = next == null ? "All corners marked" : (recording.IsMarked(next) ? "Mark " + next + " again" : "Mark " + next);
+            RenderDoors();
             RenderCoverage();
+        }
+
+        /// <summary>A corner being marked again (from a tapped chip) comes first; otherwise the next new one.</summary>
+        private string NextToMark() => redo.Count > 0 ? redo[0] : recording.NextMarkerId;
+
+        /// <summary>One chip per door marked so far: "d2 · 0.91 m", amber when the width doesn't look like a door.</summary>
+        private void RenderDoors()
+        {
+            var names = new List<string>();
+            foreach (string id in recording.MarkedIds)
+            {
+                int dash = id.LastIndexOf('-');
+                string door = dash > 0 ? id.Substring(0, dash) : id;
+                if (!names.Contains(door)) names.Add(door);
+            }
+
+            var key = new System.Text.StringBuilder(redo.Count > 0 ? redo[0] : "");
+            var lines = new List<(string Door, string Text, bool Check)>();
+            foreach (string door in names)
+            {
+                double? width = recording.DoorWidth(door);
+                bool check = width.HasValue && !recording.IsPlausibleDoor(width.Value);
+                string text = width.HasValue
+                    ? door + " · " + width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m"
+                    : door + " · one corner";
+                lines.Add((door, text, check));
+                key.Append('|').Append(text);
+            }
+
+            if (key.ToString() == doorsShown) return;
+            doorsShown = key.ToString();
+            doors.Clear();
+            if (lines.Count == 0)
+            {
+                var empty = new Label("No corners yet: put the circle on a door corner and tap Mark.");
+                empty.AddToClassList("recorder-doors-empty");
+                doors.Add(empty);
+                return;
+            }
+
+            foreach ((string door, string text, bool check) in lines)
+            {
+                var chip = new Button(() =>
+                {
+                    // Mark this door's two corners again, left first.
+                    redo.Clear();
+                    redo.Add(door + "-left");
+                    redo.Add(door + "-right");
+                    session.LogExternal("developer", "map redo " + door);
+                    Render();
+                }) { text = text + (check ? "  check" : "") };
+                chip.AddToClassList("door-chip");
+                chip.EnableInClassList("door-chip--check", check);
+                chip.EnableInClassList("door-chip--redo", redo.Count > 0 && redo[0].StartsWith(door + "-", StringComparison.Ordinal));
+                doors.Add(chip);
+            }
         }
 
         private void RenderCoverage()
@@ -136,7 +226,8 @@ namespace IndoorNavigation.UI.Developer
                 mapping.EnableInClassList("mapping-badge--mapped", state == "Mapped");
             }
 
-            if (coverageText != null) coverageText.text = recording.Coverage?.ShortSummary() ?? "";
+            MapCoverage map = recording.Coverage;
+            if (coverageText != null) coverageText.text = map == null ? "" : map.ShortSummary() + (map.HasEarlier ? " · grey = before" : "");
             coverageView?.MarkDirtyRepaint();
         }
 
@@ -146,6 +237,7 @@ namespace IndoorNavigation.UI.Developer
             if (e.customStyle.TryGetValue(PathColour, out c)) pathColour = c;
             if (e.customStyle.TryGetValue(YouColour, out c)) youColour = c;
             if (e.customStyle.TryGetValue(MarkColour, out c)) markColour = c;
+            if (e.customStyle.TryGetValue(EarlierColour, out c)) earlierColour = c;
         }
 
         private void DrawCoverage(MeshGenerationContext context)
@@ -174,7 +266,8 @@ namespace IndoorNavigation.UI.Developer
                 Vector2 c = ToScreen((cell.I + 1) * size, (cell.J + 1) * size), d = ToScreen(cell.I * size, (cell.J + 1) * size);
                 if (!Near((a + c) / 2f)) continue;
                 float alpha = cell.Points >= 20 ? 0.85f : cell.Points >= MapCoverage.CoveredPoints ? 0.55f : 0.22f;
-                paint.fillColor = new Color(cellColour.r, cellColour.g, cellColour.b, alpha);
+                Color colour = cell.Points == cell.EarlierPoints ? earlierColour : cellColour; // only seen before: quieter
+                paint.fillColor = new Color(colour.r, colour.g, colour.b, alpha);
                 paint.BeginPath();
                 paint.MoveTo(a);
                 paint.LineTo(b);
@@ -182,6 +275,17 @@ namespace IndoorNavigation.UI.Developer
                 paint.LineTo(d);
                 paint.ClosePath();
                 paint.Fill();
+            }
+
+            IReadOnlyList<(double X, double Z)> before = map.EarlierPath;
+            if (before.Count > 1)
+            {
+                paint.strokeColor = earlierColour;
+                paint.lineWidth = 1.5f;
+                paint.BeginPath();
+                paint.MoveTo(ToScreen(before[0].X, before[0].Z));
+                for (int i = 1; i < before.Count; i++) paint.LineTo(ToScreen(before[i].X, before[i].Z));
+                paint.Stroke();
             }
 
             IReadOnlyList<(double X, double Z)> path = map.Path;
@@ -220,35 +324,6 @@ namespace IndoorNavigation.UI.Developer
             paint.LineTo(centre + new Vector2(-6, 6));
             paint.ClosePath();
             paint.Fill();
-        }
-
-        private void BuildMarkerButtons()
-        {
-            IReadOnlyList<string> ids = recording.MarkerIds;
-            string key = string.Join(",", ids);
-            if (key == builtFor)
-            {
-                foreach (Button button in markers.Query<Button>().ToList())
-                {
-                    string id = (string)button.userData;
-                    button.text = recording.IsMarked(id) ? $"Mark {id} again" : $"Mark {id}";
-                }
-
-                return;
-            }
-
-            builtFor = key;
-            markers.Clear();
-            foreach (string id in ids)
-            {
-                var button = new Button(() =>
-                {
-                    session.LogExternal("developer", "map mark " + id);
-                    recording.Mark(id);
-                    Render();
-                }) { text = "Mark " + id, userData = id };
-                markers.Add(button);
-            }
         }
     }
 }

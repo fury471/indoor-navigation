@@ -259,6 +259,7 @@
 }
 
 .maps-header {
+    flex-shrink: 0;
     margin-bottom: 8px;
 }
 
@@ -272,7 +273,12 @@
 }
 
 .maps-now {
+    flex-shrink: 0;
     margin-bottom: 8px;
+}
+
+.maps-now > * {
+    flex-shrink: 0;
 }
 
 .maps-status {
@@ -310,6 +316,8 @@
 
 .maps-list {
     flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 120px;
     margin-bottom: 8px;
 }
 
@@ -321,6 +329,7 @@
 }
 
 .map-card {
+    flex-shrink: 0;
     flex-direction: column;
     align-items: stretch;
     height: auto;
@@ -372,10 +381,16 @@
 }
 
 .maps-sheet {
+    flex-shrink: 0;
     padding: 16px;
 }
 
+.maps-sheet > * {
+    flex-shrink: 0;
+}
+
 .maps-buttons {
+    flex-shrink: 0;
     margin-top: 4px;
 }
 
@@ -450,9 +465,9 @@
     border-color: var(--destination);
 }
 
-/* Marker buttons have long names ("Mark vr-lab-left"), so two fit per row. */
 /* The recorder's live map. Its colours are the app's tokens, read by MapRecorderPresenter. */
 .coverage-box {
+    flex-shrink: 0;
     align-self: flex-end;
     align-items: center;
     margin-top: 8px;
@@ -490,6 +505,7 @@
     --coverage-path: var(--destination);
     --coverage-you: var(--you);
     --coverage-mark: var(--warning-border);
+    --coverage-earlier: var(--muted);
 }
 
 .coverage-text {
@@ -502,15 +518,78 @@
     margin-top: 4px;
 }
 
-.recorder-markers {
-    flex-direction: row;
-    flex-wrap: wrap;
+/* Recorder layout: fixed-size parts never shrink, so text and buttons cannot overlap. */
+.recorder-card {
+    flex-shrink: 0;
+    padding: 12px 16px;
 }
 
-.recorder-markers > Button {
-    width: 48%;
-    height: 44px;
-    margin: 4px 1%;
+.recorder-progress {
+    margin-top: 4px;
+    color: var(--text);
+}
+
+.recorder-message {
+    margin-top: 2px;
+}
+
+.recorder-sheet {
+    flex-shrink: 0;
+    padding: 12px 12px 16px 12px;
+}
+
+.recorder-doors {
+    flex-shrink: 0;
+    height: 40px;
+    margin: 0 4px 4px 4px;
+}
+
+.recorder-doors-empty {
     font-size: 13px;
-    white-space: normal;
+    color: var(--muted);
+    -unity-text-align: middle-left;
+    height: 36px;
+}
+
+.door-chip {
+    flex-shrink: 0;
+    height: 36px;
+    margin: 0 6px 0 0;
+    padding: 0 12px;
+    border-radius: 18px;
+    border-width: 0;
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+.door-chip--check {
+    color: var(--warning-text);
+    background-color: var(--warning-bg);
+}
+
+.door-chip--redo {
+    border-width: 2px;
+    border-color: var(--destination);
+}
+
+.recorder-row {
+    flex-shrink: 0;
+}
+
+.recorder-button {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 8px 4px 0 4px;
+}
+
+.recorder-button--wide {
+    flex-grow: 2;
+}
+
+.button--accent {
+    color: var(--accent);
+    border-color: var(--accent);
+    border-width: 2px;
 }

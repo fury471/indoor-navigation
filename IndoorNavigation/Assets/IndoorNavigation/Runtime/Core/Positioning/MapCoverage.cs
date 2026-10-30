@@ -7,11 +7,12 @@ namespace IndoorNavigation.Core.Positioning
     /// <summary>A square of floor and how many of ARKit's feature points lie over it.</summary>
     public readonly struct CoverageCell
     {
-        public CoverageCell(int i, int j, int points)
+        public CoverageCell(int i, int j, int points, int earlierPoints = 0)
         {
             I = i;
             J = j;
             Points = points;
+            EarlierPoints = earlierPoints;
         }
 
         /// <summary>Column: the cell covers x from I × size to (I + 1) × size.</summary>
@@ -20,7 +21,11 @@ namespace IndoorNavigation.Core.Positioning
         /// <summary>Row: the cell covers z from J × size to (J + 1) × size.</summary>
         public int J { get; }
 
+        /// <summary>All points over the cell, including those from an earlier recording of the same map.</summary>
         public int Points { get; }
+
+        /// <summary>The points that came from the earlier recording, when a map is continued.</summary>
+        public int EarlierPoints { get; }
     }
 
     /// <summary>
@@ -30,6 +35,8 @@ namespace IndoorNavigation.Core.Positioning
     /// So this counts the points over each 0.5 m square of floor, keeps the path walked and where
     /// the phone faces, and the door corners marked. Everything is in AR session metres (x, z).
     /// ARKit refines a point's position as it sees it again, so points are kept by their id.
+    /// When a saved map is continued, what its earlier recording covered is loaded as a second layer
+    /// (<see cref="AddEarlier"/>), so the live map shows the old part as well as the new.
     /// </summary>
     public sealed class MapCoverage
     {
@@ -45,8 +52,23 @@ namespace IndoorNavigation.Core.Positioning
         private readonly Dictionary<(int I, int J), int> pointsInCell = new Dictionary<(int, int), int>();
         private readonly List<(double X, double Z)> path = new List<(double, double)>();
         private readonly Dictionary<string, (double X, double Z)> marks = new Dictionary<string, (double, double)>(StringComparer.Ordinal);
+        private readonly Dictionary<(int I, int J), int> earlierInCell = new Dictionary<(int, int), int>();
+        private readonly List<(double X, double Z)> earlierPath = new List<(double, double)>();
+        private int earlierPoints;
 
-        public int PointCount => cellOfPoint.Count;
+        /// <summary>Points over the floor, including those from an earlier recording of the same map.</summary>
+        public int PointCount => cellOfPoint.Count + earlierPoints;
+
+        /// <summary>The points that came from an earlier recording, when a map is continued.</summary>
+        public int EarlierPointCount => earlierPoints;
+
+        public bool HasEarlier => earlierPoints > 0 || earlierPath.Count > 0;
+
+        /// <summary>The path walked in the earlier recording, when a map is continued.</summary>
+        public IReadOnlyList<(double X, double Z)> EarlierPath => earlierPath;
+
+        /// <summary>The metres walked in the earlier recording.</summary>
+        public double EarlierPathMetres { get; private set; }
 
         public IReadOnlyList<(double X, double Z)> Path => path;
 
@@ -68,9 +90,9 @@ namespace IndoorNavigation.Core.Positioning
             get
             {
                 int n = 0;
-                foreach (int count in pointsInCell.Values)
+                foreach (CoverageCell cell in Cells)
                 {
-                    if (count >= CoveredPoints) n++;
+                    if (cell.Points >= CoveredPoints) n++;
                 }
 
                 return n;
@@ -85,7 +107,13 @@ namespace IndoorNavigation.Core.Positioning
             {
                 foreach (KeyValuePair<(int I, int J), int> c in pointsInCell)
                 {
-                    yield return new CoverageCell(c.Key.I, c.Key.J, c.Value);
+                    earlierInCell.TryGetValue(c.Key, out int earlier);
+                    yield return new CoverageCell(c.Key.I, c.Key.J, c.Value + earlier, earlier);
+                }
+
+                foreach (KeyValuePair<(int I, int J), int> c in earlierInCell)
+                {
+                    if (!pointsInCell.ContainsKey(c.Key)) yield return new CoverageCell(c.Key.I, c.Key.J, c.Value, c.Value);
                 }
             }
         }
@@ -96,9 +124,36 @@ namespace IndoorNavigation.Core.Positioning
             pointsInCell.Clear();
             path.Clear();
             marks.Clear();
+            earlierInCell.Clear();
+            earlierPath.Clear();
+            earlierPoints = 0;
+            EarlierPathMetres = 0;
             PathMetres = 0;
             HasViewer = false;
         }
+
+        /// <summary>Adds a cell covered by an earlier recording of the same map (ignored if empty or negative).</summary>
+        public void AddEarlier(int i, int j, int points)
+        {
+            if (points <= 0) return;
+            earlierInCell[(i, j)] = earlierInCell.TryGetValue((i, j), out int n) ? n + points : points;
+            earlierPoints += points;
+        }
+
+        /// <summary>Adds a point of the path walked in an earlier recording of the same map.</summary>
+        public void AddEarlierPath(double x, double z)
+        {
+            if (double.IsNaN(x) || double.IsNaN(z) || double.IsInfinity(x) || double.IsInfinity(z)) return;
+            if (earlierPath.Count > 0)
+            {
+                (double lx, double lz) = earlierPath[earlierPath.Count - 1];
+                EarlierPathMetres += Math.Sqrt((x - lx) * (x - lx) + (z - lz) * (z - lz));
+            }
+
+            earlierPath.Add((x, z));
+        }
+
+        public void RemoveMark(string id) => marks.Remove(id);
 
         /// <summary>Adds a feature point, or moves it if ARKit has seen it before.</summary>
         public void AddPoint(ulong id, double x, double z)
@@ -159,9 +214,21 @@ namespace IndoorNavigation.Core.Positioning
         public string ShortSummary() => string.Format(
             CultureInfo.InvariantCulture, "{0} points · {1:F1} m²", PointCount, CoveredSquareMetres);
 
+        /// <summary>
+        /// Everything covered so far, earlier and new together, as cells and one path, for saving next
+        /// to the map so that continuing it later can show it.
+        /// </summary>
+        public (IReadOnlyList<CoverageCell> Cells, IReadOnlyList<(double X, double Z)> Path) Snapshot()
+        {
+            var cells = new List<CoverageCell>(Cells);
+            var all = new List<(double X, double Z)>(earlierPath);
+            all.AddRange(path);
+            return (cells, all);
+        }
+
         /// <summary>"1840 points · 12.5 m² covered · 31 m walked", for the log.</summary>
         public string Summary() => string.Format(
             CultureInfo.InvariantCulture, "{0} points · {1:F1} m² covered · {2:F0} m walked",
-            PointCount, CoveredSquareMetres, PathMetres);
+            PointCount, CoveredSquareMetres, PathMetres + EarlierPathMetres);
     }
 }
