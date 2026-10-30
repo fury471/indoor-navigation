@@ -6,7 +6,7 @@ Build 5 (`export-position-005`, 30 Oct) fixes why build 4 could not relocalise e
 
 **The bug.** ARKit keeps a loaded world map as the session's initial world map, and a session reset runs again with it ("This is equivalent to setting the initialWorldMap property", Unity, ARKitSessionSubsystem.ApplyWorldMap). The app loads `area-1`'s map at start, so every new recording began by relocalising against that old map, and the saved map was spoiled. The logs of 29 Oct show it: right after `recording started`, tracking went to `Limited Relocalizing`. The LocalisationLab scene never had this, because it recorded in a fresh launch with no map loaded. Build 5 clears the old map before a new recording starts, and the recorder refuses to save if a new recording is ever found relocalising.
 
-> **Build 7 (30 Oct) changes how the position is found:** the floor's map is tried automatically, and you can always start at a named door instead (decision record 11). Recording still works as below, plus naming each door; lab visit 2 follows `build-7-guide.md` part E instead of part D here.
+> **Builds 7 and 8 (30 Oct) change how the position is found:** you name the floor and its map is tried; whenever you choose, you can say which room or door you are at instead (decision record 11). Recording still works as below, plus naming each door; lab visit 2 follows `build-7-guide.md` part E instead of part D here.
 
 Why these builds exist: `lab-visit-1.md`. Their device results: `device-tests.md`. The idea behind world maps and door corners: `real-position-guide.md` part A.
 

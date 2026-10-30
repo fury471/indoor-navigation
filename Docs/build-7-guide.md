@@ -1,6 +1,6 @@
-# Build 7: start at a door, arrows in AR
+# Builds 7 and 8: finding your position, arrows in AR
 
-Build 7 (`export-position-007`) makes finding the position quick and dependable (decision record 11):
+Build 7 (`export-position-007`, source `dc934c6`) was the first version: it opened the doors by itself after 10 s and only from the corridor. **Build 8 (`export-position-008`, source `7324a64` plus the route material) is the one to test.** It makes finding the position quick and dependable, with the person in control (decision record 11):
 
 - **Screen 1** first asks **Which floor are you on?**, then tries that floor's world map while it tells you how to hold the phone. After about 10 s with the phone up it shows a **reminder** ("Still recognising this floor… or try another way"), and **Tell the app where I am** becomes the main button. Nothing switches by itself: the map keeps trying until you tap it. Then **Where are you?** lists the rooms people start in (*VR lab*, *Toilets*) and the corridor doors (*Lift*), your floor first, with a button to go back to the map.
 - **Screen 1b** shows the chosen door with a small drawing, and says whether to stand inside the room or in the corridor. You mark its left corner, then its right corner, where the frame meets the floor. If the width doesn't match the door, it asks you to mark again. Then you're placed: position, heading and floor.
@@ -13,7 +13,7 @@ Until the package lists the corners on the real plan, each floor's recording is 
 ## A. Unity (about 20 min)
 
 1. Open Unity and wait for the import. It creates `.meta` files for the new files: `Doors.cs`, `LocateGuide.cs`, `RouteAhead.cs`, `ArRouteOverlay.cs`, `MarkDoor.uxml`, `MarkDoorPresenter.cs` and `DoorFixTests.cs`. Commit only after they exist.
-2. **A material for the AR lines.** Project window → `Assets/IndoorNavigation/Materials` → right-click → **Create → Material**, name it `RouteMaterial`. In the Inspector set **Shader** to **Universal Render Pipeline → Unlit**. The colour doesn't matter; the app tints it blue for the route and orange for door posts.
+2. **A material for the AR lines** (missing in builds 7 and 8's code commits; needed before building 8). Project window → `Assets/IndoorNavigation/Materials` → right-click → **Create → Material**, name it `RouteMaterial`. In the Inspector set **Shader** to **Universal Render Pipeline → Unlit**. The colour doesn't matter; the app tints it blue for the route and orange for door posts.
 3. Open the `App` scene, select the object with **Composition Root**, and drag `RouteMaterial` into the new **Route Material** field. Check that **Raycast Manager** and **Plane Manager** are still set. Save the scene.
 4. **Test Runner → EditMode → Run All.** Expect **285** passed.
 5. **Press Play** and try the new flow with the placeholders:
@@ -23,24 +23,26 @@ Until the package lists the corners on the real plan, each floor's recording is 
 
 ## B. Commit (5 min)
 
+The code is in `dc934c6` and `7324a64`. What is left is the material, the scene that uses it, and these documents:
+
 ```powershell
-git add README.md Docs/build-7-guide.md Docs/decisions/0007-area-alignment-markers.md Docs/decisions/0010-find-the-floor-by-trying-each-map.md Docs/decisions/0011-start-at-a-door.md Docs/device-tests.md Docs/world-map-guide.md IndoorNavigation/Assets/IndoorNavigation/Runtime IndoorNavigation/Assets/IndoorNavigation/Tests/EditMode IndoorNavigation/Assets/IndoorNavigation/Materials IndoorNavigation/Assets/IndoorNavigation/Scenes/App.unity
+git add README.md Docs IndoorNavigation/Assets/IndoorNavigation/Materials IndoorNavigation/Assets/IndoorNavigation/Scenes/App.unity
 git diff --cached --stat
-git commit -m "feat(position): start at a door when the world map is slow; route ahead in AR"
+git commit -m "build: add the AR route material for build 8"
 git push
 ```
 
-The stat should show the new files with their `.meta` files, `RouteMaterial.mat`, the App scene and the changed code and documents. Leave `ProjectSettings.asset` out unless you changed it on purpose.
+The stat should show `RouteMaterial.mat` with its `.meta`, `App.unity` and the documents. Leave `ProjectSettings.asset` and anything under `Assets/XR` out.
 
 ## C. Build (about 45 min, mostly waiting)
 
-As before: Build Profiles → iOS → **Build** into `E:\IndoorNavigationBuilds\position-007\Xcode`, then
+As before: Build Profiles → iOS → **Build** into `E:\IndoorNavigationBuilds\position-008\Xcode`, then
 
 ```powershell
-.\Tools\Package-Xcode.ps1 -ExportDirectory E:\IndoorNavigationBuilds\position-007\Xcode -ZipPath E:\IndoorNavigationBuilds\position-007\xcode-export.zip
+.\Tools\Package-Xcode.ps1 -ExportDirectory E:\IndoorNavigationBuilds\position-008\Xcode -ZipPath E:\IndoorNavigationBuilds\position-008\xcode-export.zip
 ```
 
-GitHub → new release `export-position-007` on the pushed commit with the ZIP → Actions → **iOS unsigned build** with `export_tag` = `export-position-007` → install the IPA with Sideloadly over the old app.
+GitHub → new release `export-position-008` on the pushed commit with the ZIP → Actions → **iOS unsigned build** with `export_tag` = `export-position-008` → install the IPA with Sideloadly over the old app.
 
 ## D. Quick check at home (15 min)
 

@@ -145,5 +145,12 @@
 
 ## Build 7 — start at a door, arrows in AR
 
+- Source commit: dc934c6 (its subject line came out garbled by shell quoting)
 - Export release: `export-position-007`
-- Result: to be tested (`Docs/build-7-guide.md` parts D and E). Checks: screen 1's hint follows the phone's tilt; the door list opens after about 10 s raised; a door fix places you within a few seconds and refuses a wrong width; Fix position keeps tracking; door names saved with the map; the orange door posts stand on the corners after a fix.
+- Result: built; superseded by build 8 before its device test. It opened the door list by itself after 10 s, offered doors only from the corridor, and had no route material in the scene.
+
+## Build 8 — floor first, start inside a room, a reminder instead of a switch
+
+- Source commit: 7324a64, plus the route material commit
+- Export release: `export-position-008`
+- Result: to be tested (`Docs/build-7-guide.md` parts D and E). Checks: screen 1 asks the floor first and "Change floor" works; the hint follows the phone's tilt; after about 10 s raised a reminder appears and nothing switches by itself; "Keep trying" goes back to the map; a door fix from the corridor and from inside a room both place you correctly and refuse a wrong width; Fix position keeps tracking; door names and start rooms are saved with the map; the orange door posts stand on the corners after a fix.
