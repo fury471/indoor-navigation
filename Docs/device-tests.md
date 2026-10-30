@@ -174,10 +174,16 @@
   - a map can be saved only with two doors at a door's width (0.6–2.5 m), and the recorder says which door to mark again.
 - Layout checked with an HTML replica at 390×694 (iPhone SE) and 390×848 (iPhone 16 Pro): nothing overlaps the crosshair, nothing runs off the screen.
 - Source commit: 8f080aa
-- Result: built; superseded by build 10 before its device test.
+- Result: **installed at home (30 Oct): tapping a door chip in the recorder did nothing**, so doors could not be named or marked again. Two causes in the code, both removed in build 10:
+  - the chips were in a sideways-scrolling ScrollView. On a touch screen, Unity's ScrollView takes over a touch that moves more than 10 units (or lands while the row is still gliding), and the chip never gets its click (UI Toolkit `ScrollView` source: `ScrollThresholdSquared = 100`, `CapturePointer`);
+  - each chip showed the door's width to the centimetre, and ARKit keeps refining the anchors, so the row could be rebuilt between finger down and finger up.
 
 ## Build 10 — rooms inside rooms
 
 - Export release: `export-position-010`
-- What changed: wording only. Screen 1 lists "at a door, outside it" instead of "in the corridor", and 1b and the recorder say "outside the door (in the corridor, or in the room around it)", so a room inside a room (the VR lab's inner room, where the demo starts) reads right.
+- What changed:
+  - **door chips work on the phone:** a plain wrapping row instead of a scroll view, 44 points high (Apple's minimum tap target), at most five at once with a **More** chip, and the newest door's page shown after marking it. A chip shows the door's number and name, "(room)" for a start room, and "one corner" or "check" only when something needs doing; the width is on the door's sheet. Each tap is logged (`map door sheet d2`);
+  - wording: screen 1 lists "at a door, outside it" instead of "in the corridor", and 1b and the recorder say "outside the door (in the corridor, or in the room around it)", so a room inside a room (the VR lab's inner room, where the demo starts) reads right.
+- Layout checked with the HTML replica at 390×694 and 390×848 with five chips, recording and naming: the crosshair stays clear while recording.
+- Source commits: 91184b5 (wording) and the chip fix on top of it.
 - Result: to be tested (`Docs/build-7-guide.md` parts D and E), with the checks listed under builds 8 and 9.

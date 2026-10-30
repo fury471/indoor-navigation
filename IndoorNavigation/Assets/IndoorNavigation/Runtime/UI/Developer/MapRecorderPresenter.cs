@@ -10,9 +10,11 @@ namespace IndoorNavigation.UI.Developer
     /// <summary>
     /// The world-map recorder overlay, opened from the World maps screen. One Mark button names the
     /// next door-frame corner; Undo removes the last one; a row of door chips shows each door's name
-    /// and width, and tapping a chip opens a small sheet to name the door (visitors choose doors by
-    /// name for a door fix, decision record 11) or to mark its two corners again. Nothing grows with
-    /// the number of doors.
+    /// (or number), and tapping a chip opens a small sheet to name the door (visitors choose doors by
+    /// name for a door fix, decision record 11) or to mark its two corners again. The chips wrap and
+    /// page with "More", so nothing grows with the number of doors. They are not in a ScrollView: on
+    /// a touch screen it takes a short tap as the start of a drag, and the chips never got their click
+    /// (build 9).
     /// The status refreshes four times a second, because ARKit's mapping status changes without any
     /// change in the session.
     /// A live map shows what the recording has covered, seen from above, centred on the phone and
@@ -28,6 +30,9 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>The live map shows this many metres across.</summary>
         private const float ViewMetres = 10f;
 
+        /// <summary>At most this many chips at once, a "More" chip included: two or three rows on the smallest phone.</summary>
+        internal const int ChipsPerPage = 5;
+
         private static readonly CustomStyleProperty<Color> CellColour = new CustomStyleProperty<Color>("--coverage-cell");
         private static readonly CustomStyleProperty<Color> PathColour = new CustomStyleProperty<Color>("--coverage-path");
         private static readonly CustomStyleProperty<Color> YouColour = new CustomStyleProperty<Color>("--coverage-you");
@@ -40,7 +45,9 @@ namespace IndoorNavigation.UI.Developer
         private readonly Label area;
         private readonly Label progress;
         private readonly Label status;
-        private readonly ScrollView doors;
+        private readonly VisualElement doors;
+        private int doorPage;
+        private int doorCount;
         private readonly Button mark;
         private readonly Button undo;
         private readonly Button save;
@@ -77,7 +84,7 @@ namespace IndoorNavigation.UI.Developer
             area = root.Q<Label>("area");
             progress = root.Q<Label>("progress");
             status = root.Q<Label>("status");
-            doors = root.Q<ScrollView>("doors");
+            doors = root.Q<VisualElement>("doors");
             mark = root.Q<Button>("mark");
             undo = root.Q<Button>("undo");
             save = root.Q<Button>("save");
@@ -147,6 +154,8 @@ namespace IndoorNavigation.UI.Developer
             reason = why;
             redo.Clear();
             doorsShown = null;
+            doorPage = 0;
+            doorCount = 0;
             editingDoor = null;
             ShowNaming(false);
             if (!holdingCover) cover?.Hold(); // the bare camera view, without the screen underneath
@@ -191,7 +200,11 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>A corner being marked again (from a tapped chip) comes first; otherwise the next new one.</summary>
         private string NextToMark() => redo.Count > 0 ? redo[0] : recording.NextMarkerId;
 
-        /// <summary>One chip per door marked so far: "d2 · 0.91 m", amber when the width doesn't look like a door.</summary>
+        /// <summary>
+        /// One chip per door marked so far: its name, or its number until it has one ("d2"). A chip says
+        /// more only when something needs doing: "one corner", or "check" (amber) when the width doesn't
+        /// look like a door. The width itself is on the door's sheet.
+        /// </summary>
         private void RenderDoors()
         {
             var names = new List<string>();
@@ -202,21 +215,21 @@ namespace IndoorNavigation.UI.Developer
                 if (!names.Contains(door)) names.Add(door);
             }
 
-            var key = new System.Text.StringBuilder(redo.Count > 0 ? redo[0] : "");
             var lines = new List<(string Door, string Text, bool Check)>();
             foreach (string door in names)
             {
                 double? width = recording.DoorWidth(door);
                 bool check = width.HasValue && !recording.IsPlausibleDoor(width.Value);
-                string label = recording.DoorLabel(door);
-                if (label != null && recording.DoorLeadsToRoom(door)) label += " (room)";
-                string text = (label == null ? door : door + " · " + label) + " · " + (width.HasValue
-                    ? width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m"
-                    : "one corner");
-                lines.Add((door, text, check));
-                key.Append('|').Append(text);
+                lines.Add((door, ChipText(door, recording.DoorLabel(door), recording.DoorLeadsToRoom(door), width.HasValue, check), check));
             }
 
+            if (lines.Count > doorCount) doorPage = PageOf(lines.Count - 1, lines.Count); // a new door: show its chip, to name it
+            doorCount = lines.Count;
+            List<int> page = ChipPage(lines.Count, ref doorPage, out bool more);
+
+            var key = new System.Text.StringBuilder(redo.Count > 0 ? redo[0] : "");
+            key.Append('#').Append(doorPage).Append(more ? "+" : "");
+            foreach (int i in page) key.Append('|').Append(lines[i].Text);
             if (key.ToString() == doorsShown) return;
             doorsShown = key.ToString();
             doors.Clear();
@@ -228,20 +241,70 @@ namespace IndoorNavigation.UI.Developer
                 return;
             }
 
-            foreach ((string door, string text, bool check) in lines)
+            foreach (int i in page)
             {
-                var chip = new Button(() => OpenDoorSheet(door)) { text = text + (check ? "  check" : "") };
+                (string door, string text, bool check) = lines[i];
+                var chip = new Button(() => OpenDoorSheet(door)) { text = text };
                 chip.AddToClassList("door-chip");
                 chip.EnableInClassList("door-chip--check", check);
                 chip.EnableInClassList("door-chip--redo", redo.Count > 0 && redo[0].StartsWith(door + "-", StringComparison.Ordinal));
                 doors.Add(chip);
             }
+
+            if (more)
+            {
+                int pages = PageCount(lines.Count);
+                var next = new Button(() =>
+                {
+                    doorPage = (doorPage + 1) % pages;
+                    session.LogExternal("developer", "map doors page " + (doorPage + 1));
+                    Render();
+                }) { text = "More " + (doorPage + 1) + "/" + pages };
+                next.AddToClassList("door-chip");
+                next.AddToClassList("door-chip--more");
+                doors.Add(next);
+            }
+        }
+
+        /// <summary>"d2", "d2 · VR lab", "d2 · VR lab (room)" for a start room, with "· one corner" or "· check" when needed.</summary>
+        internal static string ChipText(string door, string label, bool room, bool bothCorners, bool check)
+        {
+            string text = string.IsNullOrWhiteSpace(label) ? door : door + " · " + label.Trim();
+            if (room) text += " (room)";
+            if (!bothCorners) text += " · one corner";
+            else if (check) text += " · check";
+            return text;
+        }
+
+        /// <summary>Pages of chips: all of them when they fit, otherwise one fewer and a "More" chip.</summary>
+        internal static int PageCount(int count) =>
+            count <= ChipsPerPage ? 1 : (count + ChipsPerPage - 2) / (ChipsPerPage - 1);
+
+        /// <summary>The page that shows chip <paramref name="index"/>.</summary>
+        internal static int PageOf(int index, int count) =>
+            count <= ChipsPerPage ? 0 : index / (ChipsPerPage - 1);
+
+        /// <summary>The chip indices on <paramref name="page"/>, which is kept in range as doors come and go.</summary>
+        internal static List<int> ChipPage(int count, ref int page, out bool more)
+        {
+            int pages = PageCount(count);
+            if (page < 0 || page >= pages) page = 0;
+            more = pages > 1;
+            int size = more ? ChipsPerPage - 1 : ChipsPerPage;
+            var indices = new List<int>();
+            for (int i = page * size; i < Math.Min(count, (page + 1) * size); i++) indices.Add(i);
+            return indices;
         }
 
         private void OpenDoorSheet(string door)
         {
+            session.LogExternal("developer", "map door sheet " + door);
             editingDoor = door;
-            doorTitle.text = "Door " + door;
+            double? width = recording.DoorWidth(door);
+            doorTitle.text = "Door " + door + (width.HasValue
+                ? " · " + width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m wide"
+                    + (recording.IsPlausibleDoor(width.Value) ? "" : " · check")
+                : " · one corner marked");
             doorName.SetValueWithoutNotify(recording.DoorLabel(door) ?? "");
             doorRoom.SetValueWithoutNotify(recording.DoorLeadsToRoom(door));
             ShowNaming(true);

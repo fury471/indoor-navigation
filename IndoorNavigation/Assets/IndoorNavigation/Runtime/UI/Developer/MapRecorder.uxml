@@ -1,8 +1,9 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <!-- Developer only: record or continue a world map and mark its door corners. The camera shows
          through; the crosshair is the exact middle of the screen, where marks are raycast.
-         Top: the map's name, progress and the next step, and the live map. Bottom: one row of door
-         chips (tap one to name the door or mark it again), Undo and Mark, then Close and Save. Nothing grows with the number of doors. -->
+         Top: the map's name, progress and the next step, and the live map. Bottom: the door chips
+         (tap one to name the door or mark it again), Undo and Mark, then Close and Save. The chips wrap onto
+         at most a few rows and page with "More", so nothing grows with the number of doors. -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="recorder">
         <!-- Top card: the map's name, progress and the next step, with the live map beside them, so the
@@ -35,7 +36,9 @@
                     <ui:Button name="door-done" text="Done" class="button button--primary recorder-button recorder-button--wide" />
                 </ui:VisualElement>
             </ui:VisualElement>
-            <ui:ScrollView name="doors" mode="Horizontal" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden" class="recorder-doors" />
+            <!-- Not a ScrollView: on a touch screen a scroll view takes a short tap as the start of a drag,
+                 so the chips inside it never got their click (build 9). -->
+            <ui:VisualElement name="doors" class="recorder-doors" />
             <ui:VisualElement name="mark-row" class="row recorder-row">
                 <ui:Button name="undo" text="Undo" class="button recorder-button" />
                 <ui:Button name="mark" text="Mark d1-left" class="button button--accent recorder-button recorder-button--wide" />

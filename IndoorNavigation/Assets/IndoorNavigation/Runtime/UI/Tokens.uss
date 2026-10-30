@@ -544,28 +544,39 @@
 
 .recorder-doors {
     flex-shrink: 0;
-    height: 40px;
-    margin: 0 4px 4px 4px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 0 4px 0 4px;
 }
 
 .recorder-doors-empty {
     font-size: 13px;
     color: var(--muted);
     -unity-text-align: middle-left;
-    height: 36px;
+    height: 44px;
 }
 
+/* 44 points high: Apple's smallest comfortable tap target (Human Interface Guidelines, Accessibility). */
 .door-chip {
     flex-shrink: 0;
-    height: 36px;
-    margin: 0 6px 0 0;
-    padding: 0 12px;
-    border-radius: 18px;
+    height: 44px;
+    max-width: 48%;
+    margin: 0 6px 6px 0;
+    padding: 0 14px;
+    border-radius: 22px;
     border-width: 0;
     font-size: 14px;
     -unity-font-style: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--accent);
     background-color: var(--accent-soft);
+}
+
+.door-chip--more {
+    color: var(--text);
+    background-color: var(--ground);
 }
 
 .door-chip--check {

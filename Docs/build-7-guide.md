@@ -1,6 +1,6 @@
 # Builds 7 to 10: finding your position, arrows in AR
 
-Build 7 (`export-position-007`, source `dc934c6`) was the first version: it opened the doors by itself after 10 s and only from the corridor. Build 8 (`export-position-008`, `7324a64`) added the floor question, rooms and the reminder, but had layout and data bugs (`device-tests.md`). Build 9 (`export-position-009`, `8f080aa`) fixes them. **Build 10 (`export-position-010`) adds the wording for rooms inside rooms ("at a door, outside it") and is the one to test.** It makes finding the position quick and dependable, with the person in control (decision record 11):
+Build 7 (`export-position-007`, source `dc934c6`) was the first version: it opened the doors by itself after 10 s and only from the corridor. Build 8 (`export-position-008`, `7324a64`) added the floor question, rooms and the reminder, but had layout and data bugs (`device-tests.md`). Build 9 (`export-position-009`, `8f080aa`) fixes them, but its door chips did not respond to taps on the phone. **Build 10 (`export-position-010`) makes the chips work and adds the wording for rooms inside rooms ("at a door, outside it"); it is the one to test.** It makes finding the position quick and dependable, with the person in control (decision record 11):
 
 - **Screen 1** first asks **Which floor are you on?**, then tries that floor's world map while it tells you how to hold the phone. After about 10 s with the phone up it shows a **reminder** ("Still recognising this floor… or try another way"), and **Tell the app where I am** becomes the main button. Nothing switches by itself: the map keeps trying until you tap it. Then **Where are you?** lists the rooms people start in (*VR lab*, *Toilets*) and the corridor doors (*Lift*), your floor first, with a button to go back to the map.
 - **Screen 1b** shows the chosen door with a small drawing, and says whether to stand inside the room or in the corridor. You mark its left corner, then its right corner, where the frame meets the floor. If the width doesn't match the door, it asks you to mark again. Then you're placed: position, heading and floor.
@@ -23,16 +23,16 @@ Until the package lists the corners on the real plan, each floor's recording is 
 
 ## B. Commit (5 min)
 
-For build 10: the wording for inner rooms, with its documents (build 9's fixes are in `8f080aa`).
+For build 10: the wording for inner rooms is in `91184b5`; the door chips that respond to taps come on top of it (build 9's fixes are in `8f080aa`).
 
 ```powershell
-git add README.md Docs IndoorNavigation/Assets/IndoorNavigation/Runtime
+git add Docs IndoorNavigation/Assets/IndoorNavigation/Runtime/UI
 git diff --cached --stat
-git commit -m "fix(ui): say 'outside the door' so inner rooms read right; build 10"
+git commit -m "fix(ui): door chips respond to taps on the phone; build 10"
 git push
 ```
 
-The stat should show three code files and the documents. Leave `ProjectSettings.asset` and anything under `Assets/XR` out.
+The stat should show three code files (`MapRecorder.uxml`, `MapRecorderPresenter.cs`, `Tokens.uss`) and two documents. Leave `ProjectSettings.asset` and anything under `Assets/XR` out.
 
 ## C. Build (about 45 min, mostly waiting)
 
@@ -46,7 +46,7 @@ GitHub → new release `export-position-010` on the pushed commit with the ZIP �
 
 ## D. Quick check at home (15 min)
 
-1. W → World maps → **New map** `home`, floor 1. Mark both corners of two doors, from the hallway side. After each door, **tap its chip and name it** (for example *Kitchen*, *Bedroom*); for *Bedroom* also switch on **People may start inside this room**. Walk around both doors and inside the bedroom, save when Mapped.
+1. W → World maps → **New map** `home`, floor 1. Mark both corners of two doors, from the hallway side. After each door, **tap its chip** (in the bottom sheet, above Undo and Mark) **and name it** (for example *Kitchen*, *Bedroom*); for *Bedroom* also switch on **People may start inside this room**. Walk around both doors and inside the bedroom, save when Mapped.
 2. Close the app completely and open it. Screen 1: hold the phone low, then raise it; the hint should change. Wait: either the map is recognised (screen 2), or after about 10 s the doors appear.
 3. W → **Find position again** → choose *Kitchen* (at a door) → mark left, then right. Then go into the bedroom, face its door, and choose *Bedroom* under "in a room". You should reach the screen you came from within a few seconds. Try once marking the corners the wrong way round, or a wrong corner: it should ask you to mark again.
 4. W → **Doors in AR** on. Raise the phone: orange posts should stand on the corners of both doors. Walk to the other door: are the posts still on its corners? Note roughly how far off they are.
