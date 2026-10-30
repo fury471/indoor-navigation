@@ -328,18 +328,17 @@ namespace IndoorNavigation.Adapters.AR
             return list;
         }
 
-        /// <summary>The recording aligned to itself, for maps whose corners the package does not list; null with fewer than two doors.</summary>
+        /// <summary>
+        /// The recording aligned to itself, for maps whose corners the package does not list: no
+        /// rotation, no shift, the floor at the marks' mean height. Works with any marks, however
+        /// close together (a map that relocalised must always count as located); null only without marks.
+        /// </summary>
         private static PlanAlignment RecordingFrameFit(IReadOnlyList<ArMark> marks)
         {
-            try
-            {
-                List<MarkerPair> pairs = MarkerPairing.Pair(DoorList.RecordingFrame(marks), marks);
-                return pairs.Count >= PlanAlignment.MinimumMarkers ? PlanAlignment.Fit(pairs) : null;
-            }
-            catch (ArgumentException)
-            {
-                return null;
-            }
+            if (marks == null || marks.Count == 0) return null;
+            double floorHeight = 0;
+            foreach (ArMark mark in marks) floorHeight += mark.Y;
+            return PlanAlignment.Identity(floorHeight / marks.Count, marks.Count);
         }
 
         private void SetState(PositionState state)

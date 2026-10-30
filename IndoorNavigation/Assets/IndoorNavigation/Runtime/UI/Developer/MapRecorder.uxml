@@ -1,20 +1,26 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <!-- Developer only: record or continue a world map and mark its door corners. The camera shows
          through; the crosshair is the exact middle of the screen, where marks are raycast.
-         Top: the map's name, progress and the next step. Right: the live map. Bottom: one row of door
+         Top: the map's name, progress and the next step, and the live map. Bottom: one row of door
          chips (tap one to name the door or mark it again), Undo and Mark, then Close and Save. Nothing grows with the number of doors. -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="recorder">
+        <!-- Top card: the map's name, progress and the next step, with the live map beside them, so the
+             middle of the screen stays clear for the crosshair on every phone. -->
         <ui:VisualElement class="card recorder-card">
-            <ui:Label name="area" class="strong" />
-            <ui:Label name="progress" class="small recorder-progress" />
-            <ui:Label name="status" class="small recorder-message" />
-        </ui:VisualElement>
-        <!-- Live map of what the recording has covered: seen from above, centred on you, facing up. -->
-        <ui:VisualElement class="coverage-box" picking-mode="Ignore">
-            <ui:Label name="mapping" class="mapping-badge" picking-mode="Ignore" />
-            <ui:VisualElement name="coverage" class="coverage" picking-mode="Ignore" />
-            <ui:Label name="coverage-text" class="coverage-text" picking-mode="Ignore" />
+            <ui:VisualElement class="row recorder-card-row">
+                <ui:VisualElement class="recorder-text">
+                    <ui:Label name="area" class="strong" />
+                    <ui:Label name="progress" class="small recorder-progress" />
+                    <ui:Label name="status" class="small recorder-message" />
+                </ui:VisualElement>
+                <!-- Live map of what the recording has covered: seen from above, centred on you, facing up. -->
+                <ui:VisualElement class="coverage-box" picking-mode="Ignore">
+                    <ui:Label name="mapping" class="mapping-badge" picking-mode="Ignore" />
+                    <ui:VisualElement name="coverage" class="coverage" picking-mode="Ignore" />
+                    <ui:Label name="coverage-text" class="coverage-text" picking-mode="Ignore" />
+                </ui:VisualElement>
+            </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement class="spacer" picking-mode="Ignore" />
         <ui:VisualElement class="sheet recorder-sheet">
@@ -30,11 +36,11 @@
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:ScrollView name="doors" mode="Horizontal" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden" class="recorder-doors" />
-            <ui:VisualElement class="row recorder-row">
+            <ui:VisualElement name="mark-row" class="row recorder-row">
                 <ui:Button name="undo" text="Undo" class="button recorder-button" />
                 <ui:Button name="mark" text="Mark d1-left" class="button button--accent recorder-button recorder-button--wide" />
             </ui:VisualElement>
-            <ui:VisualElement class="row recorder-row">
+            <ui:VisualElement name="save-row" class="row recorder-row">
                 <ui:Button name="close" text="Close" class="button recorder-button" />
                 <ui:Button name="save" text="Save map" class="button button--primary recorder-button recorder-button--wide" />
             </ui:VisualElement>

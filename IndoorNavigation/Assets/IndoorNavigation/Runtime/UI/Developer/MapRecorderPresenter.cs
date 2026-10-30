@@ -60,10 +60,16 @@ namespace IndoorNavigation.UI.Developer
         private readonly Label doorTitle;
         private readonly TextField doorName;
         private readonly Toggle doorRoom;
+        private readonly VisualElement markRow;
+        private readonly VisualElement saveRow;
         private string editingDoor;
 
-        public MapRecorderPresenter(VisualElement root, IMapRecording recording, AppSession session)
+        private readonly AppCover cover;
+        private bool holdingCover;
+
+        public MapRecorderPresenter(VisualElement root, IMapRecording recording, AppSession session, AppCover cover = null)
         {
+            this.cover = cover;
             this.root = root ?? throw new ArgumentNullException(nameof(root), "map-recorder is missing from AppShell.uxml.");
             this.recording = recording ?? throw new ArgumentNullException(nameof(recording));
             this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -102,6 +108,8 @@ namespace IndoorNavigation.UI.Developer
             doorTitle = root.Q<Label>("door-title");
             doorName = root.Q<TextField>("door-name");
             doorRoom = root.Q<Toggle>("door-room");
+            markRow = root.Q<VisualElement>("mark-row");
+            saveRow = root.Q<VisualElement>("save-row");
             root.Q<Button>("door-done").clicked += () => CloseDoorSheet(redoDoor: false);
             root.Q<Button>("door-redo").clicked += () => CloseDoorSheet(redoDoor: true);
             ScreenPresenter.SetVisible(doorSheet, false);
@@ -140,7 +148,9 @@ namespace IndoorNavigation.UI.Developer
             redo.Clear();
             doorsShown = null;
             editingDoor = null;
-            ScreenPresenter.SetVisible(doorSheet, false);
+            ShowNaming(false);
+            if (!holdingCover) cover?.Hold(); // the bare camera view, without the screen underneath
+            holdingCover = true;
             ScreenPresenter.SetVisible(root, true);
             refresh.Resume();
             Render();
@@ -158,6 +168,8 @@ namespace IndoorNavigation.UI.Developer
 
             refresh.Pause();
             ScreenPresenter.SetVisible(root, false);
+            if (holdingCover) cover?.Release();
+            holdingCover = false;
             session.LogExternal("developer", "map recorder close");
             Closed?.Invoke();
         }
@@ -210,7 +222,7 @@ namespace IndoorNavigation.UI.Developer
             doors.Clear();
             if (lines.Count == 0)
             {
-                var empty = new Label("No corners yet: put the circle on a door corner and tap Mark.");
+                var empty = new Label("No doors marked yet");
                 empty.AddToClassList("recorder-doors-empty");
                 doors.Add(empty);
                 return;
@@ -232,7 +244,7 @@ namespace IndoorNavigation.UI.Developer
             doorTitle.text = "Door " + door;
             doorName.SetValueWithoutNotify(recording.DoorLabel(door) ?? "");
             doorRoom.SetValueWithoutNotify(recording.DoorLeadsToRoom(door));
-            ScreenPresenter.SetVisible(doorSheet, true);
+            ShowNaming(true);
         }
 
         /// <summary>Keeps the typed name; with <paramref name="redoDoor"/>, the door's two corners are marked again, left first.</summary>
@@ -240,7 +252,7 @@ namespace IndoorNavigation.UI.Developer
         {
             string door = editingDoor;
             editingDoor = null;
-            ScreenPresenter.SetVisible(doorSheet, false);
+            ShowNaming(false);
             if (door == null) return;
 
             string typed = doorName.value ?? "";
@@ -258,19 +270,30 @@ namespace IndoorNavigation.UI.Developer
             Render();
         }
 
+        /// <summary>
+        /// While a door is being named, the sheet shows only the naming part and the door chips:
+        /// marking and saving wait, and the sheet stays short enough for the smallest phone.
+        /// </summary>
+        private void ShowNaming(bool naming)
+        {
+            ScreenPresenter.SetVisible(doorSheet, naming);
+            ScreenPresenter.SetVisible(markRow, !naming);
+            ScreenPresenter.SetVisible(saveRow, !naming);
+        }
+
         private void RenderCoverage()
         {
             string state = recording.MappingState;
             if (mapping != null)
             {
-                mapping.text = "Mapping: " + (state ?? "waiting");
+                mapping.text = state ?? "Waiting"; // Limited, Extending or Mapped: the colour says the same
                 mapping.EnableInClassList("mapping-badge--limited", state == "Limited" || state == "NotAvailable");
                 mapping.EnableInClassList("mapping-badge--extending", state == "Extending");
                 mapping.EnableInClassList("mapping-badge--mapped", state == "Mapped");
             }
 
             MapCoverage map = recording.Coverage;
-            if (coverageText != null) coverageText.text = map == null ? "" : map.ShortSummary() + (map.HasEarlier ? " · grey = before" : "");
+            if (coverageText != null) coverageText.text = map == null ? "" : map.ShortSummary() + (map.HasEarlier ? "\ngrey = before" : "");
             coverageView?.MarkDirtyRepaint();
         }
 

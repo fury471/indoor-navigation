@@ -58,8 +58,12 @@ namespace IndoorNavigation.UI.Developer
         private string replaceName;
         private DateTime replaceAskedUtc;
 
-        public MapLibraryPresenter(VisualElement root, IMapLibrary library, MapRecorderPresenter recorder, AppSession session)
+        private readonly AppCover cover;
+        private bool holdingCover;
+
+        public MapLibraryPresenter(VisualElement root, IMapLibrary library, MapRecorderPresenter recorder, AppSession session, AppCover cover = null)
         {
+            this.cover = cover;
             this.root = root ?? throw new ArgumentNullException(nameof(root), "map-library is missing from AppShell.uxml.");
             this.library = library ?? throw new ArgumentNullException(nameof(library));
             this.recorder = recorder ?? throw new ArgumentNullException(nameof(recorder));
@@ -131,6 +135,8 @@ namespace IndoorNavigation.UI.Developer
         public void Open()
         {
             IsOpen = true;
+            if (!holdingCover) cover?.Hold();
+            holdingCover = true;
             ScreenPresenter.SetVisible(root, true);
             refresh.Resume();
             session.LogExternal("developer", "maps open");
@@ -148,6 +154,8 @@ namespace IndoorNavigation.UI.Developer
             IsOpen = false;
             refresh.Pause();
             ScreenPresenter.SetVisible(root, false);
+            if (holdingCover) cover?.Release();
+            holdingCover = false;
         }
 
         private T Find<T>(string elementName) where T : VisualElement =>

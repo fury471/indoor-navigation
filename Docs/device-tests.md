@@ -151,6 +151,26 @@
 
 ## Build 8 — floor first, start inside a room, a reminder instead of a switch
 
-- Source commit: 7324a64, plus the route material commit
+- Source commit: 7324a64, plus the route material (c248162, a73a969)
 - Export release: `export-position-008`
-- Result: to be tested (`Docs/build-7-guide.md` parts D and E). Checks: screen 1 asks the floor first and "Change floor" works; the hint follows the phone's tilt; after about 10 s raised a reminder appears and nothing switches by itself; "Keep trying" goes back to the map; a door fix from the corridor and from inside a room both place you correctly and refuse a wrong width; Fix position keeps tracking; door names and start rooms are saved with the map; the orange door posts stand on the corners after a fix.
+- Result: **failed at home (30 Oct, screenshots).**
+  - The screen underneath showed through the developer overlays: screen 2's search field and button, or screen 1's "Which floor are you on?" sheet, mixed with the recorder.
+  - The live map sat in the middle of the screen, under the crosshair, and its text ran into it.
+  - A map whose corners were less than 1 m apart relocalised but never counted as located (the recording-frame fit needed 1 m between marks), so the app stayed on the floor question.
+  - Marks 0.29 m and 0.19 m apart were accepted as doors and the map could be saved with them.
+  - The empty door row's hint was cut off.
+- Fixed in build 9.
+- Originally planned checks, now for build 9 (`Docs/build-7-guide.md` parts D and E). Checks: screen 1 asks the floor first and "Change floor" works; the hint follows the phone's tilt; after about 10 s raised a reminder appears and nothing switches by itself; "Keep trying" goes back to the map; a door fix from the corridor and from inside a room both place you correctly and refuse a wrong width; Fix position keeps tracking; door names and start rooms are saved with the map; the orange door posts stand on the corners after a fix.
+
+## Build 9 — fixes from build 8
+
+- Export release: `export-position-009`
+- What changed:
+  - developer overlays hide the app's screens while open;
+  - the live map sits in the recorder's top card, so nothing but the crosshair is in the middle;
+  - while a door is named, the sheet shows only the naming part;
+  - text and buttons in sheets and cards never shrink, so only lists give way on short screens;
+  - a relocalised map always counts as located;
+  - a map can be saved only with two doors at a door's width (0.6–2.5 m), and the recorder says which door to mark again.
+- Layout checked with an HTML replica at 390×694 (iPhone SE) and 390×848 (iPhone 16 Pro): nothing overlaps the crosshair, nothing runs off the screen.
+- Result: to be tested (`Docs/build-7-guide.md` part D), with the checks listed under build 8.

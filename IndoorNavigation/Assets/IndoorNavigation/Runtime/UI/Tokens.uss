@@ -465,16 +465,18 @@
     border-color: var(--destination);
 }
 
-/* The recorder's live map. Its colours are the app's tokens, read by MapRecorderPresenter. */
+/* The recorder's live map, inside the top card beside the text. Its colours are the app's tokens,
+   read by MapRecorderPresenter. Nothing but the crosshair is in the middle of the screen, on any phone. */
 .coverage-box {
     flex-shrink: 0;
-    align-self: flex-end;
+    align-self: flex-start;
     align-items: center;
-    margin-top: 8px;
+    width: 112px;
+    margin-left: 10px;
 }
 
 .mapping-badge {
-    font-size: 12px;
+    font-size: 11px;
     -unity-font-style: bold;
     color: var(--surface);
     background-color: rgba(20, 23, 31, 0.6);
@@ -496,8 +498,8 @@
 }
 
 .coverage {
-    width: 168px;
-    height: 168px;
+    width: 112px;
+    height: 112px;
     border-radius: 12px;
     background-color: rgba(20, 23, 31, 0.62);
     overflow: hidden;
@@ -510,7 +512,9 @@
 
 .coverage-text {
     font-size: 11px;
-    white-space: nowrap;
+    white-space: normal;
+    -unity-text-align: middle-center;
+    max-width: 112px;
     color: var(--surface);
     background-color: rgba(20, 23, 31, 0.6);
     padding: 1px 8px;
@@ -745,4 +749,65 @@
 .locate-change {
     margin: 0;
     padding: 0 14px;
+}
+
+
+/* Adaptable layout. Text and buttons in sheets and cards keep their height; when a screen is short,
+   only the scrolling lists give way. This stops labels from being squeezed into each other. */
+.sheet > Label,
+.sheet > Button,
+.sheet > TextField,
+.sheet > Toggle,
+.card > Label,
+.card > Button,
+.sheet > .row,
+.card > .row {
+    flex-shrink: 0;
+}
+
+.locate-sheet {
+    max-height: 88%;
+}
+
+.locate-doors {
+    flex-shrink: 1;
+    min-height: 0;
+}
+
+.locate-door-list {
+    flex-shrink: 1;
+    min-height: 0;
+}
+
+.locate-doors > Label,
+.locate-doors > Button {
+    flex-shrink: 0;
+}
+
+.door-sheet > * {
+    flex-shrink: 0;
+}
+
+.recorder-card-row {
+    align-items: flex-start;
+}
+
+.recorder-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
+}
+
+.recorder-text > Label {
+    flex-shrink: 0;
+}
+
+/* A long destination name gives way to the "Arrows look wrong?" button, cut with an ellipsis. */
+.fix-row > .chip {
+    flex-shrink: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

@@ -252,13 +252,18 @@ namespace IndoorNavigation.Adapters.AR
                 message = coverage.HasEarlier
                     ? $"Continuing {area.Id}: its {markOrder.Count} corners and what it covered are kept (grey on the live map). Don't leave the app until it says Saved."
                     : $"Continuing {area.Id}: its {markOrder.Count} corners are kept. This map was saved before coverage was stored, so the live map shows only what you add now. Don't leave the app until it says Saved.";
+                if (CompleteDoors() > GoodDoors())
+                {
+                    message += " Some of its doors are not at a door's width (marked check): tap each one and choose Mark again before saving.";
+                }
+
                 Report("map", $"recording continued for {area.Id} from its saved map, {markOrder.Count} corners");
             }
             else
             {
                 message = HasPlanMarkers
                     ? "Aim the circle at a door corner on the floor and mark it. Don't leave the app until it says Saved."
-                    : "Mark door corners in route order, as you face each door from the corridor: left, then right. Don't leave the app until it says Saved.";
+                    : "Mark each door from the corridor side, facing it: left corner, then right, where the frame meets the floor. Don't leave the app until it says Saved.";
                 Report("map", "recording started for " + area.Id + " (floor " + area.Floor.ToString(CultureInfo.InvariantCulture) + ") in a fresh AR session");
             }
         }
@@ -283,7 +288,17 @@ namespace IndoorNavigation.Adapters.AR
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
 
-        public bool CanSave => IsRecording && !saving && !guard.Broken && MappingDone && (HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder);
+        public bool CanSave => IsRecording && !saving && !guard.Broken && MappingDone && SaveBlocker() == null;
+
+        /// <summary>Why the marks are not enough to save yet, or null when they are.</summary>
+        private string SaveBlocker()
+        {
+            if (HasPlanMarkers) return Preview != null ? null : "Mark at least two door corners first.";
+            if (GoodDoors() >= MinimumDoorsInRouteOrder) return null;
+            return CompleteDoors() > GoodDoors()
+                ? $"Mark both corners of at least {MinimumDoorsInRouteOrder} doors at a door's width. Tap a door marked check and choose Mark again."
+                : $"Mark both corners of at least {MinimumDoorsInRouteOrder} doors first.";
+        }
 
         /// <summary>"Recording 4:12 · 85 m walked · map 12.3 MiB", or why the recording broke.</summary>
         public string ProgressLine => !IsRecording
@@ -430,11 +445,27 @@ namespace IndoorNavigation.Adapters.AR
             }
             else
             {
-                bool doorDone = markerId.EndsWith("-right", StringComparison.Ordinal);
-                string nameHint = doorDone ? " Tap " + markerId.Substring(0, markerId.Length - 6) + " below to name it, such as VR lab or Lift." : "";
-                message = CompleteDoors() >= MinimumDoorsInRouteOrder
-                    ? "Marked." + nameHint + " Mark every door people may start from, then walk until Mapping says Mapped, and save."
-                    : "Marked." + nameHint + " Now mark " + MarkerPairing.CornerId(markOrder.Count) + ".";
+                string door = markerId.Substring(0, Math.Max(0, markerId.LastIndexOf('-')));
+                double? width = null;
+                foreach ((string d, double w) in MarkerPairing.DoorWidths(Marks()))
+                {
+                    if (d == door) width = w;
+                }
+
+                if (width.HasValue && !MarkerPairing.IsPlausibleDoor(width.Value))
+                {
+                    // A door fix trusts these corners, so a wrong width must be fixed now, not in the lab later.
+                    message = string.Format(CultureInfo.InvariantCulture,
+                        "{0} is {1:F2} m wide, not a door's width ({2:F1}–{3:F1} m). Tap {0} below and choose Mark again, aiming where the frame meets the floor.",
+                        door, width.Value, MarkerPairing.MinimumDoorMetres, MarkerPairing.MaximumDoorMetres);
+                }
+                else
+                {
+                    string nameHint = width.HasValue ? " Tap " + door + " below to name it, such as VR lab or Lift." : "";
+                    message = GoodDoors() >= MinimumDoorsInRouteOrder
+                        ? "Marked." + nameHint + " Mark every door people may start at, then walk until Mapping says Mapped, and save."
+                        : "Marked." + nameHint + " Now mark " + MarkerPairing.CornerId(markOrder.Count) + ".";
+                }
             }
 
             return true;
@@ -450,10 +481,7 @@ namespace IndoorNavigation.Adapters.AR
 
             if (!CanSave)
             {
-                bool marked = HasPlanMarkers ? Preview != null : CompleteDoors() >= MinimumDoorsInRouteOrder;
-                message = !marked
-                    ? (HasPlanMarkers ? "Mark at least two door corners first." : $"Mark both corners of at least {MinimumDoorsInRouteOrder} doors first.")
-                    : "Walk slowly around until Mapping says Mapped.";
+                message = SaveBlocker() ?? "Walk slowly around until Mapping says Mapped.";
                 return;
             }
 
@@ -730,6 +758,18 @@ namespace IndoorNavigation.Adapters.AR
         }
 
         private int CompleteDoors() => MarkerPairing.DoorWidths(Marks()).Count;
+
+        /// <summary>Doors with both corners marked at a plausible width: only these can fix a position later.</summary>
+        private int GoodDoors()
+        {
+            int good = 0;
+            foreach ((string _, double width) in MarkerPairing.DoorWidths(Marks()))
+            {
+                if (MarkerPairing.IsPlausibleDoor(width)) good++;
+            }
+
+            return good;
+        }
 
         private void Report(string eventName, string detail) => Diagnostic?.Invoke(eventName, detail);
     }

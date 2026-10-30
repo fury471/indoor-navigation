@@ -78,6 +78,21 @@ namespace IndoorNavigation.Core.Tests
         }
 
         [Test]
+        public void TheIdentity_IsTheSameAsARecordingFittedToItself_EvenWithMarksCloseTogether()
+        {
+            PlanAlignment identity = PlanAlignment.Identity(-1.2, 2);
+            Assert.AreEqual((3.0, -4.0), identity.ToPlan(3, 4), "z is mirrored, nothing else.");
+            Assert.AreEqual((3.0, 4.0), identity.ToAr(3, -4));
+            Assert.AreEqual(-1.2, identity.FloorHeight);
+            Assert.AreEqual(0, identity.PlanHeading(0, 1), 1e-9, "AR +z is up the plan, because the plan's z runs down the drawing.");
+
+            var marks = new List<ArMark> { new ArMark("d1-left", 1, -1.2, 2), new ArMark("d1-right", 3, -1.2, 2) };
+            PlanAlignment fitted = PlanAlignment.Fit(MarkerPairing.Pair(DoorList.RecordingFrame(marks), marks));
+            Assert.AreEqual(fitted.ToPlan(5, 6).X, identity.ToPlan(5, 6).X, 1e-9);
+            Assert.AreEqual(fitted.ToPlan(5, 6).Z, identity.ToPlan(5, 6).Z, 1e-9);
+        }
+
+        [Test]
         public void ADoorIntoAStartRoom_IsOfferedFromInsideToo_WithLeftAndRightSwapped()
         {
             var markers = new List<MarkerInfo>

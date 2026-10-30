@@ -179,8 +179,9 @@ namespace IndoorNavigation.App
             if (config.developerPanel)
             {
                 MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, mapStore, () => session.Venue);
-                MapRecorderPresenter recorderPresenter = recording == null ? null : new MapRecorderPresenter(recorderElement, recording, session);
-                MapLibraryPresenter maps = recording == null ? null : new MapLibraryPresenter(libraryElement, recording, recorderPresenter, session);
+                var cover = new AppCover(root.Q<VisualElement>("app"));
+                MapRecorderPresenter recorderPresenter = recording == null ? null : new MapRecorderPresenter(recorderElement, recording, session, cover);
+                MapLibraryPresenter maps = recording == null ? null : new MapLibraryPresenter(libraryElement, recording, recorderPresenter, session, cover);
                 Func<string> positionStatus = realPosition == null ? (Func<string>)null : () => realPosition.Status;
                 Func<string> checkPoint = realPosition == null ? (Func<string>)null : realPosition.LogCheckPoint;
                 var actions = new DeveloperActions(session, placeholderRepository, placeholderPosition, placeholderAttitude, placeholderSearch);

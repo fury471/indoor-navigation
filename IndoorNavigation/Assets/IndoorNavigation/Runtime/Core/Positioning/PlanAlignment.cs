@@ -80,6 +80,14 @@ namespace IndoorNavigation.Core.Positioning
 
         public bool IsGood => RmsErrorMetres <= GoodRmsMetres;
 
+        /// <summary>
+        /// No rotation and no shift: the plan is the AR session's own floor (z mirrored, as always).
+        /// Used before the package places a recording on the real plan, when the recording's frame
+        /// serves as the floor's plan (decision record 11). Needs no spread between the marks.
+        /// </summary>
+        public static PlanAlignment Identity(double floorHeight, int markerCount = 0) =>
+            new PlanAlignment(0, 0, 0, floorHeight, 0, markerCount);
+
         /// <summary>Fits the alignment; throws <see cref="ArgumentException"/> when the markers cannot fix it.</summary>
         public static PlanAlignment Fit(IReadOnlyList<MarkerPair> markers) => Fit(markers, MinimumSpreadMetres);
 
