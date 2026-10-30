@@ -120,9 +120,11 @@ namespace IndoorNavigation.Core.Tests
 
             session.ConfirmFloor(2);
             Assert.AreEqual(2, session.UserFloor);
-            Assert.AreEqual("area-2", position.LocatingArea, "A confirmed floor change loads the next area's map.");
+            Assert.AreEqual("area-2", position.LocatingArea, "A confirmed floor change tries the next floor's map.");
+            Assert.AreEqual("1", session.Screen, "The position is found again on the new floor (decision record 11).");
 
             position.SetFound(new PlanPose(2, 20.0, 2.8, 180));
+            Assert.AreEqual("B", session.Screen);
             WalkRoute();
             Assert.AreEqual(SessionState.Arrived, session.State);
             Assert.AreEqual("G", session.Screen);

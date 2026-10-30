@@ -258,12 +258,13 @@ namespace IndoorNavigation.UI.Developer
                 case MapActivity.Loading: state.text = "Loading " + active; break;
                 case MapActivity.Relocalising: state.text = "Relocalising " + seconds + " s"; break;
                 case MapActivity.Relocalised: state.text = "Relocalised · " + active; break;
+                case MapActivity.LocatedByDoor: state.text = "Door fix · " + active; break;
                 case MapActivity.NotLocated: state.text = "Not located"; break;
                 default: state.text = "No map loaded"; break;
             }
 
             state.EnableInClassList("state-pill--busy", activity == MapActivity.Loading || activity == MapActivity.Relocalising);
-            state.EnableInClassList("state-pill--ok", activity == MapActivity.Relocalised);
+            state.EnableInClassList("state-pill--ok", activity == MapActivity.Relocalised || activity == MapActivity.LocatedByDoor);
             state.EnableInClassList("state-pill--problem", activity == MapActivity.NotLocated);
             status.text = library.StatusLine ?? "";
         }

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using IndoorNavigation.Core.Positioning;
 
 namespace IndoorNavigation.Core.Ports
 {
@@ -39,8 +41,11 @@ namespace IndoorNavigation.Core.Ports
 
     /// <summary>
     /// The phone's position on the venue plan. Placeholder: developer-panel buttons and Editor keys.
-    /// Real (week 3): ARKit world-map reload plus the alignment transform, one map per area.
-    /// Adapters raise PoseChanged only when the pose has moved noticeably, not every frame.
+    /// Real: two ways to the first fix, then ARKit's own tracking (decision record 11). The floor's
+    /// world map is tried automatically when locating starts; at any time the person can instead
+    /// stand at a known door and mark its two floor corners, which fixes the position at once.
+    /// Adapters raise PoseChanged only when the pose has moved noticeably, not every frame, and set
+    /// <see cref="Pose"/> before raising StateChanged with Found.
     /// </summary>
     public interface IPositionSource
     {
@@ -50,8 +55,40 @@ namespace IndoorNavigation.Core.Ports
         event Action<PositionState> StateChanged;
         event Action<PlanPose> PoseChanged;
 
-        /// <summary>Starts finding the position in one area; loads that area's world map.</summary>
+        /// <summary>
+        /// Starts finding the position, near this area: tries the world map of the area, or of
+        /// another area on the same floor. With no map to try, only a door fix can find the position.
+        /// </summary>
         void StartLocating(string areaId);
+
+        /// <summary>True while a world map is being tried automatically.</summary>
+        bool TryingMap { get; }
+
+        /// <summary>The doors whose corners are known, on every floor, for a door fix.</summary>
+        IReadOnlyList<DoorInfo> Doors { get; }
+
+        /// <summary>The door being marked, or null.</summary>
+        DoorInfo FixingDoor { get; }
+
+        /// <summary>Corners marked so far for <see cref="FixingDoor"/>: 0 (left next) or 1 (right next).</summary>
+        int CornersMarked { get; }
+
+        /// <summary>The last sentence for the person marking (what went wrong, or what to do), or null.</summary>
+        string FixMessage { get; }
+
+        /// <summary>
+        /// Starts a door fix. Stops trying a world map, if one was being tried; keeps the AR session
+        /// running otherwise, so a fix during navigation does not interrupt tracking.
+        /// </summary>
+        void BeginDoorFix(DoorInfo door);
+
+        /// <summary>
+        /// Marks the next corner of <see cref="FixingDoor"/> where the crosshair points. Returns true
+        /// when both corners are marked and fit: the position is then Found, on the door's floor.
+        /// </summary>
+        bool MarkDoorCorner();
+
+        void CancelDoorFix();
 
         void Stop();
     }

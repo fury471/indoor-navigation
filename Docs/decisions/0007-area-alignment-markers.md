@@ -1,7 +1,7 @@
 # 7. Align each area's world map to the plan with door-corner markers
 
 Date: 2026-10-26 (revised 2026-10-27: corners are marked before their plan positions are known; 2026-10-28: every area recorded in one visit, and a two-floor map tested; 2026-10-30: maps are named, continued and tested from panel W, and an interrupted recording is not saved)
-Status: Accepted
+Status: Accepted. Amended by decision 11: the same door corners also give the first fix ("start at a door"), and a recording's own frame serves as the floor's plan until the package lists the corners.
 
 ## Context
 

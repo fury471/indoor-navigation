@@ -34,6 +34,12 @@ namespace IndoorNavigation.UI.Developer
 
         bool IsMarked(string markerId);
 
+        /// <summary>The name given to a door ("d3" → "VR lab"), or null.</summary>
+        string DoorLabel(string door);
+
+        /// <summary>Names a door, so visitors can choose it for a door fix; empty removes the name.</summary>
+        void SetDoorLabel(string door, string label);
+
         /// <summary>True when the last corner can be undone (not one that came with a continued map).</summary>
         bool CanUndo { get; }
 
@@ -96,6 +102,9 @@ namespace IndoorNavigation.UI.Developer
 
         /// <summary>The session is in the map's frame.</summary>
         Relocalised,
+
+        /// <summary>Located by a door fix, without the map.</summary>
+        LocatedByDoor,
 
         /// <summary>The area has no map, or loading it failed.</summary>
         NotLocated,

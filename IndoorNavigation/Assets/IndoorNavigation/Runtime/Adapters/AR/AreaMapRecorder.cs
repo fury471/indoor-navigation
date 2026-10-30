@@ -47,6 +47,7 @@ namespace IndoorNavigation.Adapters.AR
 
         private readonly Dictionary<string, Vector3> marks = new Dictionary<string, Vector3>();
         private readonly List<string> markOrder = new List<string>();
+        private readonly Dictionary<string, string> doorLabels = new Dictionary<string, string>(StringComparer.Ordinal);
 
         private ARSession arSession;
         private XROrigin origin;
@@ -164,6 +165,7 @@ namespace IndoorNavigation.Adapters.AR
             area = newArea;
             marks.Clear();
             markOrder.Clear();
+            doorLabels.Clear();
             loadedMarkCount = 0;
             mapBytes = 0;
             positioning.StartLocating(area.Id);
@@ -207,6 +209,8 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             loadedMarkCount = markOrder.Count;
+            doorLabels.Clear();
+            foreach (KeyValuePair<string, string> pair in store.ReadDoorLabels(id)) doorLabels[pair.Key] = pair.Value;
             mapBytes = store.TryReadInfo(id)?.Bytes ?? 0;
             StartRecording(fresh: false, earlier: store.ReadCoverage(id));
             reason = null;
@@ -309,6 +313,23 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>Each door with both corners marked, and its width.</summary>
         public IReadOnlyList<(string Door, double Width)> DoorWidths => MarkerPairing.DoorWidths(Marks());
 
+        /// <summary>The name given to a door ("d3" → "VR lab"), or null.</summary>
+        public string DoorLabel(string door) => door != null && doorLabels.TryGetValue(door, out string label) ? label : null;
+
+        /// <summary>
+        /// Names a door, so visitors can choose it for a door fix ("VR lab", "Lift"). Saved with the map;
+        /// an empty name removes it.
+        /// </summary>
+        public void SetDoorLabel(string door, string label)
+        {
+            if (string.IsNullOrEmpty(door)) return;
+            string clean = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
+            if (clean != null && clean.Length > 40) clean = clean.Substring(0, 40);
+            if (clean == null) doorLabels.Remove(door);
+            else doorLabels[door] = clean;
+            Report("map", clean == null ? "door " + door + " unnamed" : "door " + door + " named " + clean);
+        }
+
         /// <summary>The last corner can be undone, unless it came with the map being continued.</summary>
         public bool CanUndo => IsRecording && !saving && markOrder.Count > loadedMarkCount;
 
@@ -390,9 +411,11 @@ namespace IndoorNavigation.Adapters.AR
             }
             else
             {
+                bool doorDone = markerId.EndsWith("-right", StringComparison.Ordinal);
+                string nameHint = doorDone ? " Tap " + markerId.Substring(0, markerId.Length - 6) + " below to name it, such as VR lab or Lift." : "";
                 message = CompleteDoors() >= MinimumDoorsInRouteOrder
-                    ? "Marked. Mark more doors if you like, then walk slowly until Mapping says Mapped, and save."
-                    : "Marked. Now mark " + MarkerPairing.CornerId(markOrder.Count) + ".";
+                    ? "Marked." + nameHint + " Mark every door people may start from, then walk until Mapping says Mapped, and save."
+                    : "Marked." + nameHint + " Now mark " + MarkerPairing.CornerId(markOrder.Count) + ".";
             }
 
             return true;
@@ -564,7 +587,7 @@ namespace IndoorNavigation.Adapters.AR
                         byte[] managed = bytes.ToArray();
                         if (managed.Length == 0) throw new InvalidOperationException("The world map is empty.");
 
-                        AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit);
+                        AlignmentRecord record = AlignmentRecord.From(area.Id, area.Floor, managed.Length, pendingMarks, area.Markers, pendingFit, doorLabels);
                         store.Save(area.Id, managed, record, CoverageRecord.From(coverage));
                         mapBytes = managed.Length;
                         mapBytesAreSaved = true;

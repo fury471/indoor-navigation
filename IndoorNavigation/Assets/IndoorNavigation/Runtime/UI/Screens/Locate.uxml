@@ -1,13 +1,21 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- 1 · Finding your position -->
+    <!-- 1 · Finding your position (decision record 11). The camera shows through. While the floor's
+         world map is tried, a hint says how to hold the phone; after a while, or on request, the
+         doors to start at. Opened again during the visit by "Fix position" and after a floor change. -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen screen--transparent">
-        <ui:Label name="building" class="chip" />
-        <ui:VisualElement class="spacer" />
-        <ui:VisualElement class="sheet">
-            <ui:Label text="Finding where you are" class="title" />
-            <ui:Label text="Hold the phone up and slowly look around the room." class="body" />
+        <ui:Label name="building" class="chip locate-chip" />
+        <ui:VisualElement class="spacer" picking-mode="Ignore" />
+        <ui:VisualElement class="sheet locate-sheet">
+            <ui:Label name="title" class="title" />
+            <ui:Label name="hint" class="body locate-hint" />
             <ui:Label name="status" class="small" />
+            <ui:Button name="show-doors" text="Start at a door instead" class="button" />
+            <ui:VisualElement name="door-section" class="locate-doors">
+                <ui:Label name="door-intro" class="small locate-door-intro" />
+                <ui:ScrollView name="door-list" vertical-scroller-visibility="Hidden" horizontal-scroller-visibility="Hidden" class="locate-door-list" />
+            </ui:VisualElement>
+            <ui:Button name="close" text="Back" class="button" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

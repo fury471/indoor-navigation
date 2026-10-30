@@ -19,13 +19,20 @@ using UnityEngine.XR.ARSubsystems;
 namespace IndoorNavigation.Adapters.AR
 {
     /// <summary>
-    /// The real position, from an ARKit world map per area (Apple, ARWorldMap). StartLocating loads
-    /// the area's map and lets ARKit relocalise against it; once tracking is stable, the camera's
-    /// pose in the session is turned into a plan pose with the area's <see cref="PlanAlignment"/>.
-    /// The relocalisation check follows the localisation lab: "relocalising" must be seen first,
-    /// then two seconds of normal tracking. While ARKit is relocalising, the app keeps waiting
-    /// instead of applying the map again (<see cref="RelocalisationPolicy"/>). Works only on the
-    /// iPhone; in the Editor the composition root uses the placeholder instead.
+    /// The real position (decision record 11). Two ways to the first fix, then ARKit's own tracking:
+    /// <list type="bullet">
+    /// <item>Automatic: StartLocating loads the floor's world map (Apple, ARWorldMap) and lets ARKit
+    /// relocalise against it. "Relocalising" must be seen first, then two seconds of normal tracking,
+    /// as in the localisation lab. While ARKit is relocalising, the app keeps waiting instead of
+    /// applying the map again (<see cref="RelocalisationPolicy"/>).</item>
+    /// <item>Door fix: the person stands at a known door and marks its two floor corners
+    /// (<see cref="DoorFix"/>). Choosing a door stops trying the map, so tracking starts afresh
+    /// without one; during navigation it keeps the running session.</item>
+    /// </list>
+    /// Either way, the camera's pose in the session is turned into a plan pose with a
+    /// <see cref="PlanAlignment"/>. Corners whose plan positions the package does not list yet are
+    /// placed in their recording's own frame, so a floor's recording serves as its plan until the
+    /// package exists. Works only on the iPhone; in the Editor the composition root uses the placeholder.
     /// </summary>
     public sealed class WorldMapPositionSource : MonoBehaviour, IPositionSource
     {
@@ -40,11 +47,17 @@ namespace IndoorNavigation.Adapters.AR
 
         public const double ReportDegrees = 5.0;
 
+        /// <summary>A hit must be at least this far below the camera to count as the floor, not a table.</summary>
+        public const float MinimumDropToFloorMetres = 0.6f;
+
         private ARSession arSession;
         private XROrigin origin;
         private Transform cameraTransform;
+        private ARRaycastManager raycasts;
+        private ARPlaneManager planes;
         private AreaMapStore store;
         private Func<string, AreaInfo> areas;
+        private Func<IReadOnlyList<AreaInfo>> packageAreas;
 
         private int floor;
         private PlanAlignment alignment;
@@ -62,23 +75,27 @@ namespace IndoorNavigation.Adapters.AR
         private float trackingChangedAt;
         private float lastProgressLog;
 
-        /// <summary>True when the session is in the map's frame but the package lacks the corners' plan positions.</summary>
-        private bool inMapFrameWithoutPlan;
+        /// <summary>True once the session is in the current map's own frame (relocalised, or just recorded).</summary>
+        private bool inMapFrame;
+
+        private List<DoorInfo> doors;
+        private ArMark fixLeft;
+        private float fixStartedAt;
 
         public PositionState State { get; private set; } = PositionState.Searching;
         public PlanPose Pose { get; private set; }
 
-        /// <summary>The area being located, or null when stopped.</summary>
+        /// <summary>The map being located or recorded, or the area of the door last fixed at; null when stopped.</summary>
         public string CurrentArea { get; private set; }
 
         /// <summary>One line for the developer panel.</summary>
         public string Status { get; private set; } = "Not started";
 
-        /// <summary>The current alignment, or null while the area is not located.</summary>
+        /// <summary>The current alignment, or null while the position is not known.</summary>
         public PlanAlignment Alignment => alignment;
 
-        /// <summary>True once the session is in the current area's map frame, with or without the plan.</summary>
-        public bool InMapFrame => alignment != null || inMapFrameWithoutPlan;
+        /// <summary>True once the session is in the current map's frame, so the map can be continued.</summary>
+        public bool InMapFrame => inMapFrame;
 
         /// <summary>True while the area's map is waiting for the AR session before it is applied.</summary>
         public bool IsLoading => loadPending;
@@ -89,51 +106,78 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>Seconds since the map was applied, while relocalising.</summary>
         public float RelocalisingSeconds => waitingForRelocalisation ? Time.realtimeSinceStartup - loadStartedAt : 0f;
 
+        public bool TryingMap => loadPending || waitingForRelocalisation;
+
+        public DoorInfo FixingDoor { get; private set; }
+
+        public int CornersMarked { get; private set; }
+
+        public string FixMessage { get; private set; }
+
+        /// <summary>The doors of every saved map and of the package's areas; read once, until <see cref="RefreshDoors"/>.</summary>
+        public IReadOnlyList<DoorInfo> Doors => doors ?? (doors = BuildDoors());
+
         public event Action<PositionState> StateChanged;
         public event Action<PlanPose> PoseChanged;
 
         /// <summary>Events worth a line in the session log: event name and detail.</summary>
         public event Action<string, string> Diagnostic;
 
-        public void Init(ARSession session, XROrigin xrOrigin, Transform arCamera, AreaMapStore mapStore, Func<string, AreaInfo> areaLookup)
+        public void Init(
+            ARSession session, XROrigin xrOrigin, Transform arCamera, ARRaycastManager raycastManager, ARPlaneManager planeManager,
+            AreaMapStore mapStore, Func<string, AreaInfo> areaLookup, Func<IReadOnlyList<AreaInfo>> packageAreaList)
         {
             arSession = session ? session : throw new ArgumentNullException(nameof(session));
             origin = xrOrigin ? xrOrigin : throw new ArgumentNullException(nameof(xrOrigin));
             cameraTransform = arCamera ? arCamera : throw new ArgumentNullException(nameof(arCamera));
+            raycasts = raycastManager ? raycastManager : throw new ArgumentNullException(nameof(raycastManager));
+            planes = planeManager; // optional: helps the raycast find the floor sooner
             store = mapStore ?? throw new ArgumentNullException(nameof(mapStore));
             areas = areaLookup ?? throw new ArgumentNullException(nameof(areaLookup));
+            packageAreas = packageAreaList ?? throw new ArgumentNullException(nameof(packageAreaList));
         }
 
         public void StartLocating(string areaId)
         {
-            CurrentArea = areaId;
-            floor = areas(areaId)?.Floor ?? 0;
+            string map = ChooseMap(areaId);
+            CurrentArea = map ?? areaId;
+            floor = (map == null ? null : areas(map))?.Floor ?? (areaId == null ? null : areas(areaId))?.Floor ?? 0;
             alignment = null;
             pendingAlignment = null;
             waitingForRelocalisation = false;
-            inMapFrameWithoutPlan = false;
+            inMapFrame = false;
             attempts = 0;
+            EndDoorFix();
+            RefreshDoors();
             SetState(PositionState.Searching);
 
-            loadPending = store.Has(areaId);
-            Status = loadPending ? $"{areaId}: loading the world map" : $"{areaId}: no world map yet; record one (panel W)";
-            Report("position", loadPending ? "world map found for " + areaId : "no world map for " + areaId);
+            loadPending = map != null;
+            Status = map != null
+                ? $"{map}: loading the world map"
+                : "No world map to try here; start at a door";
+            Report("position", map != null
+                ? "world map " + map + " chosen for " + (areaId ?? "this floor")
+                : "no world map for " + (areaId ?? "this floor") + "; doors only");
         }
 
         public void Stop()
         {
             if (waitingForRelocalisation) AbandonMap();
+            EndDoorFix();
             CurrentArea = null;
             loadPending = false;
             waitingForRelocalisation = false;
             alignment = null;
-            inMapFrameWithoutPlan = false;
+            inMapFrame = false;
             Status = "Stopped";
         }
 
+        /// <summary>Reads the doors again: after a map was saved or deleted.</summary>
+        public void RefreshDoors() => doors = null;
+
         /// <summary>
-        /// Called before a new map is recorded: stops any relocalisation in progress, so the
-        /// recording starts in a clean session.
+        /// Called before a new map is recorded: stops any relocalisation or door fix in progress, so
+        /// the recording starts in a clean session.
         /// </summary>
         public void PauseForRecording()
         {
@@ -143,35 +187,146 @@ namespace IndoorNavigation.Adapters.AR
                 AbandonMap();
             }
 
+            EndDoorFix();
             alignment = null;
-            inMapFrameWithoutPlan = false;
+            inMapFrame = false;
             SetState(PositionState.Searching);
             Status = $"{CurrentArea}: recording a new map";
         }
 
         /// <summary>
         /// Called after a map was recorded in the running session. The session is already in the
-        /// map's frame, so the area counts as located at once.
+        /// map's frame, so the area counts as located at once: on the plan when the package lists the
+        /// corners, otherwise in the recording's own frame.
         /// </summary>
         public void UseRecordedMap(string areaId, PlanAlignment fitted)
         {
-            if (areaId != CurrentArea)
-            {
-                return;
-            }
-
+            RefreshDoors();
+            CurrentArea = areaId; // the session holds this map now, whatever was being located before
             loadPending = false;
             waitingForRelocalisation = false;
-            if (fitted == null)
+            inMapFrame = true;
+            alignment = fitted ?? RecordingFrameFit(store.ReadMarks(areaId));
+            if (alignment == null)
             {
-                inMapFrameWithoutPlan = true;
-                Status = $"{areaId}: map saved; it lines up with the plan once the package lists its corners";
+                Status = $"{areaId}: map saved; mark both corners of two doors to place it";
                 return;
             }
 
-            alignment = fitted;
-            Status = $"{areaId}: located with the map just recorded";
-            SetState(PositionState.Found);
+            Status = fitted != null ? $"{areaId}: located with the map just recorded" : $"{areaId}: located in the recording's own frame (no plan yet)";
+            floor = areas(areaId)?.Floor ?? floor;
+            Track(force: true);
+        }
+
+        public void BeginDoorFix(DoorInfo door)
+        {
+            if (door == null) return;
+            if (loadPending || waitingForRelocalisation)
+            {
+                // Stop trying the map. A reset without a map gives a fresh session to mark in.
+                loadPending = false;
+                if (waitingForRelocalisation) AbandonMap();
+                alignment = null;
+                inMapFrame = false;
+                Report("position", "stopped trying the world map for a door fix");
+            }
+
+            FixingDoor = door;
+            CornersMarked = 0;
+            FixMessage = null;
+            fixStartedAt = Time.realtimeSinceStartup;
+            SetPlaneDetection(true);
+            Status = "Door fix at " + door.DisplayName + ": mark the left corner";
+            Report("position", string.Format(CultureInfo.InvariantCulture, "door fix started at {0} ({1}, floor {2}, {3:F2} m wide)", door.Key, door.DisplayName, door.Floor, door.WidthMetres));
+        }
+
+        public void CancelDoorFix()
+        {
+            if (FixingDoor == null) return;
+            Report("position", "door fix cancelled at " + FixingDoor.Key);
+            EndDoorFix();
+            Status = alignment != null ? "Located" : "Not located; start at a door";
+        }
+
+        private void EndDoorFix()
+        {
+            if (FixingDoor != null) SetPlaneDetection(false);
+            FixingDoor = null;
+            CornersMarked = 0;
+            FixMessage = null;
+        }
+
+        /// <summary>
+        /// The map to try for an area: its own, else the latest saved map on the same floor (before the
+        /// package names the floors' areas, recordings carry their own names). Null when there is none.
+        /// </summary>
+        private string ChooseMap(string areaId)
+        {
+            if (!string.IsNullOrEmpty(areaId) && store.Has(areaId)) return areaId;
+            int? wanted = string.IsNullOrEmpty(areaId) ? null : areas(areaId)?.Floor;
+            if (wanted == null) return null;
+
+            string best = null;
+            DateTime bestTime = DateTime.MinValue;
+            foreach (string id in store.SavedIds())
+            {
+                SavedMapInfo? info = store.TryReadInfo(id);
+                if (!info.HasValue) continue;
+                int mapFloor = areas(id)?.Floor ?? info.Value.Floor;
+                DateTime saved = info.Value.SavedUtc ?? DateTime.MinValue;
+                if (mapFloor == wanted.Value && (best == null || saved > bestTime))
+                {
+                    best = id;
+                    bestTime = saved;
+                }
+            }
+
+            return best;
+        }
+
+        private List<DoorInfo> BuildDoors()
+        {
+            var list = new List<DoorInfo>();
+            var done = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string id in store.SavedIds())
+            {
+                try
+                {
+                    AreaInfo area = areas(id) ?? store.TryReadArea(id) ?? new AreaInfo(id, 0, id);
+                    IReadOnlyList<MarkerInfo> markers = area.Markers.Count >= PlanAlignment.MinimumMarkers
+                        ? area.Markers
+                        : DoorList.RecordingFrame(store.ReadMarks(id));
+                    list.AddRange(DoorList.FromMarkers(id, area.Floor, markers, store.ReadDoorLabels(id)));
+                    done.Add(id);
+                }
+                catch (Exception e)
+                {
+                    Report("position", "doors of " + id + " unreadable: " + e.Message);
+                }
+            }
+
+            // Doors the package lists for areas that have no map on this phone yet: a door fix needs no map.
+            IReadOnlyList<AreaInfo> listed = packageAreas() ?? Array.Empty<AreaInfo>();
+            foreach (AreaInfo area in listed)
+            {
+                if (!done.Contains(area.Id)) list.AddRange(DoorList.FromMarkers(area.Id, area.Floor, area.Markers));
+            }
+
+            return list;
+        }
+
+        /// <summary>The recording aligned to itself, for maps whose corners the package does not list; null with fewer than two doors.</summary>
+        private static PlanAlignment RecordingFrameFit(IReadOnlyList<ArMark> marks)
+        {
+            try
+            {
+                List<MarkerPair> pairs = MarkerPairing.Pair(DoorList.RecordingFrame(marks), marks);
+                return pairs.Count >= PlanAlignment.MinimumMarkers ? PlanAlignment.Fit(pairs) : null;
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
         }
 
         private void SetState(PositionState state)
@@ -182,6 +337,13 @@ namespace IndoorNavigation.Adapters.AR
         }
 
         private void Report(string eventName, string detail) => Diagnostic?.Invoke(eventName, detail);
+
+        private static bool Moved(PlanPose from, PlanPose to)
+        {
+            double dx = to.X - from.X, dz = to.Z - from.Z;
+            double turn = Math.Abs(((to.HeadingDegrees - from.HeadingDegrees) % 360 + 540) % 360 - 180);
+            return dx * dx + dz * dz >= ReportMetres * ReportMetres || turn >= ReportDegrees || to.Floor != from.Floor;
+        }
 
 #if UNITY_IOS && !UNITY_EDITOR
         private ARKitSessionSubsystem Session => arSession.subsystem as ARKitSessionSubsystem;
@@ -196,7 +358,7 @@ namespace IndoorNavigation.Adapters.AR
 
         private void Update()
         {
-            if (CurrentArea == null) return;
+            if (Session == null) return;
             ReportTrackingChanges();
 
             if (loadPending && SessionReady)
@@ -207,7 +369,7 @@ namespace IndoorNavigation.Adapters.AR
             {
                 PollRelocalisation();
             }
-            else if (alignment != null && Session != null)
+            else if (alignment != null)
             {
                 Track(force: false);
             }
@@ -223,13 +385,16 @@ namespace IndoorNavigation.Adapters.AR
                 AlignmentRecord record = store.ReadAlignment(CurrentArea, bytes.Length);
                 pendingAlignment = MarkerPairing.TryFit(
                     areas(CurrentArea)?.Markers, record.RecordedPlanMarkers(), record.ToArMarks(), out string problem);
-                if (pendingAlignment == null)
+                if (pendingAlignment != null)
                 {
-                    Report("position", "not aligned yet: " + problem);
+                    Report("position", string.Format(CultureInfo.InvariantCulture, "aligned from {0} corners, fit {1:F2} m", pendingAlignment.MarkerCount, pendingAlignment.RmsErrorMetres));
                 }
                 else
                 {
-                    Report("position", string.Format(CultureInfo.InvariantCulture, "aligned from {0} corners, fit {1:F2} m", pendingAlignment.MarkerCount, pendingAlignment.RmsErrorMetres));
+                    pendingAlignment = RecordingFrameFit(record.ToArMarks());
+                    Report("position", pendingAlignment != null
+                        ? "no plan positions yet (" + problem + "); using the recording's own frame"
+                        : "not aligned: " + problem);
                 }
 
                 using (var nativeBytes = new NativeArray<byte>(bytes, Allocator.Temp))
@@ -260,7 +425,7 @@ namespace IndoorNavigation.Adapters.AR
             }
             catch (Exception e)
             {
-                Status = $"{CurrentArea}: map failed: {e.Message}";
+                Status = $"{CurrentArea}: map failed: {e.Message}; start at a door";
                 Report("position", "map failed: " + e.Message);
             }
         }
@@ -270,7 +435,7 @@ namespace IndoorNavigation.Adapters.AR
             if (Time.frameCount <= appliedFrame) return; // ignore the frame in which the map was applied
 
             float now = Time.realtimeSinceStartup;
-            if (Session != null && Session.running)
+            if (Session.running)
             {
                 if (Session.notTrackingReason == NotTrackingReason.Relocalizing && !observedRelocalising)
                 {
@@ -284,17 +449,16 @@ namespace IndoorNavigation.Adapters.AR
                     if (now - trackingSince >= StableTrackingSeconds)
                     {
                         waitingForRelocalisation = false;
+                        inMapFrame = true;
                         Report("position", string.Format(CultureInfo.InvariantCulture, "relocalised in {0:F1} s", now - loadStartedAt));
                         if (pendingAlignment == null)
                         {
-                            inMapFrameWithoutPlan = true;
-                            Status = $"{CurrentArea}: relocalised; it lines up with the plan once the package lists its corners";
+                            Status = $"{CurrentArea}: relocalised, but its corners can't place it; start at a door";
                             return;
                         }
 
                         alignment = pendingAlignment;
-                        Status = string.Format(CultureInfo.InvariantCulture, "{0}: located (fit {1:F2} m)", CurrentArea, alignment.RmsErrorMetres);
-                        SetState(PositionState.Found);
+                        Status = string.Format(CultureInfo.InvariantCulture, "{0}: located by the world map (fit {1:F2} m)", CurrentArea, alignment.RmsErrorMetres);
                         Track(force: true);
                         return;
                     }
@@ -329,6 +493,64 @@ namespace IndoorNavigation.Adapters.AR
             arSession.Reset();
         }
 
+        public bool MarkDoorCorner()
+        {
+            DoorInfo door = FixingDoor;
+            if (door == null) return false;
+            if (!TrackingNormally())
+            {
+                FixMessage = "The camera is still getting ready. Move the phone slowly over the floor near the door, then mark.";
+                return false;
+            }
+
+            var hits = new List<ARRaycastHit>();
+            var middle = new Vector2(Screen.width / 2f, Screen.height / 2f);
+            if (!raycasts.Raycast(middle, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
+            {
+                FixMessage = "No floor found under the circle yet. Move the phone slowly over the floor by the door, then mark.";
+                return false;
+            }
+
+            Vector3 world = hits[0].pose.position; // hits are sorted nearest first
+            if (cameraTransform.position.y - world.y < MinimumDropToFloorMetres)
+            {
+                FixMessage = "That looks higher than the floor. Aim at the corner where the door frame meets the floor.";
+                return false;
+            }
+
+            Vector3 p = origin.TrackablesParent.InverseTransformPoint(world);
+            var mark = new ArMark(CornersMarked == 0 ? door.Id + "-left" : door.Id + "-right", p.x, p.y, p.z);
+            if (CornersMarked == 0)
+            {
+                fixLeft = mark;
+                CornersMarked = 1;
+                FixMessage = null;
+                Status = "Door fix at " + door.DisplayName + ": mark the right corner";
+                return false;
+            }
+
+            PlanAlignment fit = DoorFix.TryFit(door, fixLeft, mark, out string problem);
+            if (fit == null)
+            {
+                CornersMarked = 0;
+                FixMessage = problem;
+                Report("position", "door fix refused at " + door.Key + ": " + problem);
+                return false;
+            }
+
+            float seconds = Time.realtimeSinceStartup - fixStartedAt;
+            Report("position", string.Format(CultureInfo.InvariantCulture,
+                "door fix at {0}: corners {1:F2} m apart for a {2:F2} m door, {3:F0} s after choosing it",
+                door.Key, DoorFix.MarkedWidth(fixLeft, mark), door.WidthMetres, seconds));
+            EndDoorFix();
+            alignment = fit;
+            floor = door.Floor;
+            CurrentArea = door.AreaId;
+            Status = "Located at " + door.DisplayName + " (door fix)";
+            Track(force: true);
+            return true;
+        }
+
         /// <summary>
         /// Logs every change of ARKit's tracking state with its reason and how long the previous state
         /// lasted, in every view. With the phone held flat the camera sees only the floor, and ARKit
@@ -337,7 +559,6 @@ namespace IndoorNavigation.Adapters.AR
         /// </summary>
         private void ReportTrackingChanges()
         {
-            if (Session == null) return;
             string now = TrackingText();
             if (now == lastTracking) return;
             float t = Time.realtimeSinceStartup;
@@ -357,6 +578,7 @@ namespace IndoorNavigation.Adapters.AR
         private float CameraTiltDegrees() => Vector3.Angle(cameraTransform.forward, -origin.TrackablesParent.up);
 
         private bool TrackingNormally() =>
+            Session != null &&
             Session.trackingState == TrackingState.Tracking &&
             Session.notTrackingReason == NotTrackingReason.None &&
             ARSession.state == ARSessionState.SessionTracking;
@@ -377,26 +599,28 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             notTrackingSince = -1f;
-            if (State != PositionState.Found)
-            {
-                Status = $"{CurrentArea}: located again";
-                SetState(PositionState.Found);
-                force = true;
-            }
 
-            // The camera in session coordinates, as recorded with the map. Facing uses forward + up,
-            // which points where the top of the phone points when it lies flat and where the camera
-            // looks when it is held upright.
+            // The camera in session coordinates. Facing uses forward + up, which points where the top
+            // of the phone points when it lies flat and where the camera looks when it is held upright.
             Transform frame = origin.TrackablesParent;
             Vector3 position = frame.InverseTransformPoint(cameraTransform.position);
             Vector3 facing = frame.InverseTransformDirection(cameraTransform.forward + cameraTransform.up);
             PlanPose pose = alignment.ToPlanPose(floor, position.x, position.z, facing.x, facing.z);
 
-            if (force || Moved(Pose, pose))
+            bool found = State == PositionState.Found;
+            if (!found || force || Moved(Pose, pose))
             {
-                Pose = pose;
+                Pose = pose; // set before Found is raised, so listeners read the new pose
+                if (!found) SetState(PositionState.Found);
                 PoseChanged?.Invoke(pose);
             }
+        }
+
+        private void SetPlaneDetection(bool on)
+        {
+            if (planes == null) return;
+            planes.requestedDetectionMode = on ? PlaneDetectionMode.Horizontal : PlaneDetectionMode.None;
+            planes.enabled = on;
         }
 
         /// <summary>
@@ -405,10 +629,9 @@ namespace IndoorNavigation.Adapters.AR
         /// </summary>
         public string LogCheckPoint()
         {
-            bool inMapFrame = alignment != null || inMapFrameWithoutPlan;
-            if (!inMapFrame || Session == null)
+            if ((alignment == null && !inMapFrame) || Session == null)
             {
-                return "Not located yet: look around until the map is recognised.";
+                return "Not located yet: let the map relocalise, or start at a door.";
             }
 
             // Logged even while tracking is limited, with the tracking state and the phone's tilt,
@@ -419,7 +642,7 @@ namespace IndoorNavigation.Adapters.AR
             if (alignment != null)
             {
                 (double x, double z) = alignment.ToPlan(p.x, p.z);
-                detail += string.Format(CultureInfo.InvariantCulture, "; plan {0:F2}, {1:F2}", x, z);
+                detail += string.Format(CultureInfo.InvariantCulture, "; plan floor {0} {1:F2}, {2:F2}", floor, x, z);
             }
 
             detail += string.Format(CultureInfo.InvariantCulture, "; tracking {0}; camera {1:F0}° from straight down", TrackingText(), CameraTiltDegrees());
@@ -432,16 +655,24 @@ namespace IndoorNavigation.Adapters.AR
             // ARKit world maps need the iPhone. The composition root does not use this class in the Editor.
         }
 
+        public bool MarkDoorCorner()
+        {
+            FixMessage = "A door fix needs the iPhone.";
+            return false;
+        }
+
         public string LogCheckPoint() => "Check points need the iPhone.";
 
         private void AbandonMap() => waitingForRelocalisation = false;
-#endif
 
-        private static bool Moved(PlanPose from, PlanPose to)
+        private void Track(bool force)
         {
-            double dx = to.X - from.X, dz = to.Z - from.Z;
-            double turn = Math.Abs(((to.HeadingDegrees - from.HeadingDegrees) % 360 + 540) % 360 - 180);
-            return dx * dx + dz * dz >= ReportMetres * ReportMetres || turn >= ReportDegrees || to.Floor != from.Floor;
         }
+
+        private void SetPlaneDetection(bool on)
+        {
+            if (planes != null) planes.enabled = on;
+        }
+#endif
     }
 }

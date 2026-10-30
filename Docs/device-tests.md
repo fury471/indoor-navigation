@@ -142,3 +142,8 @@
 - Source commit: e7f1e51
 - Export release: `export-position-006`
 - Result: to be tested. Checks: both screens fit with 10 doors and 10 maps; Continue shows the earlier coverage in grey; the size line updates about every 20 s; Undo never removes a corner that came with the continued map.
+
+## Build 7 — start at a door, arrows in AR
+
+- Export release: `export-position-007`
+- Result: to be tested (`Docs/build-7-guide.md` parts D and E). Checks: screen 1's hint follows the phone's tilt; the door list opens after about 10 s raised; a door fix places you within a few seconds and refuses a wrong width; Fix position keeps tracking; door names saved with the map; the orange door posts stand on the corners after a fix.

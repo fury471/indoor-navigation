@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using IndoorNavigation.Core.Ports;
+using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.Core.Venue;
 
 namespace IndoorNavigation.Core.Tests
@@ -98,11 +99,71 @@ namespace IndoorNavigation.Core.Tests
         public void StartLocating(string areaId)
         {
             LocatingArea = areaId;
+            StartLocatingCalls++;
+            FixingDoor = null;
             State = PositionState.Searching;
             StateChanged?.Invoke(State);
         }
 
+        public int StartLocatingCalls { get; private set; }
+
         public void Stop() => LocatingArea = null;
+
+        // Door fix: the first mark takes the left corner, the second fixes the position at the door.
+        public bool TryingMap { get; set; } = true;
+        public List<DoorInfo> DoorsToOffer { get; } = new List<DoorInfo>();
+        public IReadOnlyList<DoorInfo> Doors => DoorsToOffer;
+        public DoorInfo FixingDoor { get; private set; }
+        public int CornersMarked { get; private set; }
+        public string FixMessage { get; private set; }
+
+        /// <summary>When set, the next mark fails with this message.</summary>
+        public string FailNextMark { get; set; }
+
+        public void BeginDoorFix(DoorInfo door)
+        {
+            TryingMap = false;
+            FixingDoor = door;
+            CornersMarked = 0;
+            FixMessage = null;
+        }
+
+        public bool MarkDoorCorner()
+        {
+            if (FixingDoor == null) return false;
+            if (FailNextMark != null)
+            {
+                FixMessage = FailNextMark;
+                FailNextMark = null;
+                CornersMarked = 0;
+                return false;
+            }
+
+            if (CornersMarked == 0)
+            {
+                CornersMarked = 1;
+                return false;
+            }
+
+            DoorInfo door = FixingDoor;
+            FixingDoor = null;
+            CornersMarked = 0;
+            Pose = new PlanPose(door.Floor, door.MiddleX, door.MiddleZ, 0);
+            if (State != PositionState.Found)
+            {
+                State = PositionState.Found;
+                StateChanged?.Invoke(State);
+            }
+
+            PoseChanged?.Invoke(Pose);
+            return true;
+        }
+
+        public void CancelDoorFix()
+        {
+            FixingDoor = null;
+            CornersMarked = 0;
+        }
 
         public void SetFound(PlanPose pose)
         {

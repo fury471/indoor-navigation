@@ -1,7 +1,7 @@
 # 10. Find the floor by trying each floor's world map
 
 Date: 2026-10-29
-Status: Accepted for the demo. Alternatives are future work in the course report.
+Status: Accepted for the demo on 29 Oct; superseded for the demo by decision 11 on 30 Oct (the floor comes from the door fix or the route's floor change; the map-by-map search is not built). Kept as future work for the report.
 
 ## Context
 

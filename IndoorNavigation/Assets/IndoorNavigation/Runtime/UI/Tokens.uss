@@ -593,3 +593,136 @@
     border-color: var(--accent);
     border-width: 2px;
 }
+
+/* Screen 1 · finding your position, and 1b · marking a door (decision record 11).
+   Both are transparent over the camera; the sheet and card never shrink. */
+.locate-chip {
+    align-self: flex-start;
+}
+
+.locate-sheet {
+    flex-shrink: 0;
+}
+
+.locate-hint {
+    color: var(--text);
+    margin: 0 0 4px 0;
+}
+
+.locate-doors {
+    flex-shrink: 0;
+    margin-top: 8px;
+}
+
+.locate-door-intro {
+    margin-bottom: 4px;
+}
+
+.locate-door-list {
+    max-height: 300px;
+}
+
+.locate-floor {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: var(--muted);
+    margin: 10px 0 0 4px;
+}
+
+.locate-door {
+    height: 48px;
+    margin: 6px 0 0 0;
+    padding-left: 16px;
+    -unity-text-align: middle-left;
+}
+
+.mark-card {
+    flex-shrink: 0;
+}
+
+.mark-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.mark-step {
+    margin-top: 4px;
+    color: var(--text);
+    font-size: 15px;
+}
+
+.mark-problem {
+    margin-top: 10px;
+}
+
+/* A door seen from the front: two posts and the lintel, and a dot on each floor corner. */
+.door-drawing {
+    flex-shrink: 0;
+    width: 56px;
+    height: 72px;
+    margin-left: 14px;
+    border-left-width: 5px;
+    border-right-width: 5px;
+    border-top-width: 5px;
+    border-color: var(--muted);
+}
+
+.door-corner {
+    position: absolute;
+    bottom: -9px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    background-color: var(--border);
+}
+
+.door-corner--left {
+    left: -10px;
+}
+
+.door-corner--right {
+    right: -10px;
+}
+
+.door-corner--next {
+    background-color: var(--destination);
+}
+
+.door-corner--done {
+    background-color: var(--accent);
+}
+
+.mark-sheet {
+    flex-shrink: 0;
+    padding: 12px 12px 16px 12px;
+}
+
+.mark-button {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 0 4px;
+}
+
+.mark-button--wide {
+    flex-grow: 2;
+}
+
+/* "Fix position" on the navigation screens. */
+.fix-row {
+    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+.door-sheet {
+    flex-shrink: 0;
+    margin: 0 4px 8px 4px;
+    padding-bottom: 8px;
+    border-bottom-width: 1px;
+    border-color: var(--border);
+}
+
+.half-button {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 8px 4px 0 4px;
+}

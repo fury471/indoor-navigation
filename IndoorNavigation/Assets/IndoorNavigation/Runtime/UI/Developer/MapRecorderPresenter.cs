@@ -9,8 +9,10 @@ namespace IndoorNavigation.UI.Developer
 {
     /// <summary>
     /// The world-map recorder overlay, opened from the World maps screen. One Mark button names the
-    /// next door-frame corner; Undo removes the last one; a row of door chips shows each door's width,
-    /// and tapping a chip marks that door's two corners again. Nothing grows with the number of doors.
+    /// next door-frame corner; Undo removes the last one; a row of door chips shows each door's name
+    /// and width, and tapping a chip opens a small sheet to name the door (visitors choose doors by
+    /// name for a door fix, decision record 11) or to mark its two corners again. Nothing grows with
+    /// the number of doors.
     /// The status refreshes four times a second, because ARKit's mapping status changes without any
     /// change in the session.
     /// A live map shows what the recording has covered, seen from above, centred on the phone and
@@ -54,6 +56,10 @@ namespace IndoorNavigation.UI.Developer
         private Color earlierColour = new Color(0.62f, 0.66f, 0.7f);
         private string reason;
         private string doorsShown;
+        private readonly VisualElement doorSheet;
+        private readonly Label doorTitle;
+        private readonly TextField doorName;
+        private string editingDoor;
 
         public MapRecorderPresenter(VisualElement root, IMapRecording recording, AppSession session)
         {
@@ -91,6 +97,13 @@ namespace IndoorNavigation.UI.Developer
             };
             root.Q<Button>("close").clicked += Close;
 
+            doorSheet = root.Q<VisualElement>("door-sheet");
+            doorTitle = root.Q<Label>("door-title");
+            doorName = root.Q<TextField>("door-name");
+            root.Q<Button>("door-done").clicked += () => CloseDoorSheet(redoDoor: false);
+            root.Q<Button>("door-redo").clicked += () => CloseDoorSheet(redoDoor: true);
+            ScreenPresenter.SetVisible(doorSheet, false);
+
             mapping = root.Q<Label>("mapping");
             coverageText = root.Q<Label>("coverage-text");
             coverageView = root.Q<VisualElement>("coverage");
@@ -124,6 +137,8 @@ namespace IndoorNavigation.UI.Developer
             reason = why;
             redo.Clear();
             doorsShown = null;
+            editingDoor = null;
+            ScreenPresenter.SetVisible(doorSheet, false);
             ScreenPresenter.SetVisible(root, true);
             refresh.Resume();
             Render();
@@ -179,9 +194,10 @@ namespace IndoorNavigation.UI.Developer
             {
                 double? width = recording.DoorWidth(door);
                 bool check = width.HasValue && !recording.IsPlausibleDoor(width.Value);
-                string text = width.HasValue
-                    ? door + " · " + width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m"
-                    : door + " · one corner";
+                string label = recording.DoorLabel(door);
+                string text = (label == null ? door : door + " · " + label) + " · " + (width.HasValue
+                    ? width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m"
+                    : "one corner");
                 lines.Add((door, text, check));
                 key.Append('|').Append(text);
             }
@@ -199,20 +215,42 @@ namespace IndoorNavigation.UI.Developer
 
             foreach ((string door, string text, bool check) in lines)
             {
-                var chip = new Button(() =>
-                {
-                    // Mark this door's two corners again, left first.
-                    redo.Clear();
-                    redo.Add(door + "-left");
-                    redo.Add(door + "-right");
-                    session.LogExternal("developer", "map redo " + door);
-                    Render();
-                }) { text = text + (check ? "  check" : "") };
+                var chip = new Button(() => OpenDoorSheet(door)) { text = text + (check ? "  check" : "") };
                 chip.AddToClassList("door-chip");
                 chip.EnableInClassList("door-chip--check", check);
                 chip.EnableInClassList("door-chip--redo", redo.Count > 0 && redo[0].StartsWith(door + "-", StringComparison.Ordinal));
                 doors.Add(chip);
             }
+        }
+
+        private void OpenDoorSheet(string door)
+        {
+            editingDoor = door;
+            doorTitle.text = "Door " + door;
+            doorName.SetValueWithoutNotify(recording.DoorLabel(door) ?? "");
+            ScreenPresenter.SetVisible(doorSheet, true);
+        }
+
+        /// <summary>Keeps the typed name; with <paramref name="redoDoor"/>, the door's two corners are marked again, left first.</summary>
+        private void CloseDoorSheet(bool redoDoor)
+        {
+            string door = editingDoor;
+            editingDoor = null;
+            ScreenPresenter.SetVisible(doorSheet, false);
+            if (door == null) return;
+
+            string typed = doorName.value ?? "";
+            if (typed.Trim() != (recording.DoorLabel(door) ?? "")) recording.SetDoorLabel(door, typed);
+            if (redoDoor)
+            {
+                redo.Clear();
+                redo.Add(door + "-left");
+                redo.Add(door + "-right");
+                session.LogExternal("developer", "map redo " + door);
+            }
+
+            doorsShown = null;
+            Render();
         }
 
         private void RenderCoverage()

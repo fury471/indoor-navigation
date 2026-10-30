@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using IndoorNavigation.Core.Ports;
+using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.Core.Ready;
 using IndoorNavigation.Core.Routing;
 using IndoorNavigation.Core.Venue;
@@ -32,10 +33,13 @@ namespace IndoorNavigation.Core.Session
         private readonly IClock clock;
         private readonly SessionMachine machine;
         private readonly TiltSwitch tilt = new TiltSwitch();
+        private readonly LocateGuide guide = new LocateGuide();
 
         private CancellationTokenSource downloadCancel;
         private DateTime lastPoseLogUtc = DateTime.MinValue;
         private int searchNumber; // tells the latest search apart from older ones still running
+        private int lastLocateSecond = -1;
+        private PlanPose? lastFound;
 
         public AppSession(
             IVenueDirectory directory,
@@ -80,7 +84,43 @@ namespace IndoorNavigation.Core.Session
         public StudySettings Study { get; }
 
         /// <summary>The blueprint code of the screen to show now.</summary>
-        public string Screen => ScreenCodes.Resolve(State, View, UserFloor, Study.Condition);
+        public string Screen => ScreenCodes.Resolve(State, View, UserFloor, Study.Condition, Panel);
+
+        /// <summary>Which part of finding the position is open, if any.</summary>
+        public LocatePanel Panel =>
+            position.FixingDoor != null ? LocatePanel.MarkDoor
+            : Relocating ? LocatePanel.Locate
+            : LocatePanel.None;
+
+        /// <summary>
+        /// True while the position is being found again during the visit: after "Fix position" or
+        /// a floor change. Screen 1 is shown over the session until the position is found.
+        /// </summary>
+        public bool Relocating { get; private set; }
+
+        /// <summary>True when the position must be found again because the user changed floor.</summary>
+        public bool RelocatingAfterFloorChange { get; private set; }
+
+        /// <summary>What screen 1 asks the person to do now.</summary>
+        public LocateHint LocateHint => guide.Hint;
+
+        /// <summary>Seconds spent finding the position so far.</summary>
+        public double LocateSeconds => guide.Seconds;
+
+        /// <summary>True while a world map is being tried automatically.</summary>
+        public bool TryingMap => position.TryingMap;
+
+        /// <summary>The doors for a door fix: the user's floor first, nearest to the last known position first.</summary>
+        public IReadOnlyList<DoorInfo> Doors => DoorList.Sorted(position.Doors, UserFloor, lastFound);
+
+        /// <summary>The door being marked on screen 1b, or null.</summary>
+        public DoorInfo FixingDoor => position.FixingDoor;
+
+        /// <summary>0 while the left corner is next, 1 while the right corner is next.</summary>
+        public int CornersMarked => position.CornersMarked;
+
+        /// <summary>The last message for the person marking a door, or null.</summary>
+        public string FixMessage => position.FixMessage;
 
         public IReadOnlyList<VenueSummary> Venues { get; private set; } = Array.Empty<VenueSummary>();
         public string SelectedVenueId { get; private set; }
@@ -274,11 +314,24 @@ namespace IndoorNavigation.Core.Session
             UserFloor = start.Floor;
             View.ShowFloor(UserFloor);
             position.StartLocating(start.Id);
+            StartGuide();
+        }
+
+        private void StartGuide()
+        {
+            guide.Start(clock.UtcNow, position.TryingMap);
+            lastLocateSecond = 0;
+            Log("locate", position.TryingMap ? "trying the world map" : "no world map to try; doors only");
         }
 
         private void OnPositionStateChanged(PositionState state)
         {
             Log("position", state.ToString());
+            if (state == PositionState.Found)
+            {
+                Located();
+            }
+
             if (state == PositionState.Found && State == SessionState.Locating)
             {
                 Fire(SessionTrigger.PositionFound);
@@ -287,6 +340,109 @@ namespace IndoorNavigation.Core.Session
             {
                 NotifyChanged();
             }
+        }
+
+        /// <summary>The position was found or fixed: close screen 1 and take the floor from the position.</summary>
+        private void Located()
+        {
+            PlanPose pose = position.Pose;
+            lastFound = pose;
+            if (State == SessionState.Locating || Relocating)
+            {
+                Log("locate", string.Format(CultureInfo.InvariantCulture, "found after {0:F1} s on floor {1}", guide.Seconds, pose.Floor));
+            }
+
+            guide.Stop();
+            Relocating = false;
+            RelocatingAfterFloorChange = false;
+            if (pose.Floor != UserFloor && !AwaitingFloorChange)
+            {
+                UserFloor = pose.Floor;
+                View.ShowFloor(UserFloor);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Finding the position: 1 and 1b (decision record 11)
+        // ------------------------------------------------------------------
+
+        /// <summary>1: "Start at a door". Shows the door list without waiting for the map.</summary>
+        public void ShowDoors()
+        {
+            if (Panel != LocatePanel.Locate && State != SessionState.Locating) return;
+            if (guide.Hint != LocateHint.UseDoor)
+            {
+                guide.ShowDoors();
+                Log("locate", "door list opened by the user");
+            }
+
+            NotifyChanged();
+        }
+
+        /// <summary>1: A door was chosen; screen 1b asks for its two corners.</summary>
+        public void ChooseDoor(string doorKey)
+        {
+            if (Panel != LocatePanel.Locate && State != SessionState.Locating) return;
+            DoorInfo door = DoorList.Find(position.Doors, doorKey);
+            if (door == null) return;
+            Log("locate", "door chosen " + door.Key + " (" + door.DisplayName + ")");
+            position.BeginDoorFix(door);
+            NotifyChanged();
+        }
+
+        /// <summary>1b: Mark the next corner where the crosshair points.</summary>
+        public void MarkDoorCorner()
+        {
+            if (position.FixingDoor == null) return;
+            string door = position.FixingDoor.Key;
+            int before = position.CornersMarked;
+            bool done = position.MarkDoorCorner();
+            if (!done)
+            {
+                Log("locate", door + (position.CornersMarked > before ? " left corner marked" : " corner not taken: " + position.FixMessage));
+            }
+            else if (Relocating)
+            {
+                // A fix while the position was already found raises no state change; close screen 1 here.
+                Located();
+            }
+
+            NotifyChanged();
+        }
+
+        /// <summary>1b: Back to the door list.</summary>
+        public void CancelDoorFix()
+        {
+            if (position.FixingDoor == null) return;
+            Log("locate", "door fix cancelled");
+            position.CancelDoorFix();
+            NotifyChanged();
+        }
+
+        /// <summary>
+        /// "Fix position", from any screen in the building: opens screen 1 with the door list. The AR
+        /// session keeps running; no world map is applied, as that would interrupt tracking.
+        /// </summary>
+        public void FixPosition()
+        {
+            if (State == SessionState.ChoosingBuilding || State == SessionState.GettingData || State == SessionState.Locating) return;
+            Relocating = true;
+            guide.Start(clock.UtcNow, mapToTry: false);
+            lastLocateSecond = 0;
+            Log("locate", "fix position opened");
+            NotifyChanged();
+        }
+
+        /// <summary>1, while relocating: back to where the user was, keeping the current position.</summary>
+        public void CloseLocate()
+        {
+            if (!Relocating) return;
+            if (position.FixingDoor != null) position.CancelDoorFix();
+            Relocating = false;
+            RelocatingAfterFloorChange = false;
+            guide.Stop();
+            Log("locate", "closed without a new fix");
+            NotifyChanged();
         }
 
         // ------------------------------------------------------------------
@@ -298,6 +454,8 @@ namespace IndoorNavigation.Core.Session
         {
             if (Fire(SessionTrigger.ChangeBuilding))
             {
+                Relocating = false;
+                guide.Stop();
                 position.Stop();
                 await LoadVenueListAsync();
             }
@@ -454,7 +612,7 @@ namespace IndoorNavigation.Core.Session
             AdvanceAlongRoute(Pose); // already standing at the destination counts as arriving
         }
 
-        /// <summary>E: "I'm on floor N". Loads the next area's world map (decision in the Ports section).</summary>
+        /// <summary>E: "I'm on floor N". Then the position is found again on that floor (screen 1).</summary>
         public void ConfirmFloor(int floor)
         {
             if (State != SessionState.Navigating || !AwaitingFloorChange || floor != NextFloor)
@@ -467,12 +625,13 @@ namespace IndoorNavigation.Core.Session
             View.ShowFloor(floor);
             Log("floor", "confirmed " + floor.ToString(CultureInfo.InvariantCulture));
 
+            // Each floor is located on its own: its world map is tried, or the user marks a door
+            // there, such as the lift's (decision record 11).
             AreaInfo area = Venue.AreaOnFloor(floor);
-            if (area != null)
-            {
-                position.StartLocating(area.Id);
-            }
-
+            position.StartLocating(area?.Id);
+            Relocating = true;
+            RelocatingAfterFloorChange = true;
+            StartGuide();
             NotifyChanged();
         }
 
@@ -557,7 +716,22 @@ namespace IndoorNavigation.Core.Session
         // View mode
         // ------------------------------------------------------------------
 
-        private void OnPitchChanged(double pitchDegrees) => tilt.Update(pitchDegrees, clock.UtcNow);
+        /// <summary>The attitude reports every frame, so this is also the clock for screen 1's hints.</summary>
+        private void OnPitchChanged(double pitchDegrees)
+        {
+            DateTime now = clock.UtcNow;
+            tilt.Update(pitchDegrees, now);
+            if (State != SessionState.Locating && !Relocating) return;
+
+            bool hintChanged = guide.Update(now, tilt.Pose == PhonePose.Raised);
+            if (hintChanged) Log("locate", "hint " + guide.Hint);
+            int second = (int)guide.Seconds;
+            if (hintChanged || second != lastLocateSecond)
+            {
+                lastLocateSecond = second;
+                NotifyChanged(); // screen 1 shows the seconds
+            }
+        }
 
         private void OnTiltPoseChanged(PhonePose pose)
         {

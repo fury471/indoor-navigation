@@ -1,12 +1,17 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- A · Phone raised: AR + minimap. Transparent, so the camera view shows through. -->
+    <!-- A · Phone raised: AR + minimap. Transparent, so the camera view shows through; the route ahead
+         is drawn on the floor by the AR overlay. "Arrows look wrong?" fixes the position at a door. -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen screen--transparent">
         <ui:VisualElement class="card">
             <ui:Label name="instruction" class="strong" />
             <ui:Label name="instruction-detail" class="small" />
         </ui:VisualElement>
-        <ui:Label name="destination" class="chip" />
+        <ui:VisualElement class="row fix-row">
+            <ui:Label name="destination" class="chip" />
+            <ui:VisualElement class="spacer" />
+            <ui:Button name="fix-position" text="Arrows look wrong?" class="button button--small" />
+        </ui:VisualElement>
         <ui:VisualElement class="spacer" />
         <ui:VisualElement name="minimap" class="minimap" />
     </ui:VisualElement>

@@ -12,10 +12,11 @@ Owner: Fury (fury471). Licence: MIT.
 |---|---|
 | Walking skeleton: ten visitor screens, the session statechart, route planner, sample two-floor package, developer panel | Done; device-tested 26 Oct |
 | Real phone attitude (raise for AR, lower for 2D) | Done; device-tested 26 Oct |
-| Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Code done. Relocalisation works on a fresh map at home (build 5); not yet measured in the lab |
-| World-map library on the phone: name, test, continue and delete maps (developer only) | Build 6 committed (`e7f1e51`), device test pending |
+| Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
+| **Start at a door** when the map is slow: mark a named door's two corners (decision 11); Fix position at any time; route ahead drawn in AR | Build 7 code done and tested in the Editor; device test pending |
+| World-map library on the phone: name, test, continue and delete maps, name doors (developer only) | Builds 4–7 |
 | Floor plan and miniature of the real building | Converter works on practice scans. RoomPlan failed in the lab on 29 Oct, so the plan will come from the evacuation plans (not built yet) |
-| Route and minimap drawn in AR; the low-phone prompt (decision 9) | Next: build 7 |
+| Low-phone prompt (decision 9), minimap in AR | Next |
 | Venue service, natural-language search with an LLM, floors 2 and 3, study set-up | After the seminar |
 
 `Docs/device-tests.md` has every device test, and `Docs/lab-visit-1.md` what we learnt in the lab.
@@ -30,8 +31,8 @@ You need:
 
 Then:
 1. Clone the repo and open the folder `IndoorNavigation/` in Unity Hub. Let the packages resolve.
-2. **Window → General → Test Runner → EditMode → Run All.** Expect 258 tests to pass.
-3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard:
+2. **Window → General → Test Runner → EditMode → Run All.** Expect 282 tests to pass.
+3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard (on screen 1, **Start at a door instead** works with sample doors):
 
    | Key | Does |
    |---|---|
@@ -96,11 +97,12 @@ Where to look:
 |---|---|
 | `Docs/walking-skeleton-guide.md` | Unity set-up of the App scene, the commit order of the skeleton, six lessons |
 | `Docs/real-position-guide.md` | The idea behind world maps and door-corner alignment (part A); parts C and D are history |
-| `Docs/world-map-guide.md` | **Current:** how to record, test, continue and delete world maps (builds 4–6) |
+| `Docs/build-7-guide.md` | **Current:** build 7 (start at a door, arrows in AR) and the floor-by-floor lab visit 2 |
+| `Docs/world-map-guide.md` | How to record, test, continue and delete world maps (builds 4–6) |
 | `Docs/lab-visit-1.md` | What happened in the lab on 29 Oct, the numbers, and what changed because of it |
 | `Docs/localisation-experiment.md` | The localisation method and how it is measured |
 | `Docs/device-tests.md` | Every device test, newest last |
-| `Docs/decisions/` | Decision records 1–10 (context, decision, consequences, sources) |
+| `Docs/decisions/` | Decision records 1–11 (context, decision, consequences, sources) |
 | `Tools/scan-to-plan/README.md` | The scan converter, its checks and its limits |
 
 The architecture document, the UI blueprint (38 boards) and the reference log live outside the repo; ask Fury for access. Where they and the repo disagree about the code, the repo wins.
@@ -122,8 +124,8 @@ The architecture document, the UI blueprint (38 boards) and the reference log li
 
 Short list; the architecture document has the full plan.
 
-1. Device test of build 6 (World maps screen, recorder, coverage on continue).
-2. Lab visit 2: one clean map per floor, tests from three spots each, check points, the low-phone walk.
-3. The plan from the evacuation-plan photos: rectify, scale with the AR door corners, check with a door left out of the fit. Then the route graph, the catalogue and package 1.1.0.
-4. Build 7: the route and minimap in AR, the "raise the phone" prompt (decision 9), floor height along the ramp.
-5. After the seminar: the venue service, LLM search, floors 2 and 3 with the floor search of decision 10, the measured localisation test, the study.
+1. Device test of build 7 (`Docs/build-7-guide.md` part D).
+2. Lab visit 2, floor by floor: a map per floor with every start door marked and named; automatic start, door fix and drift measured (part E).
+3. The plan from the evacuation-plan photos, fitted onto each floor's door corners; the route graph between the named doors; the catalogue; package 1.1.0.
+4. The "raise the phone" prompt (decision 9), the minimap in AR, floor height along the ramp.
+5. After the seminar: the venue service, LLM search, the measured localisation test (world map versus door fix), the study.

@@ -6,7 +6,8 @@ namespace IndoorNavigation.UI.Screens
 {
     /// <summary>
     /// A · Phone raised: AR + minimap. The screen is transparent so the camera shows through.
-    /// The arrows in the camera view arrive in week 3 with the real position.
+    /// The route ahead is drawn on the floor in the camera view by the AR overlay (App wiring); if it
+    /// looks out of place, "Arrows look wrong?" fixes the position at a door (decision record 11).
     /// </summary>
     public sealed class NavigateArPresenter : ScreenPresenter
     {
@@ -21,6 +22,7 @@ namespace IndoorNavigation.UI.Screens
             instructionDetail = Find<Label>("instruction-detail");
             destination = Find<Label>("destination");
             Find<VisualElement>("minimap").Add(minimap);
+            Find<Button>("fix-position").clicked += Session.FixPosition;
         }
 
         public override void Render()

@@ -2,7 +2,7 @@
     <!-- Developer only: record or continue a world map and mark its door corners. The camera shows
          through; the crosshair is the exact middle of the screen, where marks are raycast.
          Top: the map's name, progress and the next step. Right: the live map. Bottom: one row of door
-         chips, Undo and Mark, then Close and Save. Nothing grows with the number of doors. -->
+         chips (tap one to name the door or mark it again), Undo and Mark, then Close and Save. Nothing grows with the number of doors. -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="recorder">
         <ui:VisualElement class="card recorder-card">
@@ -18,6 +18,16 @@
         </ui:VisualElement>
         <ui:VisualElement class="spacer" picking-mode="Ignore" />
         <ui:VisualElement class="sheet recorder-sheet">
+            <!-- Opened by tapping a door chip: name the door for visitors, or mark it again. -->
+            <ui:VisualElement name="door-sheet" class="door-sheet">
+                <ui:Label name="door-title" class="strong" />
+                <ui:TextField name="door-name" class="text-field" />
+                <ui:Label text="What visitors call it, such as VR lab, Lift or Toilets. They choose doors by this name." class="small" />
+                <ui:VisualElement class="row recorder-row">
+                    <ui:Button name="door-redo" text="Mark again" class="button recorder-button" />
+                    <ui:Button name="door-done" text="Done" class="button button--primary recorder-button recorder-button--wide" />
+                </ui:VisualElement>
+            </ui:VisualElement>
             <ui:ScrollView name="doors" mode="Horizontal" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden" class="recorder-doors" />
             <ui:VisualElement class="row recorder-row">
                 <ui:Button name="undo" text="Undo" class="button recorder-button" />

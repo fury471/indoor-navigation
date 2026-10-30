@@ -5,6 +5,7 @@
     <ui:Template name="BuildingSearch" src="Screens/BuildingSearch.uxml" />
     <ui:Template name="Downloading" src="Screens/Downloading.uxml" />
     <ui:Template name="Locate" src="Screens/Locate.uxml" />
+    <ui:Template name="MarkDoor" src="Screens/MarkDoor.uxml" />
     <ui:Template name="Ask" src="Screens/Ask.uxml" />
     <ui:Template name="Clarify" src="Screens/Clarify.uxml" />
     <ui:Template name="Suggestions" src="Screens/Suggestions.uxml" />
@@ -19,6 +20,7 @@
         <ui:Instance template="BuildingSearch" name="screen-V1" />
         <ui:Instance template="Downloading" name="screen-V3" />
         <ui:Instance template="Locate" name="screen-1" />
+        <ui:Instance template="MarkDoor" name="screen-1b" />
         <ui:Instance template="Ask" name="screen-2" />
         <ui:Instance template="Clarify" name="screen-3" />
         <ui:Instance template="Suggestions" name="screen-4" />

@@ -9,6 +9,7 @@ namespace IndoorNavigation.UI.Screens
     /// <summary>
     /// B · Phone lowered: 2D, your floor. Also draws three parts of the blueprint that belong to
     /// this screen: E (confirm the new floor), F (position uncertain) and B3 (End route?).
+    /// "Fix position" opens screen 1 with the doors (decision record 11).
     /// </summary>
     public sealed class NavigateMapPresenter : ScreenPresenter
     {
@@ -37,6 +38,8 @@ namespace IndoorNavigation.UI.Screens
             Find<VisualElement>("map").Add(map);
 
             confirmFloor.clicked += () => Session.ConfirmFloor(Session.NextFloor);
+            Find<Button>("fix-position").clicked += Session.FixPosition;
+            Find<Button>("fix-position-banner").clicked += Session.FixPosition;
             Find<Button>("end-route").clicked += () => SetVisible(endConfirm, true);
             Find<Button>("keep-going").clicked += () => SetVisible(endConfirm, false);
             Find<Button>("end").clicked += () =>

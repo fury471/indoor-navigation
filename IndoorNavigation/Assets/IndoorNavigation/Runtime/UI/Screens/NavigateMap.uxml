@@ -9,7 +9,8 @@
         </ui:VisualElement>
         <ui:VisualElement name="position-banner" class="warning">
             <ui:Label text="Position uncertain" class="strong" />
-            <ui:Label text="Turn instructions are paused. Raise the phone and look slowly at walls and signs." class="warning-text" />
+            <ui:Label text="Turn instructions are paused. Raise the phone and look slowly around, or fix your position at a door." class="warning-text" />
+            <ui:Button name="fix-position-banner" text="Fix position at a door" class="button button--small" />
         </ui:VisualElement>
         <ui:VisualElement name="floor-card" class="card">
             <ui:Label name="floor-question" class="strong" />
@@ -20,7 +21,10 @@
         <ui:VisualElement class="sheet">
             <ui:Label name="destination" class="strong" />
             <ui:Label name="remaining" class="small" />
-            <ui:Button name="end-route" text="End route" class="button button--danger" />
+            <ui:VisualElement class="row">
+                <ui:Button name="fix-position" text="Fix position" class="button half-button" />
+                <ui:Button name="end-route" text="End route" class="button button--danger half-button" />
+            </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="end-confirm" class="overlay">
             <ui:VisualElement class="sheet">

@@ -8,6 +8,7 @@ using IndoorNavigation.Adapters.Data;
 using IndoorNavigation.Adapters.Placeholders;
 using IndoorNavigation.Core.Ports;
 using IndoorNavigation.Core.Positioning;
+using IndoorNavigation.Core.Routing;
 using IndoorNavigation.Core.Session;
 using IndoorNavigation.Core.Venue;
 using IndoorNavigation.UI;
@@ -32,6 +33,18 @@ namespace IndoorNavigation.App
         /// <summary>Where the placeholder position is "found": floor 1, by node j-vr-lab in the sample package.</summary>
         private static readonly PlanPose SampleStartPose = new PlanPose(1, 11.9, 15.0, 0);
 
+        /// <summary>Doors of the sample package for a door fix in the Editor: by the VR lab, the stairs and the lifts.</summary>
+        private static readonly DoorInfo[] SampleDoors =
+        {
+            new DoorInfo("d1", "area-1", 1, "VR lab (sample)", 11.45, 14.0, 12.35, 14.0),
+            new DoorInfo("d2", "area-1", 1, "Stairs (sample)", 19.55, 2.8, 20.45, 2.8),
+            new DoorInfo("d1", "area-2", 2, "Lift (sample)", 11.45, 33.0, 12.35, 33.0),
+            new DoorInfo("d2", "area-2", 2, "Stairs (sample)", 19.55, 2.8, 20.45, 2.8),
+        };
+
+        /// <summary>The AR overlay is updated this often, not every frame.</summary>
+        private const float OverlaySeconds = 0.2f;
+
         [SerializeField] private RunConfig config;
         [SerializeField] private UIDocument document;
 
@@ -47,11 +60,18 @@ namespace IndoorNavigation.App
         [Tooltip("The AR Raycast Manager on the XR Origin. Needed to mark door corners when recording a world map.")]
         [SerializeField] private ARRaycastManager raycastManager;
 
-        [Tooltip("Optional: the AR Plane Manager on the XR Origin, left disabled. Switched on only while recording.")]
+        [Tooltip("Optional: the AR Plane Manager on the XR Origin, left disabled. Switched on only while recording or marking a door.")]
         [SerializeField] private ARPlaneManager planeManager;
+
+        [Tooltip("An unlit material (URP > Unlit) for the route and door posts drawn in the camera view.")]
+        [SerializeField] private Material routeMaterial;
 
         private AppSession session;
         private AreaMapStore mapStore;
+        private WorldMapPositionSource realPositionSource;
+        private ArRouteOverlay overlay;
+        private bool showDoorsInAr;
+        private float nextOverlayAt;
 
         private void Start()
         {
@@ -88,15 +108,18 @@ namespace IndoorNavigation.App
                 ARSession arSessionComponent = RequireArReferences();
                 mapStore = new AreaMapStore(Path.Combine(Application.persistentDataPath, "WorldMaps"));
                 realPosition = gameObject.AddComponent<WorldMapPositionSource>();
-                realPosition.Init(arSessionComponent, xrOrigin, arCamera, mapStore, AreaById);
+                realPosition.Init(arSessionComponent, xrOrigin, arCamera, raycastManager, planeManager, mapStore, AreaById, PackageAreas);
                 recorder = gameObject.AddComponent<AreaMapRecorder>();
                 recorder.Init(arSessionComponent, xrOrigin, raycastManager, planeManager, mapStore, realPosition, AreaById, PointCloudsForRecording());
                 position = realPosition;
+                realPositionSource = realPosition;
+                overlay = gameObject.AddComponent<ArRouteOverlay>();
+                overlay.Init(xrOrigin, routeMaterial);
             }
             else
             {
                 if (config.position == PortVersion.Real) editorFallbacks.Add("position");
-                placeholderPosition = new PlaceholderPositionSource(SampleStartPose);
+                placeholderPosition = new PlaceholderPositionSource(SampleStartPose, SampleDoors);
                 position = placeholderPosition;
             }
 
@@ -135,6 +158,7 @@ namespace IndoorNavigation.App
             host.Add(ScreenCodes.ChooseBuilding, new BuildingSearchPresenter(ScreenElement(root, "V1"), session));
             host.Add(ScreenCodes.GettingData, new DownloadingPresenter(ScreenElement(root, "V3"), session));
             host.Add(ScreenCodes.Locate, new LocatePresenter(ScreenElement(root, "1"), session));
+            host.Add(ScreenCodes.MarkDoor, new MarkDoorPresenter(ScreenElement(root, "1b"), session));
             host.Add(ScreenCodes.Ask, new AskPresenter(ScreenElement(root, "2"), session));
             host.Add(ScreenCodes.Clarify, new ClarifyPresenter(ScreenElement(root, "3"), session));
             host.Add(ScreenCodes.Suggestions, new SuggestionsPresenter(ScreenElement(root, "4"), session));
@@ -159,7 +183,8 @@ namespace IndoorNavigation.App
                 Func<string> positionStatus = realPosition == null ? (Func<string>)null : () => realPosition.Status;
                 Func<string> checkPoint = realPosition == null ? (Func<string>)null : realPosition.LogCheckPoint;
                 var actions = new DeveloperActions(session, placeholderRepository, placeholderPosition, placeholderAttitude, placeholderSearch);
-                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, maps, positionStatus, checkPoint);
+                Func<bool> doorsInAr = overlay == null ? (Func<bool>)null : () => showDoorsInAr = !showDoorsInAr;
+                var panel = new DeveloperPanelPresenter(panelElement, hotspot, session, actions, maps, positionStatus, checkPoint, doorsInAr);
                 gameObject.AddComponent<DeveloperKeys>().Init(actions, panel, root);
             }
             else
@@ -177,6 +202,45 @@ namespace IndoorNavigation.App
             }
             host.Refresh();
             Run(session.StartAsync());
+        }
+
+        /// <summary>
+        /// Draws the route ahead in the camera view on screen A, and the door posts when switched on in
+        /// panel W, through the current alignment. Five times a second is smooth enough, as the lines
+        /// stay put in the room between updates.
+        /// </summary>
+        private void Update()
+        {
+            if (overlay == null || session == null || Time.realtimeSinceStartup < nextOverlayAt) return;
+            nextOverlayAt = Time.realtimeSinceStartup + OverlaySeconds;
+
+            PlanAlignment alignment = realPositionSource.Alignment;
+            bool found = session.PositionState == PositionState.Found && alignment != null;
+            if (found && session.Route != null && session.Screen == ScreenCodes.ArGuidance && !session.AwaitingFloorChange)
+            {
+                overlay.ShowPath(alignment, RouteAhead.Points(session.Route, session.NextNodeIndex, session.Pose));
+            }
+            else
+            {
+                overlay.HidePath();
+            }
+
+            if (showDoorsInAr && alignment != null)
+            {
+                // Only the doors in the frame the position is in now: before the package places every
+                // recording on one plan, each recording has its own.
+                var doors = new List<DoorInfo>();
+                foreach (DoorInfo door in realPositionSource.Doors)
+                {
+                    if (door.AreaId == realPositionSource.CurrentArea) doors.Add(door);
+                }
+
+                overlay.ShowDoors(alignment, doors);
+            }
+            else
+            {
+                overlay.HideDoors();
+            }
         }
 
         /// <summary>Leaving the app interrupts the AR session; the log says when, for reading relocalisation and recording results.</summary>
@@ -214,6 +278,8 @@ namespace IndoorNavigation.App
         /// The venue's area with this id, else the saved map's own area; read when needed, because the
         /// venue loads after start-up.
         /// </summary>
+        private IReadOnlyList<AreaInfo> PackageAreas() => session?.Venue?.Manifest.Areas;
+
         private AreaInfo AreaById(string areaId) => RecordingAreas.Find(session?.Venue, areaId, mapStore == null ? null : (Func<string, AreaInfo>)mapStore.TryReadArea);
 
         /// <summary>The real position needs the AR objects from the scene; says which one is missing.</summary>

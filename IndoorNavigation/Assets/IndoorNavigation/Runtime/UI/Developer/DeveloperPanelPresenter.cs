@@ -28,6 +28,7 @@ namespace IndoorNavigation.UI.Developer
         /// <param name="maps">The World maps screen, or null when the position is a placeholder.</param>
         /// <param name="positionStatusText">One line from the real position source, or null.</param>
         /// <param name="logCheckPoint">Writes the current position to the log and returns one line, or null.</param>
+        /// <param name="toggleDoorsInAr">Shows or hides a post on every door corner in the camera view; returns whether they are shown. Null without the real position.</param>
         public DeveloperPanelPresenter(
             VisualElement panel,
             VisualElement hotspot,
@@ -35,7 +36,8 @@ namespace IndoorNavigation.UI.Developer
             IDeveloperActions actions,
             MapLibraryPresenter maps = null,
             Func<string> positionStatusText = null,
-            Func<string> logCheckPoint = null)
+            Func<string> logCheckPoint = null,
+            Func<bool> toggleDoorsInAr = null)
         {
             this.panel = panel ?? throw new ArgumentNullException(nameof(panel), "developer-panel is missing from AppShell.uxml.");
             this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -58,6 +60,13 @@ namespace IndoorNavigation.UI.Developer
             Wire("next-step", actions.NextStep);
             Wire("arrive", actions.Arrive);
 
+            // Screen 1 with the doors, from wherever the app is: to test a door fix at any time.
+            Wire("find-again", () =>
+            {
+                Close();
+                session.FixPosition();
+            });
+
             // The World maps group only exists when the real position is used. Its maps (record,
             // test, continue, delete) are on their own screen.
             positionStatus = panel.Q<Label>("position-status");
@@ -78,6 +87,19 @@ namespace IndoorNavigation.UI.Developer
             if (logCheckPoint != null)
             {
                 Wire("check-point", () => Say(logCheckPoint()));
+            }
+
+            // Posts on the door corners show how far the position has drifted since the last fix.
+            SetVisible("doors-in-ar", toggleDoorsInAr != null);
+            if (toggleDoorsInAr != null)
+            {
+                Button doorsButton = panel.Q<Button>("doors-in-ar");
+                Wire("doors-in-ar", () =>
+                {
+                    bool on = toggleDoorsInAr();
+                    doorsButton.text = on ? "Doors in AR: on" : "Doors in AR: off";
+                    Say(on ? "Orange posts stand on the door corners of your floor. Walk to a door: they should stand on its corners." : "Door posts hidden.");
+                });
             }
 
             // The real position changes without the session changing (for example while relocalising),

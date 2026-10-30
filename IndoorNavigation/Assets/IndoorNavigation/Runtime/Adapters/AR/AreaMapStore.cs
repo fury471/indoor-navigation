@@ -139,6 +139,28 @@ namespace IndoorNavigation.Adapters.AR
             return record?.markers == null ? new List<ArMark>() : record.ToArMarks();
         }
 
+        /// <summary>The names given to a saved map's doors ("d3" → "VR lab"); empty if there are none or the file is unreadable.</summary>
+        public Dictionary<string, string> ReadDoorLabels(string areaId)
+        {
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            try
+            {
+                string json = File.ReadAllText(Path.Combine(FolderOf(areaId), AlignmentFileName));
+                AlignmentRecord record = JsonUtility.FromJson<AlignmentRecord>(json);
+                if (record?.doorLabels == null) return labels;
+                foreach (DoorLabelRecord door in record.doorLabels)
+                {
+                    if (!string.IsNullOrEmpty(door?.door) && !string.IsNullOrWhiteSpace(door.label)) labels[door.door] = door.label.Trim();
+                }
+            }
+            catch (Exception)
+            {
+                // A map without readable names still lists its doors, as "Door d3".
+            }
+
+            return labels;
+        }
+
         /// <summary>Reads and checks the alignment file; throws <see cref="InvalidDataException"/> if it is unusable.</summary>
         public AlignmentRecord ReadAlignment(string areaId, int mapBytes)
         {
@@ -195,6 +217,9 @@ namespace IndoorNavigation.Adapters.AR
         public int worldMapBytes;
         public MarkerRecord[] markers;
 
+        /// <summary>What people call each door ("d3" → "VR lab"), shown when choosing a door for a door fix. Optional.</summary>
+        public DoorLabelRecord[] doorLabels;
+
         // Written for people reading the file when the fit was known at recording time. The app
         // always refits on load, from these AR marks and the plan positions in the current package.
         public bool fitted;
@@ -206,7 +231,9 @@ namespace IndoorNavigation.Adapters.AR
 
         /// <param name="planMarkers">The plan positions known at recording time; may be empty.</param>
         /// <param name="fit">The fit at recording time, or null when the plan positions come later.</param>
-        public static AlignmentRecord From(string areaId, int floor, int mapBytes, IReadOnlyList<ArMark> marks, IReadOnlyList<MarkerInfo> planMarkers, PlanAlignment fit)
+        public static AlignmentRecord From(
+            string areaId, int floor, int mapBytes, IReadOnlyList<ArMark> marks, IReadOnlyList<MarkerInfo> planMarkers, PlanAlignment fit,
+            IReadOnlyDictionary<string, string> labels = null)
         {
             var plan = new Dictionary<string, MarkerInfo>(StringComparer.Ordinal);
             if (planMarkers != null)
@@ -234,6 +261,18 @@ namespace IndoorNavigation.Adapters.AR
                 worldMapBytes = mapBytes,
                 markers = markers,
             };
+
+            if (labels != null)
+            {
+                var named = new List<DoorLabelRecord>();
+                foreach (KeyValuePair<string, string> pair in labels)
+                {
+                    if (!string.IsNullOrWhiteSpace(pair.Value)) named.Add(new DoorLabelRecord { door = pair.Key, label = pair.Value.Trim() });
+                }
+
+                named.Sort((a, b) => string.CompareOrdinal(a.door, b.door));
+                record.doorLabels = named.ToArray();
+            }
 
             if (fit != null)
             {
@@ -266,6 +305,13 @@ namespace IndoorNavigation.Adapters.AR
 
             return plan;
         }
+    }
+
+    [Serializable]
+    public sealed class DoorLabelRecord
+    {
+        public string door;
+        public string label;
     }
 
     [Serializable]

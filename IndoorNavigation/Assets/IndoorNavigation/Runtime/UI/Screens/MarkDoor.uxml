@@ -1,0 +1,28 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- 1b · Marking the chosen door's two corners (decision record 11). The camera shows through; the
+         circle in the exact middle is where the corner is taken. A small drawing shows which corner. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen screen--transparent">
+        <ui:VisualElement class="card mark-card">
+            <ui:VisualElement class="row">
+                <ui:VisualElement class="mark-text">
+                    <ui:Label name="door" class="strong" />
+                    <ui:Label name="step" class="small mark-step" />
+                </ui:VisualElement>
+                <ui:VisualElement class="door-drawing" picking-mode="Ignore">
+                    <ui:VisualElement name="corner-left" class="door-corner door-corner--left" />
+                    <ui:VisualElement name="corner-right" class="door-corner door-corner--right" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:Label name="problem" class="warning-text mark-problem" />
+        </ui:VisualElement>
+        <ui:VisualElement class="spacer" picking-mode="Ignore" />
+        <ui:VisualElement class="sheet mark-sheet">
+            <ui:VisualElement class="row">
+                <ui:Button name="back" text="Back" class="button mark-button" />
+                <ui:Button name="mark" class="button button--primary mark-button mark-button--wide" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="crosshair" picking-mode="Ignore" />
+    </ui:VisualElement>
+</ui:UXML>

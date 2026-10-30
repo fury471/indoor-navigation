@@ -81,7 +81,13 @@ namespace IndoorNavigation.Core.Positioning
         public bool IsGood => RmsErrorMetres <= GoodRmsMetres;
 
         /// <summary>Fits the alignment; throws <see cref="ArgumentException"/> when the markers cannot fix it.</summary>
-        public static PlanAlignment Fit(IReadOnlyList<MarkerPair> markers)
+        public static PlanAlignment Fit(IReadOnlyList<MarkerPair> markers) => Fit(markers, MinimumSpreadMetres);
+
+        /// <summary>
+        /// Fits the alignment with a different minimum spread: one door's two corners, under a metre
+        /// apart, are enough for a door fix (decision record 11), checked by the door's width instead.
+        /// </summary>
+        public static PlanAlignment Fit(IReadOnlyList<MarkerPair> markers, double minimumSpreadMetres)
         {
             if (markers == null || markers.Count < MinimumMarkers)
             {
@@ -96,10 +102,10 @@ namespace IndoorNavigation.Core.Positioning
                 }
             }
 
-            if (Spread(markers, plan: true) < MinimumSpreadMetres || Spread(markers, plan: false) < MinimumSpreadMetres)
+            if (Spread(markers, plan: true) < minimumSpreadMetres || Spread(markers, plan: false) < minimumSpreadMetres)
             {
                 throw new ArgumentException(
-                    $"Markers must be at least {MinimumSpreadMetres} m apart, both on the plan and in AR.", nameof(markers));
+                    $"Markers must be at least {minimumSpreadMetres} m apart, both on the plan and in AR.", nameof(markers));
             }
 
             // Centroids of the plan points and of the mirrored AR points.

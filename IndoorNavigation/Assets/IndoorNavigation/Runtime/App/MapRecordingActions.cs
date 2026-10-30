@@ -60,6 +60,10 @@ namespace IndoorNavigation.App
 
         public bool IsMarked(string markerId) => recorder.IsMarked(markerId);
 
+        public string DoorLabel(string door) => recorder.DoorLabel(door);
+
+        public void SetDoorLabel(string door, string label) => recorder.SetDoorLabel(door, label);
+
         public bool CanUndo => recorder.CanUndo;
 
         public void UndoLastMark() => recorder.UndoLastMark();
@@ -99,6 +103,7 @@ namespace IndoorNavigation.App
             {
                 if (position.CurrentArea == null) return MapActivity.None;
                 if (position.InMapFrame) return MapActivity.Relocalised;
+                if (position.Alignment != null) return MapActivity.LocatedByDoor;
                 if (position.IsRelocalising) return MapActivity.Relocalising;
                 if (position.IsLoading) return MapActivity.Loading;
                 return MapActivity.NotLocated;
@@ -161,7 +166,9 @@ namespace IndoorNavigation.App
             if (id == position.CurrentArea) position.Stop();
             try
             {
-                return store.Delete(id) ? "Deleted " + id + "." : "There was no map called " + id + ".";
+                bool deleted = store.Delete(id);
+                position.RefreshDoors();
+                return deleted ? "Deleted " + id + "." : "There was no map called " + id + ".";
             }
             catch (Exception e)
             {
