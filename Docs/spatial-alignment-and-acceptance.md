@@ -1,5 +1,7 @@
 # Spatial alignment and acceptance for the demo venue
 
+> **31 Oct decision (Fury): no separate tape measurements.** The floor-1 geometry comes from the evacuation drawing registered to the recorded door corners (world maps) and the RoomPlan scans in one least-squares fit. Its residuals replace the "measured physical distances" below for the demo: 0.10 m mean and 0.21 m worst corner error over 21 doors; 0.17 m mean and 0.38 m worst when each door is left out and predicted. Targets below that name measurements stay as targets; where none was taken, the leave-one-out door error is the stated evidence. See `MAMN41_UXXR/floor-plans/floor-1/README.md` and decision record 8.
+
 Date: 31 October 2026.
 Status: Proposed project acceptance criteria and authoring workflow. The existing runtime has metric plan coordinates and rigid horizontal alignment; evacuation-plan authoring, complete miniature integration, coverage enforcement and automated acceptance are not implemented by this document. Thresholds below are engineering targets for this course prototype, not universal indoor-navigation standards or established device performance.
 

@@ -33,6 +33,18 @@ namespace IndoorNavigation.App
         /// <summary>Where the placeholder position is "found": floor 1, by node j-vr-lab in the sample package.</summary>
         private static readonly PlanPose SampleStartPose = new PlanPose(1, 11.9, 15.0, 0);
 
+        /// <summary>The same for the IKDC package: inside the VR lab, 3 m from its door (node n-vr-lab), where the tests start.</summary>
+        private static readonly PlanPose IkdcStartPose = new PlanPose(1, 42.94, 61.96, 0);
+
+        /// <summary>Doors of the IKDC package for a door fix in the Editor, at the corners in its manifest.</summary>
+        private static readonly DoorInfo[] IkdcDoors =
+        {
+            new DoorInfo("d1", "inside-vrlab", 1, "VR lab", 39.956, 60.812, 39.932, 63.1, leadsToRoom: true),
+            new DoorInfo("d1", "inside-vrlab", 1, "VR lab", 39.956, 60.812, 39.932, 63.1, leadsToRoom: true).FromInside(),
+            new DoorInfo("d3", "stairs-elevator-zone", 1, "Stairs S1", 32.336, 37.456, 32.752, 36.256),
+            new DoorInfo("d1", "toilet-zone", 1, "Toilet 1", 43.473, 77.701, 42.643, 77.678, leadsToRoom: true),
+        };
+
         /// <summary>Doors of the sample package for a door fix in the Editor: the VR lab (also from inside), the stairs and the lifts.</summary>
         private static readonly DoorInfo[] SampleDoors =
         {
@@ -121,12 +133,14 @@ namespace IndoorNavigation.App
             else
             {
                 if (config.position == PortVersion.Real) editorFallbacks.Add("position");
-                placeholderPosition = new PlaceholderPositionSource(SampleStartPose, SampleDoors);
+                bool ikdc = IsIkdc(packageFolder);
+                placeholderPosition = new PlaceholderPositionSource(ikdc ? IkdcStartPose : SampleStartPose, ikdc ? IkdcDoors : SampleDoors);
                 position = placeholderPosition;
             }
 
             if (config.search == PortVersion.Real) throw NotBuiltYet("search", "week 5");
-            var placeholderSearch = new PlaceholderPlaceSearch();
+            // Searches the package's catalogue; the sample package keeps its scripted answers.
+            var placeholderSearch = new PlaceholderPlaceSearch(() => session?.Venue);
 
             PlaceholderDeviceAttitude placeholderAttitude = null;
             IDeviceAttitude attitude;
@@ -168,6 +182,11 @@ namespace IndoorNavigation.App
             host.Add(ScreenCodes.Map2D, new NavigateMapPresenter(ScreenElement(root, "B"), session));
             host.Add(ScreenCodes.ArGuidance, new NavigateArPresenter(ScreenElement(root, "A"), session));
             host.Add(ScreenCodes.Arrived, new ArrivedPresenter(ScreenElement(root, "G"), session));
+
+            // D · the 3D miniature, drawn by its own camera into a texture (decision record 8).
+            var miniature = new GameObject("Miniature").AddComponent<MiniatureRenderer>();
+            miniature.Init(routeMaterial);
+            host.Add(ScreenCodes.Miniature3D, new MiniaturePresenter(ScreenElement(root, "D"), session, miniature));
 
             // 4. The developer panel (W), only in development builds of the config.
             //    With the real position, it also opens the world-map recorder.
@@ -347,14 +366,28 @@ namespace IndoorNavigation.App
 
         /// <summary>
         /// A package copied into the app's Documents folder, as VenuePackage/, wins over the
-        /// sample built into the app, so new venue data reaches the phone without a rebuild.
+        /// packages built into the app, so new venue data reaches the phone without a rebuild.
+        /// Built in: IKDC floor 1 (the demo zone, 31 Oct), else the sample package.
         /// </summary>
         private static string ChoosePackageFolder()
         {
             string copied = Path.Combine(Application.persistentDataPath, "VenuePackage");
-            return File.Exists(Path.Combine(copied, "manifest.json"))
-                ? copied
-                : Path.Combine(Application.streamingAssetsPath, "SamplePackage");
+            if (File.Exists(Path.Combine(copied, "manifest.json"))) return copied;
+            string ikdc = Path.Combine(Application.streamingAssetsPath, "IKDC");
+            return File.Exists(Path.Combine(ikdc, "manifest.json")) ? ikdc : Path.Combine(Application.streamingAssetsPath, "SamplePackage");
+        }
+
+        /// <summary>Whether the package in this folder is IKDC's, for the Editor's placeholder start and doors.</summary>
+        private static bool IsIkdc(string packageFolder)
+        {
+            try
+            {
+                return File.ReadAllText(Path.Combine(packageFolder, "manifest.json")).Contains("\"ikdc\"");
+            }
+            catch (IOException)
+            {
+                return false;
+            }
         }
 
         private static NotSupportedException NotBuiltYet(string port, string when) =>

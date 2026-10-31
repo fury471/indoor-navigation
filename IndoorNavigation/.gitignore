@@ -108,3 +108,8 @@ InitTestScene*.unity*
 # Unity crash-recovery scenes
 /[Aa]ssets/_Recovery/
 /[Aa]ssets/_Recovery.meta
+
+# Venue data of the real building (IKDC), traced from its evacuation drawing and the lab recordings.
+# It ships in the app from StreamingAssets but stays out of the repository (31 Oct).
+/[Aa]ssets/StreamingAssets/IKDC/
+/[Aa]ssets/StreamingAssets/IKDC.meta

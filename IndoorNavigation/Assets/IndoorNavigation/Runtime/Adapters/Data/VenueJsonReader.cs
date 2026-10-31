@@ -33,7 +33,11 @@ namespace IndoorNavigation.Adapters.Data
             return new VenueManifest(dto.venueId, dto.name, dto.packageVersion, dto.schemaVersion, floors, areas, dto.startArea, files);
         }
 
-        public static VenuePackage ReadPackage(string manifestJson, string catalogueJson, string graphJson)
+        public static VenuePackage ReadPackage(string manifestJson, string catalogueJson, string graphJson) =>
+            ReadPackage(manifestJson, catalogueJson, graphJson, null);
+
+        /// <summary>The package with its floor plans (floor-N-plan.json, each read with <see cref="ReadFloorPlan"/>).</summary>
+        public static VenuePackage ReadPackage(string manifestJson, string catalogueJson, string graphJson, IReadOnlyList<FloorPlan> plans)
         {
             VenueManifest manifest = ReadManifest(manifestJson);
 
@@ -58,7 +62,65 @@ namespace IndoorNavigation.Adapters.Data
                 edges.Add(new GraphEdge(e.from, e.to, ParseEdgeKind(e.kind, e.from), e.stepFree, e.staffOnly));
             }
 
-            return new VenuePackage(manifest, places, new RouteGraph(nodes, edges));
+            return new VenuePackage(manifest, places, new RouteGraph(nodes, edges), plans);
+        }
+
+        /// <summary>
+        /// One floor's simplified plan. Outlines are flat lists, x then z (JsonUtility reads no
+        /// nested arrays): <c>"xz": [x0, z0, x1, z1, …]</c>.
+        /// </summary>
+        public static FloorPlan ReadFloorPlan(string json, string fileName)
+        {
+            PlanDto dto = Parse<PlanDto>(json, fileName);
+            if (dto.view == null) throw new FormatException(fileName + " has no view.");
+            var zones = new List<IReadOnlyList<PlanPoint>>();
+            foreach (OutlineDto zone in dto.zones ?? Array.Empty<OutlineDto>()) zones.Add(Points(zone.xz, fileName));
+
+            var spaces = new List<PlanSpace>();
+            foreach (SpaceDto s in dto.spaces ?? Array.Empty<SpaceDto>())
+            {
+                spaces.Add(new PlanSpace(s.id ?? "", Empty(s.name), ParseSpaceKind(s.kind), s.inDemo, Points(s.xz, fileName)));
+            }
+
+            var walls = new List<PlanSegment>();
+            foreach (SegmentDto w in dto.walls ?? Array.Empty<SegmentDto>()) walls.Add(new PlanSegment(w.ax, w.az, w.bx, w.bz));
+
+            var doors = new List<PlanDoor>();
+            foreach (DoorDto d in dto.doors ?? Array.Empty<DoorDto>())
+            {
+                doors.Add(new PlanDoor(d.id ?? "", Empty(d.name), new PlanSegment(d.ax, d.az, d.bx, d.bz)));
+            }
+
+            string name = Empty(dto.name) ?? "Floor " + dto.floor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return new FloorPlan(dto.floor, name, new PlanBounds(dto.view.minX, dto.view.minZ, dto.view.maxX, dto.view.maxZ), zones, spaces, walls, doors);
+        }
+
+        /// <summary>The package file that holds a floor's plan, by name: floor-1-plan.json is floor 1's, in any folder.</summary>
+        public static bool IsFloorPlanFile(string path)
+        {
+            string name = path == null ? null : System.IO.Path.GetFileName(path);
+            return name != null && name.StartsWith("floor-", StringComparison.Ordinal) && name.EndsWith("-plan.json", StringComparison.Ordinal);
+        }
+
+        private static IReadOnlyList<PlanPoint> Points(double[] xz, string fileName)
+        {
+            if (xz == null || xz.Length % 2 != 0) throw new FormatException(fileName + " has an outline with an odd number of coordinates.");
+            var points = new PlanPoint[xz.Length / 2];
+            for (int i = 0; i < points.Length; i++) points[i] = new PlanPoint(xz[2 * i], xz[(2 * i) + 1]);
+            return points;
+        }
+
+        private static PlanSpaceKind ParseSpaceKind(string kind)
+        {
+            switch (kind)
+            {
+                case "room": return PlanSpaceKind.Room;
+                case "corridor": return PlanSpaceKind.Corridor;
+                case "toilet": return PlanSpaceKind.Toilet;
+                case "lift": return PlanSpaceKind.Lift;
+                case "stairs": return PlanSpaceKind.Stairs;
+                default: return PlanSpaceKind.Other; // an unknown kind is still drawn, just plainly
+            }
         }
 
         private static T Parse<T>(string json, string fileName)
@@ -159,6 +221,27 @@ namespace IndoorNavigation.Adapters.Data
     [Serializable] internal sealed class NodeDto { public string id; public string kind; public int floor; public double x; public double z; }
 
     [Serializable] internal sealed class EdgeDto { public string from; public string to; public string kind; public bool stepFree; public bool staffOnly; }
+
+    [Serializable] internal sealed class PlanDto
+    {
+        public int floor;
+        public string name;
+        public ViewDto view;
+        public OutlineDto[] zones;
+        public SpaceDto[] spaces;
+        public SegmentDto[] walls;
+        public DoorDto[] doors;
+    }
+
+    [Serializable] internal sealed class ViewDto { public double minX; public double minZ; public double maxX; public double maxZ; }
+
+    [Serializable] internal sealed class OutlineDto { public double[] xz; }
+
+    [Serializable] internal sealed class SpaceDto { public string id; public string name; public string kind; public bool inDemo; public double[] xz; }
+
+    [Serializable] internal sealed class SegmentDto { public double ax; public double az; public double bx; public double bz; }
+
+    [Serializable] internal sealed class DoorDto { public string id; public string name; public double ax; public double az; public double bx; public double bz; }
 
 #pragma warning restore 0649
 }

@@ -66,7 +66,15 @@ namespace IndoorNavigation.Adapters.Placeholders
             string manifest = await File.ReadAllTextAsync(Path.Combine(packageFolder, "manifest.json"), cancel);
             string catalogue = await File.ReadAllTextAsync(Path.Combine(packageFolder, "catalogue.json"), cancel);
             string graph = await File.ReadAllTextAsync(Path.Combine(packageFolder, "graph.json"), cancel);
-            VenuePackage package = VenueJsonReader.ReadPackage(manifest, catalogue, graph);
+            var plans = new List<FloorPlan>();
+            foreach (PackageFile file in VenueJsonReader.ReadManifest(manifest).Files)
+            {
+                if (!VenueJsonReader.IsFloorPlanFile(file.Path)) continue;
+                string plan = await File.ReadAllTextAsync(Path.Combine(packageFolder, file.Path), cancel);
+                plans.Add(VenueJsonReader.ReadFloorPlan(plan, file.Path));
+            }
+
+            VenuePackage package = VenueJsonReader.ReadPackage(manifest, catalogue, graph, plans);
             if (package.Id != venueId) throw new InvalidOperationException($"No sample package for '{venueId}'.");
             return package;
         }

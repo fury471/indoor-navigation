@@ -7,7 +7,9 @@
         </ui:VisualElement>
         <ui:Label name="destination" class="title" />
         <ui:Label name="where" class="body" />
-        <ui:VisualElement name="map" class="map" />
+        <ui:VisualElement name="map" class="map">
+            <ui:Button name="show-3d" text="3D" class="button button--small map-switch" />
+        </ui:VisualElement>
         <ui:VisualElement class="sheet">
             <ui:Label name="summary" class="strong" />
             <ui:Toggle name="avoid-stairs" label="Avoid stairs" />

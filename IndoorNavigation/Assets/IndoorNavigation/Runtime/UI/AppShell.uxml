@@ -12,6 +12,7 @@
     <ui:Template name="Preview" src="Screens/Preview.uxml" />
     <ui:Template name="NavigateMap" src="Screens/NavigateMap.uxml" />
     <ui:Template name="NavigateAr" src="Screens/NavigateAr.uxml" />
+    <ui:Template name="Miniature" src="Screens/Miniature.uxml" />
     <ui:Template name="Arrived" src="Screens/Arrived.uxml" />
     <ui:Template name="DeveloperPanel" src="Developer/DeveloperPanel.uxml" />
     <ui:Template name="MapLibrary" src="Developer/MapLibrary.uxml" />
@@ -27,6 +28,7 @@
         <ui:Instance template="Preview" name="screen-5" />
         <ui:Instance template="NavigateMap" name="screen-B" />
         <ui:Instance template="NavigateAr" name="screen-A" />
+        <ui:Instance template="Miniature" name="screen-D" />
         <ui:Instance template="Arrived" name="screen-G" />
     </ui:VisualElement>
     <ui:Instance template="DeveloperPanel" name="developer-panel" />

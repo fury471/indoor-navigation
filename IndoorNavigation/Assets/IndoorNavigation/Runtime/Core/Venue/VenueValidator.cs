@@ -16,7 +16,26 @@ namespace IndoorNavigation.Core.Venue
             CheckPlaces(package, problems);
             CheckEdges(package, problems);
             CheckConnected(package, problems);
+            CheckPlans(package, problems);
             return problems;
+        }
+
+        /// <summary>A floor plan must belong to a floor of the manifest, once, with a real view and real outlines.</summary>
+        private static void CheckPlans(VenuePackage package, List<string> problems)
+        {
+            var floors = new HashSet<int>();
+            foreach (FloorInfo floor in package.Manifest.Floors) floors.Add(floor.Number);
+            var seen = new HashSet<int>();
+            foreach (FloorPlan plan in package.Plans)
+            {
+                if (!floors.Contains(plan.Floor)) problems.Add($"The plan of floor {plan.Floor} is for a floor the manifest does not list.");
+                if (!seen.Add(plan.Floor)) problems.Add($"Floor {plan.Floor} has two plans.");
+                if (!(plan.View.Width > 0) || !(plan.View.Height > 0)) problems.Add($"The plan of floor {plan.Floor} has an empty view.");
+                foreach (PlanSpace space in plan.Spaces)
+                {
+                    if (space.Outline.Count < 3) problems.Add($"Space '{space.Id}' on floor {plan.Floor} has fewer than three corners.");
+                }
+            }
         }
 
         private static void CheckStartArea(VenuePackage package, List<string> problems)

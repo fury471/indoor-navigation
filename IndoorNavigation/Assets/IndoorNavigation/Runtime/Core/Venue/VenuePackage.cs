@@ -11,11 +11,12 @@ namespace IndoorNavigation.Core.Venue
     {
         private readonly Dictionary<string, Place> placesById = new Dictionary<string, Place>();
 
-        public VenuePackage(VenueManifest manifest, IReadOnlyList<Place> places, RouteGraph graph)
+        public VenuePackage(VenueManifest manifest, IReadOnlyList<Place> places, RouteGraph graph, IReadOnlyList<FloorPlan> plans = null)
         {
             Manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
             Places = places ?? throw new ArgumentNullException(nameof(places));
             Graph = graph ?? throw new ArgumentNullException(nameof(graph));
+            Plans = plans ?? Array.Empty<FloorPlan>();
 
             foreach (Place place in places)
             {
@@ -31,6 +32,20 @@ namespace IndoorNavigation.Core.Venue
         public VenueManifest Manifest { get; }
         public IReadOnlyList<Place> Places { get; }
         public RouteGraph Graph { get; }
+
+        /// <summary>The floor plans the package has (floor-N-plan.json), possibly none.</summary>
+        public IReadOnlyList<FloorPlan> Plans { get; }
+
+        /// <summary>The plan of this floor, or null when the package has none.</summary>
+        public FloorPlan PlanOf(int floor)
+        {
+            foreach (FloorPlan plan in Plans)
+            {
+                if (plan.Floor == floor) return plan;
+            }
+
+            return null;
+        }
 
         public string Id => Manifest.VenueId;
         public string Name => Manifest.Name;

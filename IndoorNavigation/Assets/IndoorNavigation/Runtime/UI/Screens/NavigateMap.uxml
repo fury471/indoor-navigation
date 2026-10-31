@@ -17,7 +17,9 @@
             <ui:Label text="Confirm when you are there. The map then switches floor." class="small" />
             <ui:Button name="confirm-floor" class="button button--primary" />
         </ui:VisualElement>
-        <ui:VisualElement name="map" class="map" />
+        <ui:VisualElement name="map" class="map">
+            <ui:Button name="show-3d" text="3D" class="button button--small map-switch" />
+        </ui:VisualElement>
         <ui:VisualElement class="sheet">
             <ui:Label name="destination" class="strong" />
             <ui:Label name="remaining" class="small" />

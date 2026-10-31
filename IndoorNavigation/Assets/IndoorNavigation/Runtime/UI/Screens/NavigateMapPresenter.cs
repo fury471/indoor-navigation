@@ -35,7 +35,8 @@ namespace IndoorNavigation.UI.Screens
             destination = Find<Label>("destination");
             remaining = Find<Label>("remaining");
             endConfirm = Find<VisualElement>("end-confirm");
-            Find<VisualElement>("map").Add(map);
+            Find<VisualElement>("map").Insert(0, map);
+            Find<Button>("show-3d").clicked += () => Session.ShowMiniature(true);
 
             confirmFloor.clicked += () => Session.ConfirmFloor(Session.NextFloor);
             Find<Button>("fix-position").clicked += Session.FixPosition;

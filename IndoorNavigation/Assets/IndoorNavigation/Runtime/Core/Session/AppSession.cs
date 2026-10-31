@@ -655,6 +655,21 @@ namespace IndoorNavigation.Core.Session
             NotifyChanged();
         }
 
+        /// <summary>
+        /// The 2D/3D switch on screens B and 5 (blueprint D): the miniature shows the same route
+        /// over the floors, stacked. "Back to route" (or 2D) closes it. Only while previewing or
+        /// navigating; any other state closes it by itself.
+        /// </summary>
+        public void ShowMiniature(bool show)
+        {
+            MapKind kind = show ? MapKind.ThreeD : MapKind.TwoD;
+            if (View.Map == kind) return;
+            if (show && State != SessionState.Previewing && State != SessionState.Navigating) return;
+            View.SetMap(kind);
+            Log("view", show ? "3D" : "2D");
+            NotifyChanged();
+        }
+
         /// <summary>5: Back. Returns to the suggestions if there are any, otherwise to the request.</summary>
         public void BackFromPreview() =>
             Fire(Suggestions.Count > 0 ? SessionTrigger.BackToPlaces : SessionTrigger.EditSearch);
@@ -685,6 +700,7 @@ namespace IndoorNavigation.Core.Session
             NextNodeIndex = Route.Nodes.Count > 1 ? 1 : 0;
             AwaitingFloorChange = false;
             View.ShowFloor(UserFloor);
+            View.SetMap(MapKind.TwoD);
             Log("route", "start " + Destination.Id);
             Fire(SessionTrigger.Start);
             AdvanceAlongRoute(Pose); // already standing at the destination counts as arriving
@@ -844,6 +860,11 @@ namespace IndoorNavigation.Core.Session
         private void OnStateChanged(SessionState from, SessionState to)
         {
             Log("state", from + " -> " + to);
+            if (View.Map == MapKind.ThreeD && to != SessionState.Previewing && to != SessionState.Navigating)
+            {
+                View.SetMap(MapKind.TwoD); // the miniature belongs to a route; it never outlives it
+            }
+
             if (to == SessionState.Locating)
             {
                 StartLocating();

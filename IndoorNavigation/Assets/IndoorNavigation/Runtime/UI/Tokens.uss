@@ -822,3 +822,93 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* D · 3D miniature, and the "3D" switch on the 2D maps (decision record 8). */
+.map-switch {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 56px;
+    margin: 0;
+}
+
+.miniature-title {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-right: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.segmented {
+    flex-direction: row;
+    flex-shrink: 0;
+    padding: 3px;
+    border-radius: 14px;
+    background-color: var(--border);
+}
+
+.segment {
+    width: 56px;
+    height: 44px;
+    margin: 0;
+    border-width: 0;
+    border-radius: 11px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--muted);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+
+.segment--on {
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+.miniature-view {
+    overflow: hidden;
+    background-color: #F4F2EE;
+}
+
+.miniature-labels {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.miniature-floor {
+    position: absolute;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.85);
+    color: var(--muted);
+    font-size: 12px;
+    -unity-font-style: bold;
+}
+
+.miniature-floor--you {
+    color: var(--you);
+}
+
+.miniature-destination {
+    position: absolute;
+    width: 160px;
+    color: var(--destination);
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.miniature-hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+}

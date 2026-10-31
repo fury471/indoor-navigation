@@ -47,7 +47,7 @@ namespace IndoorNavigation.Core.Session
                 case SessionState.Asking: return Ask;
                 case SessionState.Clarifying: return Clarify;
                 case SessionState.ChoosingPlace: return Suggestions;
-                case SessionState.Previewing: return Preview;
+                case SessionState.Previewing: return view.Map == MapKind.ThreeD ? Miniature3D : Preview;
                 case SessionState.Arrived: return Arrived;
                 default: return ResolveNavigating(view, userFloor, condition);
             }

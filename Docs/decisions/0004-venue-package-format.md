@@ -22,3 +22,11 @@ The schema version follows Semantic Versioning: a new MAJOR version marks incomp
 
 - The sample package in `StreamingAssets/SamplePackage` is a valid version 1 package and matches the route-graph diagram in the architecture doc.
 - Every package is checked by `VenueValidator` when it is loaded; a package with problems is not used.
+
+## Amendment, 31 Oct 2026: floor plans
+
+- `floor-N-plan.json` holds the simplified plan of floor N, in the route graph's metres. It is listed in the manifest like every other file, and the app reads every listed file named `floor-*-plan.json`.
+- Fields: `floor`, `name`, `view` (`minX`, `minZ`, `maxX`, `maxZ`: the part worth showing), `zones` (where navigation works), `spaces` (`id`, `name`, `kind` = room, corridor, toilet, lift, stairs or other, `inDemo`, outline), `walls` (`ax`, `az`, `bx`, `bz`) and `doors` (`id`, `name`, two floor corners).
+- Outlines are flat arrays `xz: [x0, z0, x1, z1, …]`, because Unity's `JsonUtility` cannot read nested arrays.
+- `VenueValidator` refuses a plan for an unknown floor, two plans for one floor, an empty view and an outline with fewer than three points.
+- The 2D map and the miniature both draw from this file, so they cannot disagree (decision record 8).

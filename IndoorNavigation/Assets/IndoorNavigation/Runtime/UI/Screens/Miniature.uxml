@@ -1,0 +1,23 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- D · 3D miniature: the floors of the route stacked apart (exploded view), the route
+         climbing the stairs between them. Opened with "3D" from screens 5 and B. -->
+    <Style src="../Tokens.uss" />
+    <ui:VisualElement class="screen">
+        <ui:VisualElement class="row">
+            <ui:Label name="destination" class="title miniature-title" />
+            <ui:VisualElement class="segmented">
+                <ui:Button name="show-2d" text="2D" class="segment" />
+                <ui:Button name="show-3d" text="3D" class="segment segment--on" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:Label name="summary" class="small" />
+        <ui:VisualElement name="viewport" class="map miniature-view">
+            <ui:VisualElement name="labels" class="miniature-labels" picking-mode="Ignore" />
+            <ui:Label name="hint" text="Drag to rotate · pinch to zoom" class="miniature-hint" picking-mode="Ignore" />
+        </ui:VisualElement>
+        <ui:VisualElement class="row">
+            <ui:Button name="reset-view" text="Reset view" class="button half-button" />
+            <ui:Button name="back-to-route" text="Back to route" class="button button--primary half-button" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

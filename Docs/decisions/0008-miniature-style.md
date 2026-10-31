@@ -45,6 +45,15 @@ The values live once, in `Tools/scan-to-plan/miniature_style.json`. The converte
 
 **Quiet by default.** Labels, colouring by scan and "Show every scan" are tools for checking and are off unless switched on. The 2D plan draws furniture from the same models seen from above, in the same colours.
 
+**31 Oct (b): no tape measurements; built into the app.** Fury decided on 31 Oct not to take separate physical measurements. The floor-1 geometry is the evacuation drawing, rectified, registered to the door corners of the four world maps and to the RoomPlan scans by one joint least-squares fit. The fit's residuals stand in for measurements: 0.10 m mean and 0.21 m worst corner error over 21 doors, and 0.17 m mean (0.38 m worst) when each door is left out and predicted. The wording "plus verified physical measurements" above is superseded for the demo; verification uses the recorded doors.
+
+The app now draws this geometry in both views, from one file per floor (`floor-N-plan.json`, decision record 4):
+- The 2D map (screens 5 and B) fills the spaces and draws the walls under the route.
+- The miniature (screen D) is built in the core (`MiniatureBuilder`) and drawn by an App component (`MiniatureRenderer`): a slab per floor, spaces 2–4 cm above it, walls 1.2 m high and 0.15 m thick with dark tops, the route as a 0.7 m band. Floors are stacked 10 m apart, an exploded view, so a route that changes floor can be followed up the stairs.
+- The palette is the one above: base #E8E4DC, walls #FBFAF7 with tops #3A3835, sage #CFD8D1 for the rooms of the demo zone; the app's accent, you and destination colours for the route and markers.
+- Departures for now: no furniture (the drawing has none), and flat unlit colours instead of soft light and contact shadows, so the iPhone renders it cheaply. Glass is not drawn.
+- Polygons are split into triangles by ear clipping (Eberly, 2002).
+
 ## Consequences
 
 - The look changes in one file. The app and the check page cannot drift apart.
@@ -57,3 +66,4 @@ The values live once, in `Tools/scan-to-plan/miniature_style.json`. The converte
 
 - Apple Inc. (n.d.). *CapturedRoom.Object.Category*. RoomPlan documentation. https://developer.apple.com/documentation/roomplan/capturedroom/object/category-swift.enum
 - Apple Inc. (n.d.). *CapturedRoom.ModelProvider*. RoomPlan documentation. https://developer.apple.com/documentation/roomplan/capturedroom/modelprovider
+- Eberly, D. (2002, last modified 2024). *Triangulation by Ear Clipping*. Geometric Tools. https://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf
