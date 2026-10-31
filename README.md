@@ -6,7 +6,7 @@ It is the project of the course MAMN41 (UX/XR) at Lund University, built in Unit
 
 Owner: Fury (fury471). Licence: MIT.
 
-## Status on 30 Oct 2026
+## Status on 31 Oct 2026
 
 | Part | State |
 |---|---|
@@ -15,6 +15,8 @@ Owner: Fury (fury471). Licence: MIT.
 | Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
 | **Where are you?** when the map is slow: mark the door of the room you're in, or of the corridor door you're at (decision 11); Fix position at any time; route ahead drawn in AR | Build 10 (build 9's fixes from build 8, plus inner-room wording) code done; layout checked at iPhone SE and 16 Pro sizes; device test pending |
 | World-map library on the phone: name, test, continue and delete maps, name doors (developer only) | Builds 4–7 |
+| Live corner anchors while recording and after restoring a map | Build 11 device report: improved alignment, with about 25–30 cm remaining offset after a loop during active recording/Continue; cause not yet established |
+| Check left / Check right during recording/Continue | Local implementation ready; compilation and 289 offline tests pass; full Unity and device checks pending. Measures residuals; automatic correction is not implemented |
 | Floor plan and miniature of the real building | Converter works on practice scans. RoomPlan failed in the lab on 29 Oct, so the plan will come from the evacuation plans (not built yet) |
 | Low-phone prompt (decision 9), minimap in AR | Next |
 | Venue service, natural-language search with an LLM, floors 2 and 3, study set-up | After the seminar |
@@ -97,7 +99,9 @@ Where to look:
 |---|---|
 | `Docs/walking-skeleton-guide.md` | Unity set-up of the App scene, the commit order of the skeleton, six lessons |
 | `Docs/real-position-guide.md` | The idea behind world maps and door-corner alignment (part A); parts C and D are history |
-| `Docs/build-7-guide.md` | **Current:** builds 7 to 10 (finding your position, arrows in AR) and the floor-by-floor lab visit 2 |
+| `Docs/build-7-guide.md` | Builds 7 to 10 (finding your position, arrows in AR) and the floor-by-floor lab visit 2 |
+| `Docs/continue-corner-check.md` | **Current diagnostic task:** measure corner residuals while Continue updates the map; interpretation and criteria for deciding a correction |
+| `Docs/spatial-alignment-and-acceptance.md` | Proposed partial-WorldMap qualification and the common coordinate relationship between evacuation-derived geometry, the 2D plan and the 3D miniature |
 | `Docs/world-map-guide.md` | How to record, test, continue and delete world maps (builds 4–6) |
 | `Docs/lab-visit-1.md` | What happened in the lab on 29 Oct, the numbers, and what changed because of it |
 | `Docs/localisation-experiment.md` | The localisation method and how it is measured |
@@ -118,13 +122,14 @@ The architecture document, the UI blueprint (38 boards) and the reference log li
 - **Cite what you use.** Every technique or number taken from a paper or Apple's documentation is cited where it is used (decision records, guides) and in the reference log.
 - **Keep names as they are:** British `Localisation`, `Docs/`, `Plugins/iOS/`, exact casing.
 - **New behaviour gets a test** when it is logic in `Core`; device behaviour gets a line in `device-tests.md`.
+- **Documentation is in English and changes with the code.** Keep the README status, affected guides, decision records and device-test log consistent. Distinguish implemented behaviour, proposed changes, user-reported results and verified test results; do not describe diagnostics as an accuracy fix.
 - A big choice (a format, a frame, a dependency) gets a decision record in `Docs/decisions/`.
 
 ## What is open
 
 Short list; the architecture document has the full plan.
 
-1. Device test of build 10 (`Docs/build-7-guide.md` part D).
+1. Run the Continue corner-check comparison (`Docs/continue-corner-check.md`): establish baseline/revisit residuals, then select and validate a correction for the remaining build-11 offset. Earlier build-10 checks in `Docs/build-7-guide.md` part D remain relevant where not yet verified.
 2. Lab visit 2, floor by floor: a map per floor with every start door marked and named; automatic start, door fix and drift measured (part E).
 3. The plan from the evacuation-plan photos, fitted onto each floor's door corners; the route graph between the named doors; the catalogue; package 1.1.0.
 4. The "raise the phone" prompt (decision 9), the minimap in AR, floor height along the ramp.

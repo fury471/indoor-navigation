@@ -68,6 +68,9 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>Marks the marker (a door-frame corner) under the crosshair in the middle of the screen. False if no floor was found there.</summary>
         bool Mark(string markerId);
 
+        /// <summary>Measures a revisit against a tracked corner without replacing its mark or anchor.</summary>
+        string CheckCorner(string markerId);
+
         void Save();
 
         void Cancel();

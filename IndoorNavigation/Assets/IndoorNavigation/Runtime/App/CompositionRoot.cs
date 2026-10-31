@@ -179,7 +179,7 @@ namespace IndoorNavigation.App
             if (libraryElement != null) ScreenPresenter.SetVisible(libraryElement, false);
             if (config.developerPanel)
             {
-                MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, mapStore, () => session.Venue);
+                MapRecordingActions recording = recorder == null ? null : new MapRecordingActions(recorder, realPosition, mapStore, () => session.Venue, overlay);
                 var cover = new AppCover(root.Q<VisualElement>("app"));
                 MapRecorderPresenter recorderPresenter = recording == null ? null : new MapRecorderPresenter(recorderElement, recording, session, cover);
                 MapLibraryPresenter maps = recording == null ? null : new MapLibraryPresenter(libraryElement, recording, recorderPresenter, session, cover);

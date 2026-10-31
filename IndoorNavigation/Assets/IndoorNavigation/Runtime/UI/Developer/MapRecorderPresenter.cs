@@ -70,6 +70,8 @@ namespace IndoorNavigation.UI.Developer
         private readonly VisualElement markRow;
         private readonly VisualElement saveRow;
         private string editingDoor;
+        private string checkingCorner;
+        private string checkResult;
 
         private readonly AppCover cover;
         private bool holdingCover;
@@ -90,6 +92,12 @@ namespace IndoorNavigation.UI.Developer
             save = root.Q<Button>("save");
             mark.clicked += () =>
             {
+                if (checkingCorner != null)
+                {
+                    checkResult = recording.CheckCorner(checkingCorner);
+                    Render();
+                    return;
+                }
                 string id = NextToMark();
                 if (id == null) return;
                 session.LogExternal("developer", "map mark " + id);
@@ -98,6 +106,13 @@ namespace IndoorNavigation.UI.Developer
             };
             undo.clicked += () =>
             {
+                if (checkingCorner != null)
+                {
+                    checkingCorner = null;
+                    checkResult = null;
+                    Render();
+                    return;
+                }
                 session.LogExternal("developer", "map undo");
                 recording.UndoLastMark();
                 redo.Clear();
@@ -119,6 +134,8 @@ namespace IndoorNavigation.UI.Developer
             saveRow = root.Q<VisualElement>("save-row");
             root.Q<Button>("door-done").clicked += () => CloseDoorSheet(redoDoor: false);
             root.Q<Button>("door-redo").clicked += () => CloseDoorSheet(redoDoor: true);
+            root.Q<Button>("door-check-left").clicked += () => StartCheck("-left");
+            root.Q<Button>("door-check-right").clicked += () => StartCheck("-right");
             ScreenPresenter.SetVisible(doorSheet, false);
 
             mapping = root.Q<Label>("mapping");
@@ -154,6 +171,8 @@ namespace IndoorNavigation.UI.Developer
             reason = why;
             redo.Clear();
             doorsShown = null;
+            checkingCorner = null;
+            checkResult = null;
             doorPage = 0;
             doorCount = 0;
             editingDoor = null;
@@ -187,12 +206,18 @@ namespace IndoorNavigation.UI.Developer
         {
             area.text = recording.AreaLabel ?? "No map";
             progress.text = reason == null ? recording.Progress : "";
-            status.text = reason ?? recording.Message;
-            save.SetEnabled(recording.CanSave);
-            undo.SetEnabled(recording.CanUndo);
+            status.text = reason ?? (checkingCorner != null ? checkResult ?? "Aim at the original physical floor corner, then tap Check. The mark is kept." : recording.Message);
+            save.SetEnabled(checkingCorner == null && recording.CanSave);
+            undo.SetEnabled(checkingCorner != null || recording.CanUndo);
+            undo.text = checkingCorner != null ? "Stop check" : "Undo";
             string next = NextToMark();
             mark.SetEnabled(recording.IsRecording && next != null);
             mark.text = next == null ? "All corners marked" : (recording.IsMarked(next) ? "Mark " + next + " again" : "Mark " + next);
+            if (checkingCorner != null)
+            {
+                mark.text = "Check " + checkingCorner;
+                mark.SetEnabled(recording.IsRecording);
+            }
             RenderDoors();
             RenderCoverage();
         }
@@ -300,6 +325,8 @@ namespace IndoorNavigation.UI.Developer
         {
             session.LogExternal("developer", "map door sheet " + door);
             editingDoor = door;
+            root.Q<Button>("door-check-left").SetEnabled(recording.IsMarked(door + "-left"));
+            root.Q<Button>("door-check-right").SetEnabled(recording.IsMarked(door + "-right"));
             double? width = recording.DoorWidth(door);
             doorTitle.text = "Door " + door + (width.HasValue
                 ? " · " + width.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m wide"
@@ -323,6 +350,8 @@ namespace IndoorNavigation.UI.Developer
             recording.SetDoorLeadsToRoom(door, doorRoom.value);
             if (redoDoor)
             {
+                checkingCorner = null;
+                checkResult = null;
                 redo.Clear();
                 redo.Add(door + "-left");
                 redo.Add(door + "-right");
@@ -330,6 +359,18 @@ namespace IndoorNavigation.UI.Developer
             }
 
             doorsShown = null;
+            Render();
+        }
+
+        private void StartCheck(string suffix)
+        {
+            string door = editingDoor;
+            if (door == null || !recording.IsMarked(door + suffix)) return;
+            CloseDoorSheet(redoDoor: false);
+            checkingCorner = door + suffix;
+            checkResult = null;
+            redo.Clear();
+            session.LogExternal("developer", "map check selected " + checkingCorner);
             Render();
         }
 

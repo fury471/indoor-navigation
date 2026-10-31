@@ -19,9 +19,11 @@ namespace IndoorNavigation.App
         private readonly WorldMapPositionSource position;
         private readonly AreaMapStore store;
         private readonly Func<VenuePackage> venue;
+        private readonly ArRouteOverlay overlay;
 
-        public MapRecordingActions(AreaMapRecorder recorder, WorldMapPositionSource position, AreaMapStore store, Func<VenuePackage> venue)
+        public MapRecordingActions(AreaMapRecorder recorder, WorldMapPositionSource position, AreaMapStore store, Func<VenuePackage> venue, ArRouteOverlay overlay = null)
         {
+            this.overlay = overlay;
             this.recorder = recorder ? recorder : throw new ArgumentNullException(nameof(recorder));
             this.position = position ? position : throw new ArgumentNullException(nameof(position));
             this.store = store ?? throw new ArgumentNullException(nameof(store));
@@ -88,6 +90,8 @@ namespace IndoorNavigation.App
         public bool BeginContinue(out string reason) => recorder.BeginContinue(out reason);
 
         public bool Mark(string markerId) => recorder.Mark(markerId, new Vector2(Screen.width / 2f, Screen.height / 2f));
+
+        public string CheckCorner(string markerId) => recorder.CheckCorner(markerId, new Vector2(Screen.width / 2f, Screen.height / 2f), overlay);
 
         public void Save() => recorder.Save();
 

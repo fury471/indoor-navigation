@@ -63,7 +63,7 @@ Tell me if anything behaves differently.
 | 2 | Only passed through on the stairs | none |
 | 3 | The printer (in the hallway, not in a room), the hallway, the lift and the top of the stairs | `f3` |
 
-The stairs are open, in the middle of the building, with no door frame to mark. So they are never a place to fix the position at. Their position comes from **check points** instead, and so does the printer's. The lift door, recorded on floors 1 and 3, is what lines the two floors up on one plan: it is in the same place on both.
+The stairs are open, in the middle of the building, with no door frame to mark. So they are never a place to fix the position at. Their position comes from **check points** instead, and so does the printer's. The lift doors on floors 1 and 3 provide candidate structural correspondences for registering the floors. Verify their relationship physically and use a direction or a second correspondence as well; one shared centre alone does not determine yaw. Measure the floor elevations separately. The proposed coordinate and qualification workflow is in `Docs/spatial-alignment-and-acceptance.md`.
 
 Building empty, normal lighting, Auto-Lock **Never**, don't leave the app while recording. Have the note ready: for every check point, write its number and what it marks.
 

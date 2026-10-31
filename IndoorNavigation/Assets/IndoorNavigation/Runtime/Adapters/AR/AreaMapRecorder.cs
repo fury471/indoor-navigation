@@ -972,6 +972,59 @@ namespace IndoorNavigation.Adapters.AR
             }
         }
 
+        /// <summary>
+        /// Checks a physical corner during recording/Continue without editing the marks, anchors or saved map.
+        /// Raycast and anchor are sampled in this call; the rendered foot may be from an earlier frame.
+        /// Residuals include aiming and plane-estimation error, not just tracking drift.
+        /// </summary>
+        public string CheckCorner(string id, Vector2 screenPoint, ArRouteOverlay overlay)
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            if (!IsRecording || saving || guard.Broken) return "Check while recording, before saving; this recording must not be interrupted.";
+            if (!TrackingReady) return "Wait for normal tracking, then check again.";
+            if (id == null || !marks.TryGetValue(id, out Vector3 stored)) return "Choose a marked corner first.";
+            BindRestoredAnchors();
+            if (!anchors.TryGetValue(id, out ARAnchor anchor) || anchor == null || anchor.trackingState != TrackingState.Tracking)
+                return "This corner has no tracked anchor yet. Look around its door and try again.";
+
+            var hits = new List<ARRaycastHit>();
+            if (!raycasts.Raycast(screenPoint, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
+                return "No floor under the circle. Aim at the physical door corner and try again.";
+            Transform camera = origin.Camera.transform;
+            if (camera.position.y - hits[0].pose.position.y < MinimumDropToFloorMetres)
+                return "That looks higher than the floor. Aim where the door frame meets the floor.";
+
+            Transform frame = origin.TrackablesParent;
+            Vector3 observed = frame.InverseTransformPoint(hits[0].pose.position);
+            Vector3 anchored = frame.InverseTransformPoint(anchor.transform.position);
+            Vector3 delta = observed - anchored; // signed: re-aimed physical point minus current anchor
+            double horizontal = Math.Sqrt(delta.x * delta.x + delta.z * delta.z);
+            string display = "display unavailable";
+            string displayLog = "display=unavailable";
+            if (overlay != null && overlay.TryGetCornerFoot(id, out Vector3 foot, out int renderedFrame))
+            {
+                int age = Time.frameCount - renderedFrame;
+                float separation = (foot - anchored).magnitude;
+                display = string.Format(CultureInfo.InvariantCulture, "display/anchor {0:F1} cm ({1} frames old)", separation * 100, age);
+                displayLog = string.Format(CultureInfo.InvariantCulture, "display={0}; displayAnchor3d={1:F4}; displayFrame={2}; displayAgeFrames={3}", PointText(foot), separation, renderedFrame, age);
+            }
+            Report("corner-check", string.Format(CultureInfo.InvariantCulture,
+                "area={0}; mode={1}; corner={2}; frame={3}; anchorId={4}; anchor={5}; observed={6}; delta={7}; horizontal={8:F4}; stored={9}; camera={10}; cameraWorldRotation={11}; mapping={12}; rayTrackable={13}; hitType={14}; seconds={15:F1}; walked={16:F2}; {17}",
+                AreaId, continuing ? "continue" : "new", id, Time.frameCount, anchor.trackableId,
+                PointText(anchored), PointText(observed), PointText(delta), horizontal, PointText(stored),
+                PointText(frame.InverseTransformPoint(camera.position)), camera.rotation.ToString("F4"), MappingState,
+                hits[0].trackableId, hits[0].hitType, Time.realtimeSinceStartup - recordingStartedAt,
+                coverage.PathMetres, displayLog));
+            return string.Format(CultureInfo.InvariantCulture,
+                "{0}: corner {1:F0} cm; height {2:+0;-0;0} cm; {3}. Logged; mark kept.", id, horizontal * 100, delta.y * 100, display);
+#else
+            return "Corner checks need the iPhone.";
+#endif
+        }
+
+        private static string PointText(Vector3 point) => string.Format(CultureInfo.InvariantCulture,
+            "({0:F4},{1:F4},{2:F4})", point.x, point.y, point.z);
+
         /// <summary>Live session-space corners, including an immediately marked corner awaiting its anchor.</summary>
         public IReadOnlyList<ArMark> VisibleMarks
         {

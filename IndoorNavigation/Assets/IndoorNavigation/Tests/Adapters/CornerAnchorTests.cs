@@ -107,10 +107,21 @@ namespace IndoorNavigation.Adapters.Tests
                 Assert.That(posts.Length, Is.EqualTo(1));
                 Assert.That(posts[0].useWorldSpace, Is.False);
                 Assert.That(posts[0].GetPosition(0), Is.EqualTo(new Vector3(1, -1, 2)));
+                Assert.That(overlay.TryGetCornerFoot("d1-left", out Vector3 foot, out int frame), Is.True);
+                Assert.That(foot, Is.EqualTo(new Vector3(1, -1, 2)), "The rendered foot must be reported in session space, even under a moved origin.");
+                Assert.That(frame, Is.EqualTo(Time.frameCount));
+                Assert.That(overlay.TryGetCornerFoot("d1-right", out _, out _), Is.False);
                 overlay.ShowCorners(new[] { new ArMark("d1-left", 1.2, -0.8, 2) });
                 Assert.That(posts[0].GetPosition(0), Is.EqualTo(new Vector3(1.2f, -0.8f, 2)));
+                Assert.That(overlay.TryGetCornerFoot("d1-left", out foot, out _), Is.True);
+                Assert.That(foot, Is.EqualTo(new Vector3(1.2f, -0.8f, 2)));
                 overlay.ShowCorners(Array.Empty<ArMark>());
                 Assert.That(posts[0].gameObject.activeSelf, Is.False);
+                Assert.That(overlay.TryGetCornerFoot("d1-left", out _, out _), Is.False);
+                overlay.ShowCorners(new[] { new ArMark("d2-left", 2, -1, 3) });
+                Assert.That(overlay.TryGetCornerFoot("d1-left", out _, out _), Is.False, "Reused posts must not retain the previous corner's identity.");
+                overlay.HideDoors();
+                Assert.That(overlay.TryGetCornerFoot("d2-left", out _, out _), Is.False);
             }
             finally
             {

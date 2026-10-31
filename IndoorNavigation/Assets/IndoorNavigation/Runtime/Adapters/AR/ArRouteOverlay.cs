@@ -30,6 +30,8 @@ namespace IndoorNavigation.Adapters.AR
         private LineRenderer path;
         private LineRenderer endPost;
         private readonly List<LineRenderer> doorPosts = new List<LineRenderer>();
+        private readonly Dictionary<string, LineRenderer> cornerPosts = new Dictionary<string, LineRenderer>(StringComparer.Ordinal);
+        private int cornersFrame;
 
         /// <param name="material">An unlit material for the lines. Without one, the overlay tries URP's Unlit shader.</param>
         public void Init(XROrigin xrOrigin, Material material)
@@ -86,6 +88,7 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>Draws a post on both corners of every door given (on the user's floor).</summary>
         public void ShowDoors(PlanAlignment alignment, IReadOnlyList<DoorInfo> doors)
         {
+            cornerPosts.Clear();
             if (alignment == null || doors == null || doorMaterial == null)
             {
                 HideDoors();
@@ -105,12 +108,14 @@ namespace IndoorNavigation.Adapters.AR
 
         public void HideDoors()
         {
+            cornerPosts.Clear();
             foreach (LineRenderer post in doorPosts) SetActive(post, false);
         }
 
         /// <summary>Recording and restored map corners already have session poses, including their individual heights.</summary>
         public void ShowCorners(IReadOnlyList<ArMark> corners)
         {
+            cornerPosts.Clear();
             if (corners == null || doorMaterial == null)
             {
                 HideDoors();
@@ -118,8 +123,23 @@ namespace IndoorNavigation.Adapters.AR
             }
             int used = 0;
             foreach (ArMark corner in corners)
-                Post(used++, new Vector3((float)corner.X, (float)corner.Y, (float)corner.Z));
+            {
+                Post(used, new Vector3((float)corner.X, (float)corner.Y, (float)corner.Z));
+                cornerPosts[corner.Id] = doorPosts[used++];
+            }
+            cornersFrame = Time.frameCount;
             for (int i = used; i < doorPosts.Count; i++) SetActive(doorPosts[i], false);
+        }
+
+        /// <summary>The actual rendered foot in session coordinates; its age matters when comparing to a live anchor.</summary>
+        public bool TryGetCornerFoot(string id, out Vector3 foot, out int frame)
+        {
+            foot = default;
+            frame = cornersFrame;
+            if (id == null || !cornerPosts.TryGetValue(id, out LineRenderer line)
+                || line == null || !line.gameObject.activeInHierarchy || line.positionCount < 2) return false;
+            foot = origin.TrackablesParent.InverseTransformPoint(line.transform.TransformPoint(line.GetPosition(0)));
+            return true;
         }
 
         private void Post(int index, Vector3 foot)

@@ -18,6 +18,8 @@ The look has to hold for every building the app opens, not just the one being te
 
 **One model.** Where scans overlap, the later scan's walls and objects are used, because a rescan exists to fix the earlier one. Objects a single scan found twice are shown once. The overlap stays available for checking, behind "Show every scan" on the check page.
 
+**31 Oct authoring clarification.** For the demo building, the planned geometry source is now the evacuation drawing plus verified physical measurements after RoomPlan failed in the lab. The 2D plan, route graph and miniature must derive from the same canonical geometry and stable IDs. Partial WorldMaps register to that geometry; their changing estimates must not reshape it. The scan overlap rules above still apply to scan-based inputs. A drawing-derived model is authored geometry, not an Apple RoomPlan capture; heights/furniture absent from the source must be measured or labelled as visual assumptions. Miniature display scale is separate from canonical metres. See `../spatial-alignment-and-acceptance.md`; this authoring/integration path is planned, not implemented by this amendment.
+
 **Furniture as simple models.** Each of RoomPlan's 16 categories has a model of a few boxes, scaled to the measured size (`Tools/scan-to-plan/furniture.py`):
 - a bed has a frame, mattress, duvet, pillows and headboard;
 - a chair has legs, a seat and a backrest;
