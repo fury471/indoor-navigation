@@ -110,7 +110,7 @@ namespace IndoorNavigation.Core.Tests
             var guard = new RecordingGuard();
             guard.Start();
             guard.Observe(TrackingCondition.Initializing, At, 0.1);
-            guard.Observe(TrackingCondition.Relocalising, At, 1.3);
+            guard.Observe(TrackingCondition.Relocalising, At, RecordingGuard.RestartGraceSeconds);
             Assert.IsTrue(guard.Broken, "Seen on 29 Oct: a recording started after a map was loaded relocalised against it.");
             Assert.AreEqual("the session was matching an older map", guard.Reason);
         }
@@ -131,6 +131,76 @@ namespace IndoorNavigation.Core.Tests
             guard.StartTracking();
             guard.Observe(TrackingCondition.NotRunning, At, 0.1);
             Assert.IsTrue(guard.Broken, "The session was already tracking in the map's frame.");
+        }
+
+        [Test]
+        public void NewMapWhileOldMapRelocalises_IgnoresTransientOldFrames()
+        {
+            var guard = new RecordingGuard();
+            guard.Start();
+            guard.Observe(TrackingCondition.Relocalising, At, 0.05);
+            Assert.IsFalse(guard.Broken);
+            Assert.IsFalse(guard.Ready);
+            guard.Observe(TrackingCondition.Normal, At, 0.1);
+            Assert.IsFalse(guard.Ready, "An old Normal frame cannot enable marking before reset.");
+            guard.Observe(TrackingCondition.Initializing, At, 0.2);
+            guard.Observe(TrackingCondition.Relocalising, At, 0.3);
+            Assert.IsFalse(guard.Broken, "The old subsystem state can linger briefly after reset.");
+            guard.Observe(TrackingCondition.Normal, At, 0.8);
+            Assert.IsTrue(guard.Ready);
+        }
+
+        [Test]
+        public void RelocalisationAfterFreshTrackingWorked_IsStillAnInterruption()
+        {
+            var guard = new RecordingGuard();
+            guard.Start();
+            guard.Observe(TrackingCondition.Initializing, At, 0.1);
+            guard.Observe(TrackingCondition.Normal, At, 0.2);
+            guard.Observe(TrackingCondition.Relocalising, At, 0.4);
+            Assert.IsTrue(guard.Broken, "The initial grace must not hide a later change of frame.");
+            Assert.IsFalse(guard.Ready);
+        }
+    }
+
+    public sealed class RecordingStabilityTests
+    {
+        [Test]
+        public void MarkingWaitsForContinuousNormalTracking()
+        {
+            var gate = new RecordingStability();
+            gate.Observe(true, 10);
+            gate.Observe(true, 10.49);
+            Assert.IsFalse(gate.Ready);
+            gate.Observe(true, 10.5);
+            Assert.IsTrue(gate.Ready);
+        }
+
+        [Test]
+        public void TrackingLossRestartsTheWholeStabilityWindow()
+        {
+            var gate = new RecordingStability();
+            gate.Observe(true, 1);
+            gate.Observe(true, 1.5);
+            gate.Observe(false, 2);
+            Assert.IsFalse(gate.Ready);
+            gate.Observe(true, 3);
+            gate.Observe(true, 3.49);
+            Assert.IsFalse(gate.Ready);
+            gate.Observe(true, 3.5);
+            Assert.IsTrue(gate.Ready);
+        }
+
+        [Test]
+        public void ANewRecordingDoesNotReusePreviousReadiness()
+        {
+            var gate = new RecordingStability();
+            gate.Observe(true, 1);
+            gate.Observe(true, 2);
+            gate.Reset();
+            Assert.IsFalse(gate.Ready);
+            gate.Observe(true, 50);
+            Assert.IsFalse(gate.Ready);
         }
     }
 

@@ -87,7 +87,6 @@ namespace IndoorNavigation.UI.Developer
             formMessage = Find<Label>("maps-form-message");
 
             Wire("maps-close", Close);
-            Wire("maps-checkpoint", () => Say(library.LogCheckPoint()));
             Wire("maps-test", () => Say(library.Load(selected)));
             Wire("maps-continue", () =>
             {

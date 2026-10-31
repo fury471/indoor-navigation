@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using IndoorNavigation.Adapters.AR;
 using IndoorNavigation.Core.Positioning;
 using IndoorNavigation.Core.Venue;
@@ -12,6 +13,38 @@ namespace IndoorNavigation.Adapters.Tests
 {
     public sealed class CornerAnchorTests
     {
+        [Test]
+        public void UnlistedSavedMapRetainsItsFloorAndNewRecordingCancelsItsLoad()
+        {
+            string folder = Path.Combine(Application.temporaryCachePath, "floor-test-" + Guid.NewGuid().ToString("N"));
+            var root = new GameObject("position test");
+            try
+            {
+                var store = new AreaMapStore(folder);
+                AlignmentRecord record = Record();
+                record.floor = 3;
+                store.Save("test", new byte[] { 1, 2, 3 }, record);
+                var position = root.AddComponent<WorldMapPositionSource>();
+                const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+                typeof(WorldMapPositionSource).GetField("store", fields).SetValue(position, store);
+                typeof(WorldMapPositionSource).GetField("areas", fields).SetValue(position, (Func<string, AreaInfo>)(_ => null));
+                position.StartLocating("test");
+                Assert.That(position.IsLoading, Is.True);
+                Assert.That(typeof(WorldMapPositionSource).GetField("floor", fields).GetValue(position), Is.EqualTo(3));
+                typeof(WorldMapPositionSource).GetField("waitingForRelocalisation", fields).SetValue(position, true);
+                position.PauseForRecording(startFresh: true, areaId: "new-floor-1");
+                Assert.That(position.TryingMap, Is.False, "Old load/relocalisation work must not race a fresh recording.");
+                Assert.That(position.CurrentArea, Is.EqualTo("new-floor-1"));
+                Assert.That(position.InMapFrame, Is.False);
+                Assert.That(position.Status, Does.Contain("new-floor-1"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            }
+        }
+
         private static AlignmentRecord Record() => new AlignmentRecord
         {
             areaId = "test",

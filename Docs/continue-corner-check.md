@@ -6,8 +6,8 @@ For the proposed numeric qualification gates and how partial maps align with eva
 
 ## Prepare the app
 
-1. In Unity 6000.3.24f1, wait for compilation and run Test Runner → EditMode → Run All (292 tests expected). The standalone compilation checks and 289 offline tests passed; Unity-dependent execution remains pending.
-2. Export a new iOS build, package it, create the release, run the GitHub workflow and install over the existing app as described in the README. Use a new folder/tag, for example `position-012` / `export-position-012`, if still unused. The installed build 11 does not contain these buttons.
+1. In Unity 6000.3.24f1, wait for compilation and run Test Runner → EditMode → Run All (298 tests expected for the current build-13 source). Compilation checks and 294 offline tests passed; Unity-dependent execution remains pending.
+2. Basic Check left/right is included in the installed build 12. For the new Pause/checkpoint-test flow, export and install a new build as described in the README, using an unused folder/tag such as `position-013` / `export-position-013`. See [Recording pause and cleanup](recording-pause-and-cleanup.md).
 
 ## One short device test
 
@@ -17,6 +17,10 @@ For the proposed numeric qualification gates and how partial maps align with eva
 4. Tap the door chip again → Check right. Aim at the original right floor corner, tap Check, and screenshot it. If a sample is hard to aim, repeat it and keep both results to show measurement variability.
 5. Keep Continue recording active, walk the loop that previously caused the offset, return to the same side of the same door, and repeat the left/right checks. No extra pre-scanning loop is needed for this comparison.
 6. Tap Stop check to return to normal recording controls. Check does not require saving the map. Session log events are written through the existing session logger.
+
+## Check the saved checkpoint without continuing the recording
+
+With build 13, mark enough corners and scan until Save/Pause are enabled, then tap Pause. This saves a checkpoint, stops the recorder and reloads that checkpoint for relocalisation. Once located, use the same Check left/right procedure while the recorder remains paused. Check events identify this mode as `checkpoint-test`. The saved map and alignment files are unchanged during the test. Tap Continue to resume only once the checkpoint is relocalised and every saved corner anchor is tracked. ARKit's internal tracking map still evolves; this is a frozen saved snapshot, not a native read-only SLAM mode.
 
 ## Read the result
 

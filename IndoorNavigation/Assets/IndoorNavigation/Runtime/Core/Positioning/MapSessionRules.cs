@@ -43,6 +43,9 @@ namespace IndoorNavigation.Core.Positioning
         /// <summary>What broke the recording, for the recorder's status line; null while it is whole.</summary>
         public string Reason { get; private set; }
 
+        /// <summary>A fresh reset must settle before any corner may use its coordinates.</summary>
+        public bool Ready => sawNormal && !waitingForRestart && !Broken;
+
         /// <summary>
         /// Starts guarding a fresh recording. The recorder has just reset the session, and for a frame
         /// or two ARKit may still report the old session's normal tracking, so normal tracking counts
@@ -74,7 +77,8 @@ namespace IndoorNavigation.Core.Positioning
         {
             if (waitingForRestart)
             {
-                if (condition == TrackingCondition.Normal && secondsSinceStart < RestartGraceSeconds) return;
+                if ((condition == TrackingCondition.Normal || condition == TrackingCondition.Relocalising)
+                    && secondsSinceStart < RestartGraceSeconds) return;
                 waitingForRestart = false;
             }
 
@@ -89,6 +93,9 @@ namespace IndoorNavigation.Core.Positioning
             // the recorder clears it first, so this only catches a mistake.
             if (fresh && condition == TrackingCondition.Relocalising)
             {
+                // A few old-state frames can arrive after clearing the previous initial map.
+                // Once fresh tracking has worked, or the grace expires, this is a real fault.
+                if (!sawNormal && secondsSinceStart < RestartGraceSeconds) return;
                 Break("the session was matching an older map");
                 return;
             }
@@ -107,6 +114,32 @@ namespace IndoorNavigation.Core.Positioning
             if (Broken) return;
             Broken = true;
             Reason = reason;
+        }
+    }
+
+    /// <summary>Gates recording edits on continuous normal tracking. Not an accuracy estimate.</summary>
+    public sealed class RecordingStability
+    {
+        public const double StableSeconds = 0.5;
+        private double normalSince = -1;
+        public bool Ready { get; private set; }
+
+        public void Reset()
+        {
+            Ready = false;
+            normalSince = -1;
+        }
+
+        public void Observe(bool eligible, double nowSeconds)
+        {
+            if (!eligible)
+            {
+                normalSince = -1;
+                Ready = false;
+                return;
+            }
+            if (normalSince < 0 || nowSeconds < normalSince) normalSince = nowSeconds;
+            Ready = nowSeconds - normalSince >= StableSeconds;
         }
     }
 

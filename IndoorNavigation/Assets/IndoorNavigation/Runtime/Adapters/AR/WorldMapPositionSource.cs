@@ -177,7 +177,9 @@ namespace IndoorNavigation.Adapters.AR
         public void StartLocating(string areaId)
         {
             string map = ChooseMap(areaId);
-            int mapFloor = (map == null ? null : areas(map))?.Floor ?? (areaId == null ? null : areas(areaId))?.Floor ?? 0;
+            SavedMapInfo? saved = map == null ? null : store.TryReadInfo(map);
+            int mapFloor = (map == null ? null : areas(map))?.Floor ?? saved?.Floor
+                ?? (areaId == null ? null : areas(areaId))?.Floor ?? 0;
             Begin(map, areaId, mapFloor, areaId ?? "this floor");
         }
 
@@ -229,21 +231,26 @@ namespace IndoorNavigation.Adapters.AR
         /// Called before a new map is recorded: stops any relocalisation or door fix in progress, so
         /// the recording starts in a clean session.
         /// </summary>
-        public void PauseForRecording()
+        public void PauseForRecording(bool startFresh, string areaId)
         {
             mapRecord = null;
             useAnchorAlignment = false;
             loadPending = false;
-            if (waitingForRelocalisation)
+            if (waitingForRelocalisation && !startFresh)
             {
                 AbandonMap();
             }
+            // The recorder clears the initial map and resets once for a fresh recording.
+            // Resetting here as well races the old map's relocalisation state.
+            waitingForRelocalisation = false;
+            pendingAlignment = null;
+            CurrentArea = areaId;
 
             EndDoorFix();
             alignment = null;
             inMapFrame = false;
             SetState(PositionState.Searching);
-            Status = $"{CurrentArea}: recording a new map";
+            Status = $"{CurrentArea}: recording";
         }
 
         /// <summary>
@@ -268,7 +275,7 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             Status = fitted != null ? $"{areaId}: located with the map just recorded" : $"{areaId}: located in the recording's own frame (no plan yet)";
-            floor = areas(areaId)?.Floor ?? floor;
+            floor = areas(areaId)?.Floor ?? store.TryReadInfo(areaId)?.Floor ?? floor;
             Track(force: true);
         }
 

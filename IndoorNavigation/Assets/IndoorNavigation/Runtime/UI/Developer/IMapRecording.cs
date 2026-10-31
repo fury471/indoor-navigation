@@ -10,6 +10,11 @@ namespace IndoorNavigation.UI.Developer
     public interface IMapRecording
     {
         bool IsRecording { get; }
+        /// <summary>Recording is stopped and its saved checkpoint is being tested/relocalised.</summary>
+        bool IsTesting { get; }
+        bool CanMark { get; }
+        bool CanPauseOrContinue { get; }
+        void PauseOrContinue();
 
         /// <summary>"area-1 · Floor 1, VR lab corridor"</summary>
         string AreaLabel { get; }
@@ -151,7 +156,5 @@ namespace IndoorNavigation.UI.Developer
         /// <summary>Deletes the map and its kept copy. Returns one line for the screen.</summary>
         string Delete(string id);
 
-        /// <summary>Writes the current position to the log. Returns one line for the screen.</summary>
-        string LogCheckPoint();
     }
 }

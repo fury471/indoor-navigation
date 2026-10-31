@@ -90,6 +90,10 @@ namespace IndoorNavigation.Adapters.AR
         private long mapBytes;
         private bool mapBytesAreSaved;
         private float nextSizeAt;
+        private readonly RecordingStability stability = new RecordingStability();
+        private readonly List<ARRaycastHit> floorHits = new List<ARRaycastHit>();
+        private bool testAfterSave;
+        private bool testingWasBackgrounded;
 
         /// <summary>While recording, the map's size is measured this often (it means asking ARKit for the whole map).</summary>
         public const float SizeEverySeconds = 20f;
@@ -102,6 +106,24 @@ namespace IndoorNavigation.Adapters.AR
 #endif
 
         public bool IsRecording { get; private set; }
+        public bool IsTesting { get; private set; }
+        public bool CanMark => IsRecording && !saving && !guard.Broken && guard.Ready && stability.Ready && TrackingReady;
+        public bool CanPauseOrContinue => IsTesting
+            ? positioning.InMapFrame && TrackingReady && AnchorBlocker() == null
+            : CanSave;
+
+        public void PauseOrContinue()
+        {
+            if (!CanPauseOrContinue) return;
+            if (IsTesting)
+            {
+                if (!BeginContinue(out string problem)) message = problem;
+                return;
+            }
+            testAfterSave = true;
+            Save();
+            if (!saving) testAfterSave = false;
+        }
 
         /// <summary>What the recording has covered so far: feature points per floor cell, the path, the marks.</summary>
         public MapCoverage Coverage => coverage;
@@ -190,7 +212,6 @@ namespace IndoorNavigation.Adapters.AR
             roomDoors.Clear();
             loadedMarkCount = 0;
             mapBytes = 0;
-            positioning.StartLocating(area.Id);
             StartRecording(fresh: true, earlier: null);
             reason = null;
             return true;
@@ -221,16 +242,28 @@ namespace IndoorNavigation.Adapters.AR
                 return false;
             }
 
-            area = areas(id) ?? store.TryReadArea(id) ?? new AreaInfo(id, 0, id);
+            AlignmentRecord saved;
+            SavedMapInfo? info = store.TryReadInfo(id);
+            if (!info.HasValue)
+            {
+                reason = "This map's details cannot be read. Test another map or record a new one.";
+                return false;
+            }
+            try { saved = store.ReadAlignment(id, checked((int)info.Value.Bytes)); }
+            catch (Exception e)
+            {
+                reason = "Cannot continue this map: " + e.Message;
+                return false;
+            }
+            area = areas(id) ?? new AreaInfo(id, info.Value.Floor, id);
             ClearAnchors();
             marks.Clear();
             markOrder.Clear();
-            foreach (ArMark m in store.ReadMarks(id))
+            foreach (ArMark m in saved.ToArMarks())
             {
                 if (!marks.ContainsKey(m.Id)) markOrder.Add(m.Id);
                 marks[m.Id] = new Vector3((float)m.X, (float)m.Y, (float)m.Z);
             }
-            AlignmentRecord saved = store.ReadAlignment(id, checked((int)store.TryReadInfo(id).Value.Bytes));
             foreach (MarkerRecord marker in saved.markers)
                 if (!string.IsNullOrEmpty(marker.anchorId)) restoredAnchorIds[marker.id] = marker.anchorId;
 
@@ -239,7 +272,7 @@ namespace IndoorNavigation.Adapters.AR
             foreach (KeyValuePair<string, string> pair in store.ReadDoorLabels(id)) doorLabels[pair.Key] = pair.Value;
             roomDoors.Clear();
             foreach (string door in store.ReadRoomDoors(id)) roomDoors.Add(door);
-            mapBytes = store.TryReadInfo(id)?.Bytes ?? 0;
+            mapBytes = info.Value.Bytes;
             StartRecording(fresh: false, earlier: store.ReadCoverage(id));
             reason = null;
             return true;
@@ -247,9 +280,13 @@ namespace IndoorNavigation.Adapters.AR
 
         private void StartRecording(bool fresh, CoverageRecord earlier)
         {
+            IsTesting = false;
+            testAfterSave = false;
+            testingWasBackgrounded = false;
+            stability.Reset();
             Preview = null;
             continuing = !fresh;
-            positioning.PauseForRecording();
+            positioning.PauseForRecording(fresh, area.Id);
             if (fresh)
             {
                 // A fresh session: the map holds only what is seen from now on. A map loaded earlier
@@ -297,6 +334,17 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>The app left the screen: the AR session is interrupted, so the recording cannot be saved.</summary>
         private void OnApplicationPause(bool paused)
         {
+            if (IsTesting)
+            {
+                if (paused) testingWasBackgrounded = true;
+                else if (testingWasBackgrounded)
+                {
+                    testingWasBackgrounded = false;
+                    positioning.StartLocating(area.Id);
+                    message = "Test resumed: relocalising against the unchanged checkpoint.";
+                }
+                return;
+            }
             if (!paused || !IsRecording || guard.Broken) return;
             guard.AppLeftScreen(DateTime.Now);
             Report("map", "recording interrupted: " + guard.Reason);
@@ -304,6 +352,12 @@ namespace IndoorNavigation.Adapters.AR
 
         public void Cancel()
         {
+            if (IsTesting)
+            {
+                IsTesting = false; // keep the located checkpoint available to the app
+                SetPlaneDetection(false);
+                return;
+            }
             if (!IsRecording) return;
             IsRecording = false;
             ReleaseRequest();
@@ -315,11 +369,12 @@ namespace IndoorNavigation.Adapters.AR
             positioning.StartLocating(area.Id); // back to loading the saved map, if there is one
         }
 
-        public bool CanSave => IsRecording && !saving && !guard.Broken && TrackingReady && MappingDone && SaveBlocker() == null;
+        public bool CanSave => CanMark && MappingDone && SaveBlocker() == null;
 
         /// <summary>Why the marks are not enough to save yet, or null when they are.</summary>
         private string SaveBlocker()
         {
+            if (!guard.Ready || !stability.Ready) return "Wait for stable tracking in the new session before marking or saving.";
             string anchorProblem = AnchorBlocker();
             if (anchorProblem != null) return anchorProblem;
             if (HasPlanMarkers) return Preview != null ? null : "Mark at least two door corners first.";
@@ -339,14 +394,19 @@ namespace IndoorNavigation.Adapters.AR
         }
 
         /// <summary>"Recording 4:12 · 85 m walked · map 12.3 MiB", or why the recording broke.</summary>
-        public string ProgressLine => !IsRecording
+        public string ProgressLine => IsTesting ? "Recording paused · saved checkpoint test"
+            : !IsRecording
             ? ""
             : guard.Broken
                 ? "Recording interrupted (" + guard.Reason + "). It can't be saved: close, then record again, or test the last saved map and continue it."
                 : RecordingProgress.Line(Time.realtimeSinceStartup - recordingStartedAt, coverage.PathMetres + coverage.EarlierPathMetres, mapBytes, mapBytesAreSaved);
 
         /// <summary>The last hint or result for the person recording.</summary>
-        public string Message => message;
+        public string Message => IsTesting
+            ? positioning.InMapFrame
+                ? "Checkpoint located. Use Check; Continue resumes recording. The saved map stays unchanged during testing."
+                : "Recording paused. " + positioning.Status
+            : message;
 
         /// <summary>The corners marked so far, in the order they were first marked (a continued map's first).</summary>
         public IReadOnlyList<string> MarkedIds => markOrder;
@@ -403,7 +463,7 @@ namespace IndoorNavigation.Adapters.AR
         }
 
         /// <summary>The last corner can be undone, unless it came with the map being continued.</summary>
-        public bool CanUndo => IsRecording && !saving && markOrder.Count > loadedMarkCount;
+        public bool CanUndo => CanMark && markOrder.Count > loadedMarkCount;
 
         public void UndoLastMark()
         {
@@ -594,15 +654,17 @@ namespace IndoorNavigation.Adapters.AR
             if (anchors.Count == 0 || origin == null) return;
             Transform frame = origin.TrackablesParent;
             int moved = 0;
+            bool geometryChanged = false;
             float total = 0f, largest = 0f;
             string largestId = null;
-            foreach (KeyValuePair<string, ARAnchor> pair in new List<KeyValuePair<string, ARAnchor>>(anchors))
+            foreach (KeyValuePair<string, ARAnchor> pair in anchors)
             {
                 ARAnchor anchor = pair.Value;
                 if (anchor == null || anchor.trackingState != TrackingState.Tracking || !marks.TryGetValue(pair.Key, out Vector3 was)) continue;
                 if (!initiallyMarked.ContainsKey(pair.Key)) initiallyMarked[pair.Key] = was;
                 if (report) was = initiallyMarked[pair.Key];
                 Vector3 now = frame.InverseTransformPoint(anchor.transform.position);
+                geometryChanged |= !now.Equals(marks[pair.Key]);
                 float dx = now.x - was.x, dz = now.z - was.z;
                 float shift = (float)Math.Sqrt(dx * dx + dz * dz);
                 marks[pair.Key] = now;
@@ -617,7 +679,7 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             if (moved == 0) return;
-            UpdatePreview();
+            if (geometryChanged) UpdatePreview();
             if (!report) return;
             Report("map", string.Format(CultureInfo.InvariantCulture,
                 "corners moved with ARKit's anchors before saving: {0} of {1}, mean {2:F2} m, largest {3:F2} m ({4})",
@@ -641,21 +703,19 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>Marks a door corner: the floor point under the given screen point, usually the crosshair.</summary>
         public bool Mark(string markerId, Vector2 screenPoint)
         {
-            if (!IsRecording || saving || guard.Broken) return false;
-            if (Condition() != TrackingCondition.Normal)
+            if (!CanMark)
             {
                 message = "Wait for normal tracking before marking a door corner.";
                 return false;
             }
 
-            var hits = new List<ARRaycastHit>();
-            if (!raycasts.Raycast(screenPoint, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
+            if (!TryFloorHit(screenPoint, out ARRaycastHit hit))
             {
                 message = "No floor under the crosshair yet. Move the phone slowly over the floor and try again.";
                 return false;
             }
 
-            Vector3 world = hits[0].pose.position; // hits are sorted nearest first
+            Vector3 world = hit.pose.position;
             Transform camera = origin.Camera.transform;
             if (camera.position.y - world.y < MinimumDropToFloorMetres)
             {
@@ -668,7 +728,7 @@ namespace IndoorNavigation.Adapters.AR
             initiallyMarked[markerId] = marks[markerId];
             AnchorMark(markerId, marks[markerId]);
             coverage.SetMark(markerId, marks[markerId].x, marks[markerId].z);
-            Report("map", string.Format(CultureInfo.InvariantCulture, "marked {0} at {1:F2}, {2:F2}, {3:F2}", markerId, marks[markerId].x, marks[markerId].y, marks[markerId].z));
+            Report("map", string.Format(CultureInfo.InvariantCulture, "marked {0} at {1:F2}, {2:F2}, {3:F2}; hit={4}", markerId, marks[markerId].x, marks[markerId].y, marks[markerId].z, hit.hitType));
             UpdatePreview();
             if (HasPlanMarkers)
             {
@@ -712,7 +772,7 @@ namespace IndoorNavigation.Adapters.AR
                 return;
             }
 
-            if (IsRecording && !saving) MoveMarksToAnchors(report: true);
+            if (CanMark) MoveMarksToAnchors(report: true);
             if (!CanSave)
             {
                 message = SaveBlocker() ?? "Walk slowly around until Mapping says Mapped.";
@@ -743,6 +803,11 @@ namespace IndoorNavigation.Adapters.AR
 
         private void Update()
         {
+            if (IsTesting)
+            {
+                BindRestoredAnchors();
+                return; // no recorder mark/coverage updates, map-size requests, or saves
+            }
             if (!IsRecording) return;
 
             bool wasBroken = guard.Broken;
@@ -750,10 +815,12 @@ namespace IndoorNavigation.Adapters.AR
             if (guard.Broken && !wasBroken) Report("map", "recording interrupted: " + guard.Reason);
             if (guard.Broken)
             {
+                stability.Observe(false, Time.realtimeSinceStartup);
                 ReleaseRequest(); // never commit a map after a reset/interruption
                 ReleaseSizeRequest();
                 return;
             }
+            stability.Observe(guard.Ready && TrackingReady, Time.realtimeSinceStartup);
             if (Condition() == TrackingCondition.Normal) MoveMarksToAnchors();
             if (saving) PollSave();
             if (!IsRecording) return;
@@ -870,6 +937,9 @@ namespace IndoorNavigation.Adapters.AR
                     throw new InvalidOperationException("The world map request failed: " + status);
                 }
 
+                if (!TrackingReady || AnchorBlocker() != null)
+                    throw new InvalidOperationException("Tracking or a corner anchor was lost while saving; wait for recovery and retry.");
+
                 using (ARWorldMap worldMap = request.GetWorldMap())
                 {
                     if (!worldMap.valid) throw new InvalidOperationException("The world map is invalid.");
@@ -899,11 +969,22 @@ namespace IndoorNavigation.Adapters.AR
                 message = (pendingFit == null
                     ? "Saved. The map lines up with the plan once the package lists these corners."
                     : "Saved. This area is now located with the new map.") + lastMove;
-                ClearAnchors(removeOwned: false); // keep live anchors for the overlay and future Continue
-                positioning.UseRecordedMap(area.Id, pendingFit);
+                bool startTest = testAfterSave;
+                ClearAnchors(removeOwned: false); // keep live anchors until the next session is restored
+                testAfterSave = false;
+                if (startTest)
+                {
+                    foreach (KeyValuePair<string, string> pair in pendingAnchorIds) restoredAnchorIds[pair.Key] = pair.Value;
+                    IsTesting = true;
+                    SetPlaneDetection(true); // live floor checks; the saved map remains immutable
+                    positioning.StartLocating(area.Id); // restore the checkpoint, as a visitor would
+                    Report("map", "recording paused; checkpoint saved; starting relocalisation test");
+                }
+                else positioning.UseRecordedMap(area.Id, pendingFit);
             }
             catch (Exception e)
             {
+                testAfterSave = false;
                 ReleaseRequest();
                 message = "Saving failed: " + e.Message + " Walk around a little more and save again.";
                 Report("map", "save failed: " + e.Message);
@@ -980,22 +1061,22 @@ namespace IndoorNavigation.Adapters.AR
         public string CheckCorner(string id, Vector2 screenPoint, ArRouteOverlay overlay)
         {
 #if UNITY_IOS && !UNITY_EDITOR
-            if (!IsRecording || saving || guard.Broken) return "Check while recording, before saving; this recording must not be interrupted.";
+            if ((!IsRecording && !IsTesting) || saving || (IsRecording && guard.Broken)) return "Check while recording or testing a paused checkpoint, before saving.";
+            if (IsTesting && !positioning.InMapFrame) return "Wait for the saved checkpoint to relocalise before checking a corner.";
             if (!TrackingReady) return "Wait for normal tracking, then check again.";
             if (id == null || !marks.TryGetValue(id, out Vector3 stored)) return "Choose a marked corner first.";
             BindRestoredAnchors();
             if (!anchors.TryGetValue(id, out ARAnchor anchor) || anchor == null || anchor.trackingState != TrackingState.Tracking)
                 return "This corner has no tracked anchor yet. Look around its door and try again.";
 
-            var hits = new List<ARRaycastHit>();
-            if (!raycasts.Raycast(screenPoint, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
+            if (!TryFloorHit(screenPoint, out ARRaycastHit hit))
                 return "No floor under the circle. Aim at the physical door corner and try again.";
             Transform camera = origin.Camera.transform;
-            if (camera.position.y - hits[0].pose.position.y < MinimumDropToFloorMetres)
+            if (camera.position.y - hit.pose.position.y < MinimumDropToFloorMetres)
                 return "That looks higher than the floor. Aim where the door frame meets the floor.";
 
             Transform frame = origin.TrackablesParent;
-            Vector3 observed = frame.InverseTransformPoint(hits[0].pose.position);
+            Vector3 observed = frame.InverseTransformPoint(hit.pose.position);
             Vector3 anchored = frame.InverseTransformPoint(anchor.transform.position);
             Vector3 delta = observed - anchored; // signed: re-aimed physical point minus current anchor
             double horizontal = Math.Sqrt(delta.x * delta.x + delta.z * delta.z);
@@ -1010,10 +1091,10 @@ namespace IndoorNavigation.Adapters.AR
             }
             Report("corner-check", string.Format(CultureInfo.InvariantCulture,
                 "area={0}; mode={1}; corner={2}; frame={3}; anchorId={4}; anchor={5}; observed={6}; delta={7}; horizontal={8:F4}; stored={9}; camera={10}; cameraWorldRotation={11}; mapping={12}; rayTrackable={13}; hitType={14}; seconds={15:F1}; walked={16:F2}; {17}",
-                AreaId, continuing ? "continue" : "new", id, Time.frameCount, anchor.trackableId,
+                AreaId, IsTesting ? "checkpoint-test" : continuing ? "continue" : "new", id, Time.frameCount, anchor.trackableId,
                 PointText(anchored), PointText(observed), PointText(delta), horizontal, PointText(stored),
                 PointText(frame.InverseTransformPoint(camera.position)), camera.rotation.ToString("F4"), MappingState,
-                hits[0].trackableId, hits[0].hitType, Time.realtimeSinceStartup - recordingStartedAt,
+                hit.trackableId, hit.hitType, Time.realtimeSinceStartup - recordingStartedAt,
                 coverage.PathMetres, displayLog));
             return string.Format(CultureInfo.InvariantCulture,
                 "{0}: corner {1:F0} cm; height {2:+0;-0;0} cm; {3}. Logged; mark kept.", id, horizontal * 100, delta.y * 100, display);
@@ -1024,6 +1105,23 @@ namespace IndoorNavigation.Adapters.AR
 
         private static string PointText(Vector3 point) => string.Format(CultureInfo.InvariantCulture,
             "({0:F4},{1:F4},{2:F4})", point.x, point.y, point.z);
+
+        /// <summary>Prefer a detected floor inside its boundary; keep estimated-plane fallback for sparse floors.</summary>
+        private bool TryFloorHit(Vector2 screenPoint, out ARRaycastHit hit)
+        {
+            hit = default;
+            if (raycasts == null) return false;
+            floorHits.Clear();
+            if (raycasts.Raycast(screenPoint, floorHits, TrackableType.PlaneWithinPolygon) && floorHits.Count > 0)
+            {
+                hit = floorHits[0];
+                return true;
+            }
+            floorHits.Clear();
+            if (!raycasts.Raycast(screenPoint, floorHits, TrackableType.PlaneEstimated) || floorHits.Count == 0) return false;
+            hit = floorHits[0];
+            return true;
+        }
 
         /// <summary>Live session-space corners, including an immediately marked corner awaiting its anchor.</summary>
         public IReadOnlyList<ArMark> VisibleMarks

@@ -14,7 +14,6 @@
             <ui:VisualElement class="row">
                 <ui:Label name="maps-state" class="state-pill" />
                 <ui:VisualElement class="spacer" />
-                <ui:Button name="maps-checkpoint" text="Log check point" class="button button--small maps-inline" />
             </ui:VisualElement>
             <ui:Label name="maps-status" class="small maps-status" />
             <ui:Label name="maps-message" class="small maps-message" />

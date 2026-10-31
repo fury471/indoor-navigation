@@ -49,7 +49,8 @@
             </ui:VisualElement>
             <ui:VisualElement name="save-row" class="row recorder-row">
                 <ui:Button name="close" text="Close" class="button recorder-button" />
-                <ui:Button name="save" text="Save map" class="button button--primary recorder-button recorder-button--wide" />
+                <ui:Button name="pause" text="Pause" tooltip="Save a checkpoint and test relocalisation. The saved map stays unchanged until recording is continued and saved again." class="button recorder-button" />
+                <ui:Button name="save" text="Save" class="button button--primary recorder-button" />
             </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="crosshair" class="crosshair" picking-mode="Ignore" />

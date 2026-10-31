@@ -51,6 +51,7 @@ namespace IndoorNavigation.UI.Developer
         private readonly Button mark;
         private readonly Button undo;
         private readonly Button save;
+        private readonly Button pause;
         private readonly List<string> redo = new List<string>();
         private readonly IVisualElementScheduledItem refresh;
         private readonly VisualElement coverageView;
@@ -90,6 +91,13 @@ namespace IndoorNavigation.UI.Developer
             mark = root.Q<Button>("mark");
             undo = root.Q<Button>("undo");
             save = root.Q<Button>("save");
+            pause = root.Q<Button>("pause");
+            pause.clicked += () =>
+            {
+                recording.PauseOrContinue();
+                checkResult = null;
+                Render();
+            };
             mark.clicked += () =>
             {
                 if (checkingCorner != null)
@@ -189,7 +197,7 @@ namespace IndoorNavigation.UI.Developer
 
         public void Close()
         {
-            if (recording.IsRecording)
+            if (recording.IsRecording || recording.IsTesting)
             {
                 recording.Cancel();
             }
@@ -207,17 +215,21 @@ namespace IndoorNavigation.UI.Developer
             area.text = recording.AreaLabel ?? "No map";
             progress.text = reason == null ? recording.Progress : "";
             status.text = reason ?? (checkingCorner != null ? checkResult ?? "Aim at the original physical floor corner, then tap Check. The mark is kept." : recording.Message);
+            if (recording.IsTesting && !recording.CanPauseOrContinue) status.text = recording.Message;
+            pause.text = recording.IsTesting ? "Continue" : "Pause";
+            pause.SetEnabled(recording.CanPauseOrContinue);
             save.SetEnabled(checkingCorner == null && recording.CanSave);
             undo.SetEnabled(checkingCorner != null || recording.CanUndo);
             undo.text = checkingCorner != null ? "Stop check" : "Undo";
             string next = NextToMark();
-            mark.SetEnabled(recording.IsRecording && next != null);
+            mark.SetEnabled(recording.CanMark && next != null);
             mark.text = next == null ? "All corners marked" : (recording.IsMarked(next) ? "Mark " + next + " again" : "Mark " + next);
             if (checkingCorner != null)
             {
                 mark.text = "Check " + checkingCorner;
-                mark.SetEnabled(recording.IsRecording);
+                mark.SetEnabled(recording.IsRecording || recording.IsTesting);
             }
+            root.Q<Button>("door-redo").SetEnabled(recording.CanMark);
             RenderDoors();
             RenderCoverage();
         }
@@ -325,6 +337,8 @@ namespace IndoorNavigation.UI.Developer
         {
             session.LogExternal("developer", "map door sheet " + door);
             editingDoor = door;
+            doorName.SetEnabled(!recording.IsTesting);
+            doorRoom.SetEnabled(!recording.IsTesting);
             root.Q<Button>("door-check-left").SetEnabled(recording.IsMarked(door + "-left"));
             root.Q<Button>("door-check-right").SetEnabled(recording.IsMarked(door + "-right"));
             double? width = recording.DoorWidth(door);
@@ -346,8 +360,11 @@ namespace IndoorNavigation.UI.Developer
             if (door == null) return;
 
             string typed = doorName.value ?? "";
-            if (typed.Trim() != (recording.DoorLabel(door) ?? "")) recording.SetDoorLabel(door, typed);
-            recording.SetDoorLeadsToRoom(door, doorRoom.value);
+            if (!recording.IsTesting)
+            {
+                if (typed.Trim() != (recording.DoorLabel(door) ?? "")) recording.SetDoorLabel(door, typed);
+                recording.SetDoorLeadsToRoom(door, doorRoom.value);
+            }
             if (redoDoor)
             {
                 checkingCorner = null;

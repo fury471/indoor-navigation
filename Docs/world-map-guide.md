@@ -1,5 +1,7 @@
 # World maps: guide for builds 4 to 6
 
+> **Current build-13 amendment:** the historical build steps below remain as records. Current tests and build steps are in the README. Pause now saves and reloads a checkpoint for validation; Continue resumes after relocalisation. The duplicate World maps checkpoint button was removed; use Developer panel → Log check point. See `recording-pause-and-cleanup.md`.
+
 Build 4 (`export-position-004`, 30 Oct) made the world-map recorder a small map library: you name each map, test how well it relocalises, and continue it later to make it bigger. A recording that is interrupted can't be saved.
 
 Build 5 (`export-position-005`, 30 Oct) fixes why build 4 could not relocalise even a short map, adds Delete, and moves the maps to their own **World maps** screen.
@@ -44,7 +46,7 @@ Panel W → **World maps**. From top to bottom:
 
 | Part | What it shows or does |
 |---|---|
-| Status card | A pill: *No map loaded*, *Loading*, *Relocalising 23 s*, *Relocalised · f1-main* or *Not located*; the position's own status line; the result of your last tap. **Log check point** is here too. |
+| Status card | A pill: *No map loaded*, *Loading*, *Relocalising 23 s*, *Relocalised · f1-main* or *Not located*; the position's own status line; the result of your last tap. **Log check point** is now available only in the developer panel; it logs the same phone pose as the removed duplicate. |
 | Maps | Grouped by floor. Each card: the name, then corners · size · when saved. *In use* marks the map being located. Areas the package expects but which have no map yet are grey ("No map yet"). Tap a card to select it. |
 | Bottom sheet | For the selected map: **Test** (load it and count the seconds until it relocalises), **Continue** (once it has relocalised: record on in the same map, keeping its corners), **Delete** (asks first; removes the map and its kept copy). **New map** opens a form: a name, the floor with − and +, and **Start recording**. |
 

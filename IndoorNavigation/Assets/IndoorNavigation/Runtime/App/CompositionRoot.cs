@@ -226,6 +226,13 @@ namespace IndoorNavigation.App
                 nextOverlayAt = 0f;
                 return;
             }
+            if (mapRecorder != null && mapRecorder.IsTesting)
+            {
+                overlay.HidePath();
+                overlay.ShowCorners(realPositionSource.MapCorners);
+                nextOverlayAt = 0f;
+                return;
+            }
             if (Time.realtimeSinceStartup < nextOverlayAt) return;
             nextOverlayAt = Time.realtimeSinceStartup + OverlaySeconds;
 

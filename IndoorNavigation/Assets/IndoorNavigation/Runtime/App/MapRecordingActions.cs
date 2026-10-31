@@ -35,6 +35,10 @@ namespace IndoorNavigation.App
         // ------------------------------------------------------------------
 
         public bool IsRecording => recorder.IsRecording;
+        public bool IsTesting => recorder.IsTesting;
+        public bool CanMark => recorder.CanMark;
+        public bool CanPauseOrContinue => recorder.CanPauseOrContinue;
+        public void PauseOrContinue() => recorder.PauseOrContinue();
 
         public string AreaLabel => recorder.AreaId == null
             ? null
@@ -184,6 +188,5 @@ namespace IndoorNavigation.App
             }
         }
 
-        public string LogCheckPoint() => position.LogCheckPoint();
     }
 }
