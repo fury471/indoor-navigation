@@ -37,4 +37,7 @@ namespace IndoorNavigation.Core.Session
 
         public void SetHold(bool hold) => HoldView = hold;
     }
+
+    /// <summary>How the 2D map is turned: north up (the drawing's north arrow), or the way the phone faces up.</summary>
+    public enum MapOrientation { NorthUp, HeadingUp }
 }

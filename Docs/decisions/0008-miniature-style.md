@@ -54,6 +54,28 @@ The app now draws this geometry in both views, from one file per floor (`floor-N
 - Departures for now: no furniture (the drawing has none), and flat unlit colours instead of soft light and contact shadows, so the iPhone renders it cheaply. Glass is not drawn.
 - Polygons are split into triangles by ear clipping (Eberly, 2002).
 
+**4 Nov: the drawing is the ground truth; the app uses the blueprint's look.**
+- **Rectification from the sign alone.** The photo of the evacuation plan is now straightened from the sign itself, no longer bent by the recordings:
+  - the vanishing points of its printed horizontal and vertical rules (29 and 16 line segments);
+  - the camera's focal length from the photo's EXIF data (33 mm equivalent, 5749 px). As a check, the two directions come out 89.8° apart, close to the 90° they are on the sign.
+  - This is calibrated metric rectification (Liebowitz & Zisserman, 1998; Hartley & Zisserman, 2004, ch. 8).
+- **Only uniform moves after that.** The drawing may only be scaled uniformly, turned and shifted onto the recordings; every recording may only be turned and shifted.
+- **Residuals over the 21 door matches:**
+  - corners land 0.09 m from their clicks on average (RMS 0.12 m, worst 0.28 m);
+  - left out one at a time, a door is predicted 0.20 m off on average (median 0.17 m, worst 0.46 m, a VR lab scan door);
+  - the previous fit, which let the recordings bend the photo, gave 0.10 m and 0.17 m. So the drawing is close to true scale, and its shape is now kept.
+  - Compared with that previous fit, the drawing moved by 0.40 m on average and up to 1.5 m at the edge of the view, outside the demo zone.
+- **What moved with what.** Walls, rooms and route nodes moved with the drawing. The door corners used for alignment were recomputed from the recordings and moved by 0.26 m on average (at most 0.51 m). The foot of stairs S1 is again 1 m east of door `d3`. Package version 1.2.0.
+- **North.** The drawing's north arrow lies 0.4° anticlockwise of the plan's up. It is stored as `northDegrees` in the floor plan, and north-up turns the map by that much.
+- **The app's 2D map and miniature use the blueprint's tokens (spec board v0.2)**, not the beige architectural-model palette above, which stays for the scan check page:
+  - grey ground (#EEF0F2) and white rooms;
+  - thin grey walls: darker in the demo zone, faint and (in 3D) low outside it;
+  - teal route, with the walked part grey; blue "you" with a view cone; orange destination pin;
+  - accent-soft (#E3F1EF) for lifts and stairs, a floor-connection badge where the route takes the stairs;
+  - room names only for named rooms of the demo zone; the route network is no longer drawn.
+- **Orientation.** North-up and heading-up switch with the blueprint's Orientation button on screen B. The minimap on A is always heading-up. North-up helps to build a mental map; heading-up matches the forward view (Aretz, 1991). The heading is ARKit's camera pose through the alignment, not the magnetometer.
+- **View cone.** It opens to the AR camera's horizontal field of view, taken from its projection.
+
 ## Consequences
 
 - The look changes in one file. The app and the check page cannot drift apart.
@@ -67,3 +89,6 @@ The app now draws this geometry in both views, from one file per floor (`floor-N
 - Apple Inc. (n.d.). *CapturedRoom.Object.Category*. RoomPlan documentation. https://developer.apple.com/documentation/roomplan/capturedroom/object/category-swift.enum
 - Apple Inc. (n.d.). *CapturedRoom.ModelProvider*. RoomPlan documentation. https://developer.apple.com/documentation/roomplan/capturedroom/modelprovider
 - Eberly, D. (2002, last modified 2024). *Triangulation by Ear Clipping*. Geometric Tools. https://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf
+- Aretz, A. J. (1991). The design of electronic map displays. *Human Factors, 33*(1), 85–101.
+- Hartley, R., & Zisserman, A. (2004). *Multiple view geometry in computer vision* (2nd ed.). Cambridge University Press.
+- Liebowitz, D., & Zisserman, A. (1998). Metric rectification for perspective images of planes. In *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition* (pp. 482–488). doi:10.1109/CVPR.1998.698649

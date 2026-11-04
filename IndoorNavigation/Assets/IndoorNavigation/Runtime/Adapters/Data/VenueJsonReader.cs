@@ -92,7 +92,7 @@ namespace IndoorNavigation.Adapters.Data
             }
 
             string name = Empty(dto.name) ?? "Floor " + dto.floor.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            return new FloorPlan(dto.floor, name, new PlanBounds(dto.view.minX, dto.view.minZ, dto.view.maxX, dto.view.maxZ), zones, spaces, walls, doors);
+            return new FloorPlan(dto.floor, name, new PlanBounds(dto.view.minX, dto.view.minZ, dto.view.maxX, dto.view.maxZ), zones, spaces, walls, doors, dto.northDegrees);
         }
 
         /// <summary>The package file that holds a floor's plan, by name: floor-1-plan.json is floor 1's, in any folder.</summary>
@@ -231,6 +231,9 @@ namespace IndoorNavigation.Adapters.Data
         public SpaceDto[] spaces;
         public SegmentDto[] walls;
         public DoorDto[] doors;
+
+        /// <summary>Where north is, clockwise from the plan's up; 0 when the file does not say.</summary>
+        public double northDegrees;
     }
 
     [Serializable] internal sealed class ViewDto { public double minX; public double minZ; public double maxX; public double maxZ; }

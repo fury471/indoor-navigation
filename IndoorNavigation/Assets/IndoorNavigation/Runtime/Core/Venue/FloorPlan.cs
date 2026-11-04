@@ -108,7 +108,8 @@ namespace IndoorNavigation.Core.Venue
             IReadOnlyList<IReadOnlyList<PlanPoint>> zones,
             IReadOnlyList<PlanSpace> spaces,
             IReadOnlyList<PlanSegment> walls,
-            IReadOnlyList<PlanDoor> doors)
+            IReadOnlyList<PlanDoor> doors,
+            double northDegrees = 0)
         {
             Floor = floor;
             Name = name;
@@ -117,6 +118,7 @@ namespace IndoorNavigation.Core.Venue
             Spaces = spaces ?? Array.Empty<PlanSpace>();
             Walls = walls ?? Array.Empty<PlanSegment>();
             Doors = doors ?? Array.Empty<PlanDoor>();
+            NorthDegrees = northDegrees;
         }
 
         public int Floor { get; }
@@ -126,5 +128,11 @@ namespace IndoorNavigation.Core.Venue
         public IReadOnlyList<PlanSpace> Spaces { get; }
         public IReadOnlyList<PlanSegment> Walls { get; }
         public IReadOnlyList<PlanDoor> Doors { get; }
+
+        /// <summary>
+        /// Where north lies, in degrees clockwise from the plan's up (−z). Read from the drawing's own
+        /// north arrow; the map turns by this much in north-up mode.
+        /// </summary>
+        public double NorthDegrees { get; }
     }
 }

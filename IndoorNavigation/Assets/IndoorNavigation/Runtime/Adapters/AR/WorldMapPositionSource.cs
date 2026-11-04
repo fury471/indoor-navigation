@@ -45,7 +45,7 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>A new pose is reported only after this much movement or turning.</summary>
         public const double ReportMetres = 0.1;
 
-        public const double ReportDegrees = 5.0;
+        public const double ReportDegrees = 3.0; // the view cone on the 2D map follows turns this finely
 
         /// <summary>A hit must be at least this far below the camera to count as the floor, not a table.</summary>
         public const float MinimumDropToFloorMetres = 0.6f;
@@ -82,6 +82,7 @@ namespace IndoorNavigation.Adapters.AR
         private bool inMapFrame;
 
         private List<DoorInfo> doors;
+        private SubmapRotation rotation;
         private ArMark fixLeft;
         private float fixStartedAt;
 
@@ -180,11 +181,53 @@ namespace IndoorNavigation.Adapters.AR
             SavedMapInfo? saved = map == null ? null : store.TryReadInfo(map);
             int mapFloor = (map == null ? null : areas(map))?.Floor ?? saved?.Floor
                 ?? (areaId == null ? null : areas(areaId))?.Floor ?? 0;
-            Begin(map, areaId, mapFloor, areaId ?? "this floor");
+            rotation = NewRotation(mapFloor, map);
+            Begin(rotation.Current ?? map, areaId, mapFloor, areaId ?? "this floor");
         }
 
-        public void StartLocatingOnFloor(int floorNumber) =>
-            Begin(LatestMapOnFloor(floorNumber), null, floorNumber, "floor " + floorNumber.ToString(CultureInfo.InvariantCulture));
+        /// <summary>Tries every saved map of the floor in turn, the likeliest first (decision record 13).</summary>
+        public void StartLocatingOnFloor(int floorNumber)
+        {
+            rotation = NewRotation(floorNumber, null);
+            Begin(rotation.Current, null, floorNumber, "floor " + floorNumber.ToString(CultureInfo.InvariantCulture));
+        }
+
+        private const string LastFoundKey = "IndoorNavigation.LastFoundMap";
+
+        /// <summary>The floor's saved maps, ordered: requested, last found, nearest the last pose, then the package's order.</summary>
+        private SubmapRotation NewRotation(int floorNumber, string requested)
+        {
+            string lastFound = PlayerPrefs.GetString(LastFoundKey, "");
+            bool poseKnown = State != PositionState.Searching || Pose.Floor == floorNumber && (Pose.X != 0 || Pose.Z != 0);
+            var listed = new List<string>();
+            foreach (AreaInfo area in packageAreas?.Invoke() ?? Array.Empty<AreaInfo>()) listed.Add(area.Id);
+
+            var candidates = new List<SubmapCandidate>();
+            foreach (string id in store.SavedIds())
+            {
+                SavedMapInfo? info = store.TryReadInfo(id);
+                if (!info.HasValue) continue;
+                AreaInfo area = areas?.Invoke(id);
+                if ((area?.Floor ?? info.Value.Floor) != floorNumber) continue;
+
+                double? metres = null;
+                if (poseKnown && area != null && area.Markers.Count > 0)
+                {
+                    double best = double.MaxValue;
+                    foreach (MarkerInfo marker in area.Markers) best = Math.Min(best, Math.Sqrt(Square(marker.X - Pose.X) + Square(marker.Z - Pose.Z)));
+                    metres = best;
+                }
+
+                int order = listed.IndexOf(id);
+                candidates.Add(new SubmapCandidate(id, id == requested, id == lastFound, metres, order < 0 ? int.MaxValue : order));
+            }
+
+            var made = new SubmapRotation(candidates);
+            if (made.Count > 0) Report("position", "maps to try on floor " + floorNumber.ToString(CultureInfo.InvariantCulture) + ": " + made.Describe());
+            return made;
+        }
+
+        private static double Square(double v) => v * v;
 
         private void Begin(string map, string areaId, int floorNumber, string what)
         {
@@ -212,6 +255,7 @@ namespace IndoorNavigation.Adapters.AR
 
         public void Stop()
         {
+            rotation = null;
             mapRecord = null;
             useAnchorAlignment = false;
             if (waitingForRelocalisation) AbandonMap();
@@ -233,6 +277,7 @@ namespace IndoorNavigation.Adapters.AR
         /// </summary>
         public void PauseForRecording(bool startFresh, string areaId)
         {
+            rotation = null;
             mapRecord = null;
             useAnchorAlignment = false;
             loadPending = false;
@@ -283,6 +328,7 @@ namespace IndoorNavigation.Adapters.AR
         {
             if (door == null) return;
             useAnchorAlignment = false; // do not overwrite a deliberate manual fix with an automatic refit
+            rotation = null;
             if (loadPending || waitingForRelocalisation)
             {
                 // Stop trying the map. A reset without a map gives a fresh session to mark in.
@@ -514,10 +560,22 @@ namespace IndoorNavigation.Adapters.AR
                     if (trackingSince < 0f) trackingSince = now;
                     if (now - trackingSince >= StableTrackingSeconds)
                     {
+                        string problem = CheckMatch();
+                        if (problem != null && rotation != null && rotation.Count > 1)
+                        {
+                            Report("position", "rejected a match in " + CurrentArea + ": " + problem);
+                            TryNextMap(rotation.Reject(), "after a rejected match");
+                            return;
+                        }
+
+                        if (problem != null) Report("position", "match in " + CurrentArea + " looks doubtful (" + problem + "); no other map to try");
                         waitingForRelocalisation = false;
                         inMapFrame = true;
                         useAnchorAlignment = true;
-                        Report("position", string.Format(CultureInfo.InvariantCulture, "relocalised in {0:F1} s", now - loadStartedAt));
+                        Report("position", string.Format(CultureInfo.InvariantCulture, "relocalised in {0} after {1:F1} s", CurrentArea, now - loadStartedAt));
+                        PlayerPrefs.SetString(LastFoundKey, CurrentArea);
+                        PlayerPrefs.Save();
+                        rotation = null;
                         if (pendingAlignment == null)
                         {
                             Status = $"{CurrentArea}: relocalised, but its corners can't place it; start at a door";
@@ -537,6 +595,13 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             float waited = now - loadStartedAt;
+            if (rotation != null && rotation.ShouldMoveOn(waited))
+            {
+                Report("position", string.Format(CultureInfo.InvariantCulture, "no match in {0} after {1:F0} s", CurrentArea, waited));
+                TryNextMap(rotation.Next(), "next in turn");
+                return;
+            }
+
             if (RelocalisationPolicy.ShouldApplyAgain(waited, observedRelocalising))
             {
                 Report("position", "relocalising never started; applying the map again");
@@ -550,6 +615,47 @@ namespace IndoorNavigation.Adapters.AR
             {
                 lastProgressLog = waited;
                 Report("position", string.Format(CultureInfo.InvariantCulture, "still relocalising after {0:F0} s", waited));
+            }
+        }
+
+        /// <summary>Drops the current map and loads <paramref name="next"/> on the next frame.</summary>
+        private void TryNextMap(string next, string why)
+        {
+            AbandonMap();
+            CurrentArea = next;
+            pendingAlignment = null;
+            loadPending = next != null;
+            Status = $"{next}: loading the world map ({why})";
+            Report("position", "trying world map " + next + " (" + why + "), " + rotation.Describe());
+        }
+
+        /// <summary>
+        /// Null when the relocalised pose is plausible for the current map (decision record 13): the
+        /// camera near floor the recording covered, at a hand-held height above the map's floor.
+        /// </summary>
+        private string CheckMatch()
+        {
+            try
+            {
+                Vector3 camera = origin.TrackablesParent.InverseTransformPoint(cameraTransform.position);
+                CoverageRecord coverage = store.ReadCoverage(CurrentArea);
+                var cells = new List<(int I, int J)>();
+                if (coverage != null && coverage.cellI != null && coverage.cellJ != null && coverage.cellPoints != null)
+                {
+                    int n = Math.Min(coverage.cellI.Length, Math.Min(coverage.cellJ.Length, coverage.cellPoints.Length));
+                    for (int k = 0; k < n; k++)
+                    {
+                        if (coverage.cellPoints[k] >= MapCoverage.CoveredPoints) cells.Add((coverage.cellI[k], coverage.cellJ[k]));
+                    }
+                }
+
+                double? floorHeight = pendingAlignment != null ? pendingAlignment.FloorHeight : (double?)null;
+                return MatchCheck.Problem(cells, camera.x, camera.y, camera.z, floorHeight);
+            }
+            catch (Exception e)
+            {
+                Report("position", "match check skipped: " + e.Message);
+                return null;
             }
         }
 

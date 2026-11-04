@@ -12,7 +12,7 @@ namespace IndoorNavigation.UI.Screens
         private readonly Toggle avoidStairs;
         private readonly VisualElement noRoute;
         private readonly Button start;
-        private readonly Button show3D;
+        private readonly VisualElement mapSwitch;
         private readonly RouteView map = new RouteView();
 
         public PreviewPresenter(VisualElement root, AppSession session) : base(root, session)
@@ -24,8 +24,8 @@ namespace IndoorNavigation.UI.Screens
             noRoute = Find<VisualElement>("no-route");
             start = Find<Button>("start");
             Find<VisualElement>("map").Insert(0, map);
-            show3D = Find<Button>("show-3d");
-            show3D.clicked += () => Session.ShowMiniature(true);
+            Find<Button>("show-3d").clicked += () => Session.ShowMiniature(true);
+            mapSwitch = Find<Button>("show-2d").parent;
 
             avoidStairs.RegisterValueChangedCallback(change => Session.SetAvoidStairs(change.newValue));
             start.clicked += Session.StartRoute;
@@ -46,7 +46,7 @@ namespace IndoorNavigation.UI.Screens
             bool hasRoute = Session.Route != null;
             SetVisible(noRoute, !hasRoute);
             start.SetEnabled(hasRoute);
-            SetVisible(show3D, hasRoute);
+            SetVisible(mapSwitch, hasRoute);
             summary.text = hasRoute ? Summary() : "";
             map.Show(Session.Venue, Session.Route, Session.UserFloor, Session.Pose);
         }

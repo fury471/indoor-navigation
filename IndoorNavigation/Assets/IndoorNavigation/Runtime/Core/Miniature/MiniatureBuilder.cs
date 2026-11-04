@@ -20,6 +20,9 @@ namespace IndoorNavigation.Core.Miniature
         WallSideLight,
         WallSideDark,
         WallTop,
+
+        /// <summary>Walls outside the demo zone: low and in one light grey, so they set the scene without clutter.</summary>
+        WallQuiet,
         Route,
         You,
         Destination,
@@ -301,7 +304,11 @@ namespace IndoorNavigation.Core.Miniature
                 for (int i = 0; i < triangles.Count; i += 3) mesh.Triangle(start + triangles[i], start + triangles[i + 1], start + triangles[i + 2]);
             }
 
-            foreach (PlanSegment wall in plan.Walls) AddWall(model, wall, y);
+            foreach (PlanSegment wall in plan.Walls)
+            {
+                if (InDemo(plan, wall)) AddWall(model, wall, y);
+                else AddQuietWall(model, wall, y);
+            }
         }
 
         private static MiniaturePart PartOf(PlanSpace space)
@@ -314,7 +321,7 @@ namespace IndoorNavigation.Core.Miniature
                 case PlanSpaceKind.Room:
                 case PlanSpaceKind.Toilet:
                     return space.InDemo ? MiniaturePart.DemoSpace : MiniaturePart.Space;
-                default: return MiniaturePart.Space;
+                default: return space.InDemo ? MiniaturePart.Corridor : MiniaturePart.Space;
             }
         }
 
@@ -353,7 +360,37 @@ namespace IndoorNavigation.Core.Miniature
         private static void Side(MeshPart mesh, double ax, double az, double bx, double bz, double y0, double y1) =>
             mesh.Quad(mesh.Vertex(ax, y0, az), mesh.Vertex(ax, y1, az), mesh.Vertex(bx, y1, bz), mesh.Vertex(bx, y0, bz));
 
-        /// <summary>A wall as a box along the segment: light or dark sides by how they face the light, a dark top.</summary>
+        public const double QuietWallHeight = 0.5;
+
+        /// <summary>Whether a wall belongs to the demo zone: its middle inside a zone, or within 1 m of one.</summary>
+        private static bool InDemo(FloorPlan plan, PlanSegment wall)
+        {
+            if (plan.Zones.Count == 0) return true;
+            double mx = (wall.A.X + wall.B.X) / 2, mz = (wall.A.Z + wall.B.Z) / 2;
+            foreach (IReadOnlyList<PlanPoint> zone in plan.Zones)
+            {
+                if (Polygons.Contains(zone, mx, mz) || Polygons.DistanceToOutline(zone, mx, mz) < 1.0) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>A low wall outside the demo zone, every face in one colour.</summary>
+        private static void AddQuietWall(MiniatureModel model, PlanSegment wall, double y)
+        {
+            double ax = wall.A.X, az = -wall.A.Z, bx = wall.B.X, bz = -wall.B.Z;
+            double len = Math.Sqrt(((bx - ax) * (bx - ax)) + ((bz - az) * (bz - az)));
+            if (len < 1e-6) return;
+            double nx = -(bz - az) / len * WallThickness / 2, nz = (bx - ax) / len * WallThickness / 2;
+            double[] cx = { ax + nx, bx + nx, bx - nx, ax - nx };
+            double[] cz = { az + nz, bz + nz, bz - nz, az - nz };
+            MeshPart mesh = model.Part(MiniaturePart.WallQuiet);
+            double y1 = y + QuietWallHeight;
+            mesh.Quad(mesh.Vertex(cx[0], y1, cz[0]), mesh.Vertex(cx[1], y1, cz[1]), mesh.Vertex(cx[2], y1, cz[2]), mesh.Vertex(cx[3], y1, cz[3]));
+            for (int i = 0; i < 4; i++) Side(mesh, cx[i], cz[i], cx[(i + 1) % 4], cz[(i + 1) % 4], y, y1);
+        }
+
+        /// <summary>A wall as a box along the segment: light or dark sides by how they face the light, a darker top.</summary>
         private static void AddWall(MiniatureModel model, PlanSegment wall, double y)
         {
             double ax = wall.A.X, az = -wall.A.Z, bx = wall.B.X, bz = -wall.B.Z;

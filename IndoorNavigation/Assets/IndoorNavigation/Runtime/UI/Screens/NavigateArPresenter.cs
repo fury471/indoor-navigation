@@ -22,6 +22,7 @@ namespace IndoorNavigation.UI.Screens
             instructionDetail = Find<Label>("instruction-detail");
             destination = Find<Label>("destination");
             Find<VisualElement>("minimap").Add(minimap);
+            minimap.ShowLabels = false;
             Find<Button>("fix-position").clicked += Session.FixPosition;
         }
 
@@ -36,7 +37,11 @@ namespace IndoorNavigation.UI.Screens
             instruction.text = title;
             instructionDetail.text = Session.AwaitingFloorChange ? "Lower the phone to confirm the floor" : detail;
             destination.text = "To " + Session.Destination.Name;
-            minimap.Show(Session.Venue, Session.Route, Session.UserFloor, Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null);
+            // Blueprint: a small heading-up map centred on you.
+            minimap.Show(
+                Session.Venue, Session.Route, Session.UserFloor,
+                Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null,
+                Session.NextNodeIndex, MapOrientation.HeadingUp, Session.CameraFovDegrees);
         }
     }
 }

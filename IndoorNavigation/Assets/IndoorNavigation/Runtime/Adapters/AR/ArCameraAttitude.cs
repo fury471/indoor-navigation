@@ -13,10 +13,29 @@ namespace IndoorNavigation.Adapters.AR
     public sealed class ArCameraAttitude : MonoBehaviour, IDeviceAttitude
     {
         private Transform cameraTransform;
+        private Camera arCameraComponent;
 
         public event Action<double> PitchChanged;
 
-        public void Init(Transform arCamera) => cameraTransform = arCamera;
+        public void Init(Transform arCamera)
+        {
+            cameraTransform = arCamera;
+            arCameraComponent = arCamera != null ? arCamera.GetComponent<Camera>() : null;
+        }
+
+        /// <summary>
+        /// From the camera's projection, which AR Foundation sets to match the camera image as shown on
+        /// the screen: m00 = 1 / tan(horizontal FOV / 2).
+        /// </summary>
+        public double HorizontalFovDegrees
+        {
+            get
+            {
+                if (arCameraComponent == null) return 60.0;
+                float m00 = arCameraComponent.projectionMatrix.m00;
+                return m00 > 0.01f ? 2.0 * Math.Atan(1.0 / m00) * 180.0 / Math.PI : 60.0;
+            }
+        }
 
         public static double PitchFromForward(Vector3 forward)
         {

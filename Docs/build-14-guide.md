@@ -36,12 +36,12 @@ Start in the VR lab with the room empty.
 2. **2D plan against the room.** Stand still at three known places: just inside the VR lab door, at the toilet door (Toilet 1) and at the door to stairs S1. At each, compare the blue dot with where you stand on the plan. Estimate the distance in the plan's own scale (the corridor is about 2.3 m wide) and take a screenshot.
 3. **Walls and doors.** Walk the route to Toilet 1. Note any wall the plan draws where there is none, or a door that is missing. Name the spot by the nearest room.
 4. **3D.** On screen 5 and during the route: open 3D, turn it, pinch to zoom, reset, go back. Note anything that stutters, any label that covers another, and whether the phone gets warm.
-5. **Exploded view.** Ask "floor 3", look at the 3D view, and walk to the bottom of stairs S1. Do not go up: floors 2 and 3 are not mapped, so the app cannot guide you there. Confirm that the route ends at the door you recorded as `d3` in the stairs-and-lifts map.
+5. **Exploded view.** Ask "floor 3", look at the 3D view, and walk to the bottom of stairs S1. Do not go up: floors 2 and 3 are not mapped, so the app cannot guide you there. Confirm that the route enters the stair hall from the corridor and ends at the foot of the stairs, 1 m east of the electrical-room door `d3`.
 6. Record the results in `Docs/device-tests.md` under build 14, with the session log.
 
 ## Known limits
 
-- **Stairs S1 location: please check on site.** The route goes west through door `d3` (x 32.5 m, z 36.9 m on the plan) and ends 1 m past it. The evacuation drawing shows stair treads in the lobby **east** of that door (x 34–36 m, z 30–34 m). Look at which side of the door the stairs actually are. If they are in the lobby, the stairs node moves about 3 m east, and nothing else changes.
+- **Stairs S1, checked on site (4 Nov).** Door `d3` is an electrical room (ELRUM, no entry), not the way to the stairs. The bottom of stairs S1 is 1 m east of `d3`, in the stair hall. Package 1.1.1 routes through the opening on the west side of the corridor (x 36.8 m, z 37.2–40.0 m) to that point, no longer through `d3`, and the stair hall is drawn as stairs. `d3` stays an alignment marker only. VR lab → stairs S1 is now 33.1 m. No rebuild is needed for this if you copy the four package files into the app's Documents folder as `VenuePackage/`; a rebuild picks them up from StreamingAssets as well.
 - Floors 2 and 3 are assumed to lie exactly above floor 1 until they are recorded. The climb between floors counts as 0 m in the route length.
 - The lifts are destinations on floor 1 only. No route uses them to change floor.
 - The miniature uses flat colours on an unlit material: walls are shaded by colour, not by light. There is no furniture, because the evacuation drawing has none (decision record 8, 31 Oct amendment).

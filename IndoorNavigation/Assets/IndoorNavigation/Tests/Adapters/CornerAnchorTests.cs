@@ -8,6 +8,7 @@ using IndoorNavigation.Core.Venue;
 using NUnit.Framework;
 using Unity.XR.CoreUtils;
 using UnityEngine;
+using UnityEngine.TestTools.Utils;
 
 namespace IndoorNavigation.Adapters.Tests
 {
@@ -123,6 +124,9 @@ namespace IndoorNavigation.Adapters.Tests
             Assert.That(at.Z, Is.EqualTo(-2).Within(0.0001));
         }
 
+        /// <summary>Going out of session space and back costs float rounding (1.2 comes back as 1.2000001): compare to 0.1 mm.</summary>
+        private static readonly Vector3EqualityComparer Close = new Vector3EqualityComparer(1e-4f);
+
         [Test]
         public void OverlayShowsOneCornerBeforeADoorIsCompleteAndHidesRemovedCorners()
         {
@@ -141,13 +145,13 @@ namespace IndoorNavigation.Adapters.Tests
                 Assert.That(posts[0].useWorldSpace, Is.False);
                 Assert.That(posts[0].GetPosition(0), Is.EqualTo(new Vector3(1, -1, 2)));
                 Assert.That(overlay.TryGetCornerFoot("d1-left", out Vector3 foot, out int frame), Is.True);
-                Assert.That(foot, Is.EqualTo(new Vector3(1, -1, 2)), "The rendered foot must be reported in session space, even under a moved origin.");
+                Assert.That(foot, Is.EqualTo(new Vector3(1, -1, 2)).Using(Close), "The rendered foot must be reported in session space, even under a moved origin.");
                 Assert.That(frame, Is.EqualTo(Time.frameCount));
                 Assert.That(overlay.TryGetCornerFoot("d1-right", out _, out _), Is.False);
                 overlay.ShowCorners(new[] { new ArMark("d1-left", 1.2, -0.8, 2) });
                 Assert.That(posts[0].GetPosition(0), Is.EqualTo(new Vector3(1.2f, -0.8f, 2)));
                 Assert.That(overlay.TryGetCornerFoot("d1-left", out foot, out _), Is.True);
-                Assert.That(foot, Is.EqualTo(new Vector3(1.2f, -0.8f, 2)));
+                Assert.That(foot, Is.EqualTo(new Vector3(1.2f, -0.8f, 2)).Using(Close));
                 overlay.ShowCorners(Array.Empty<ArMark>());
                 Assert.That(posts[0].gameObject.activeSelf, Is.False);
                 Assert.That(overlay.TryGetCornerFoot("d1-left", out _, out _), Is.False);

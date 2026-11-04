@@ -18,7 +18,13 @@
             <ui:Button name="confirm-floor" class="button button--primary" />
         </ui:VisualElement>
         <ui:VisualElement name="map" class="map">
-            <ui:Button name="show-3d" text="3D" class="button button--small map-switch" />
+            <ui:VisualElement class="segmented segmented--map">
+                <ui:Button name="show-2d" text="2D" class="segment segment--on" />
+                <ui:Button name="show-3d" text="3D" class="segment" />
+            </ui:VisualElement>
+            <ui:VisualElement class="map-controls">
+                <ui:Button name="orientation" tooltip="North up or heading up" class="map-control" />
+            </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement class="sheet">
             <ui:Label name="destination" class="strong" />

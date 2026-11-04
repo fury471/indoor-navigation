@@ -23,6 +23,8 @@ namespace IndoorNavigation.UI.Screens
         private readonly Label remaining;
         private readonly VisualElement endConfirm;
         private readonly RouteView map = new RouteView();
+        private readonly Button orientation;
+        private readonly CompassIcon compass = new CompassIcon();
 
         public NavigateMapPresenter(VisualElement root, AppSession session) : base(root, session)
         {
@@ -37,6 +39,9 @@ namespace IndoorNavigation.UI.Screens
             endConfirm = Find<VisualElement>("end-confirm");
             Find<VisualElement>("map").Insert(0, map);
             Find<Button>("show-3d").clicked += () => Session.ShowMiniature(true);
+            orientation = Find<Button>("orientation");
+            orientation.Add(compass);
+            orientation.clicked += Session.ToggleMapOrientation;
 
             confirmFloor.clicked += () => Session.ConfirmFloor(Session.NextFloor);
             Find<Button>("fix-position").clicked += Session.FixPosition;
@@ -71,7 +76,12 @@ namespace IndoorNavigation.UI.Screens
             destination.text = Session.Destination.Name;
             double metres = RouteProgress.RemainingMetres(Session.Route, Session.NextNodeIndex, Session.Pose);
             remaining.text = Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Metres(metres) + " to go";
-            map.Show(Session.Venue, Session.Route, Session.View.FloorShown, Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null);
+            map.Show(
+                Session.Venue, Session.Route, Session.View.FloorShown,
+                Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null,
+                Session.NextNodeIndex, Session.MapOrientation, Session.CameraFovDegrees);
+            orientation.EnableInClassList("map-control--on", Session.MapOrientation == MapOrientation.HeadingUp);
+            compass.Degrees = map.NorthOnScreenDegrees;
         }
     }
 }

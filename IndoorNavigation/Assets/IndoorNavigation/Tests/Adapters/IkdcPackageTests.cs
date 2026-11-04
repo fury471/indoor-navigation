@@ -72,6 +72,24 @@ namespace IndoorNavigation.Adapters.Tests
         }
 
         [Test]
+        public void ArGuidance_FromTheVrLab_HidesTheToiletUntilItIsInSight()
+        {
+            VenuePackage venue = Load();
+            Route route = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "d-toilet-1", new RouteOptions());
+            GraphNode start = venue.Graph.Node("n-vr-lab");
+            ArGuidanceFrame inLab = ArGuidance.Plan(route, 1, new PlanPose(1, start.X, start.Z, 270), venue.PlanOf(1));
+            Assert.IsNull(inLab.PinAt, "Toilet 1 lies behind the VR lab's walls.");
+            Assert.GreaterOrEqual(inLab.Points.Count, 2, "The way to the door is in sight.");
+            Assert.IsFalse(inLab.ReachesDestination);
+
+            GraphNode lobby = venue.Graph.Node("j-toilet-lobby");
+            int next = route.Nodes.ToList().FindIndex(n => n.Id == "d-toilet-1");
+            ArGuidanceFrame atLobby = ArGuidance.Plan(route, next, new PlanPose(1, lobby.X, lobby.Z, 90), venue.PlanOf(1));
+            Assert.IsNotNull(atLobby.PinAt, "In front of the toilets the destination shows.");
+            Assert.IsTrue(atLobby.ReachesDestination);
+        }
+
+        [Test]
         public void Search_FindsPlacesByWordAndFloorNumber()
         {
             VenuePackage venue = Load();

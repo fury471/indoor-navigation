@@ -30,3 +30,4 @@ The schema version follows Semantic Versioning: a new MAJOR version marks incomp
 - Outlines are flat arrays `xz: [x0, z0, x1, z1, …]`, because Unity's `JsonUtility` cannot read nested arrays.
 - `VenueValidator` refuses a plan for an unknown floor, two plans for one floor, an empty view and an outline with fewer than three points.
 - The 2D map and the miniature both draw from this file, so they cannot disagree (decision record 8).
+- 4 Nov: an optional `northDegrees` gives where north lies, clockwise from the plan's up, read from the drawing's north arrow. It is 0 when absent.

@@ -41,7 +41,7 @@ namespace IndoorNavigation.App
         {
             new DoorInfo("d1", "inside-vrlab", 1, "VR lab", 39.956, 60.812, 39.932, 63.1, leadsToRoom: true),
             new DoorInfo("d1", "inside-vrlab", 1, "VR lab", 39.956, 60.812, 39.932, 63.1, leadsToRoom: true).FromInside(),
-            new DoorInfo("d3", "stairs-elevator-zone", 1, "Stairs S1", 32.336, 37.456, 32.752, 36.256),
+            new DoorInfo("d3", "stairs-elevator-zone", 1, "Electrical room, by stairs S1", 32.336, 37.456, 32.752, 36.256),
             new DoorInfo("d1", "toilet-zone", 1, "Toilet 1", 43.473, 77.701, 42.643, 77.678, leadsToRoom: true),
         };
 
@@ -129,6 +129,7 @@ namespace IndoorNavigation.App
                 realPositionSource = realPosition;
                 overlay = gameObject.AddComponent<ArRouteOverlay>();
                 overlay.Init(xrOrigin, routeMaterial);
+                DepthOcclusion.Enable(arCamera); // real walls hide the AR route (decision record 12)
             }
             else
             {
@@ -259,7 +260,8 @@ namespace IndoorNavigation.App
             bool found = session.PositionState == PositionState.Found && alignment != null;
             if (found && session.Route != null && session.Screen == ScreenCodes.ArGuidance && !session.AwaitingFloorChange)
             {
-                overlay.ShowPath(alignment, RouteAhead.Points(session.Route, session.NextNodeIndex, session.Pose));
+                ArGuidanceFrame guidance = ArGuidance.Plan(session.Route, session.NextNodeIndex, session.Pose, session.Venue?.PlanOf(session.Pose.Floor));
+                overlay.ShowPath(alignment, guidance.Points, guidance.MetresToDestination, guidance.ReachesDestination, guidance.PinAt);
             }
             else
             {

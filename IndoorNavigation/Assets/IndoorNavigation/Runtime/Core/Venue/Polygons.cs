@@ -91,6 +91,83 @@ namespace IndoorNavigation.Core.Venue
             return result;
         }
 
+        /// <summary>Whether (x, z) lies inside the polygon (even-odd rule, ray casting).</summary>
+        public static bool Contains(IReadOnlyList<PlanPoint> p, double x, double z)
+        {
+            bool inside = false;
+            if (p == null) return false;
+            for (int i = 0, j = p.Count - 1; i < p.Count; j = i++)
+            {
+                if ((p[i].Z > z) != (p[j].Z > z) &&
+                    x < (p[j].X - p[i].X) * (z - p[i].Z) / (p[j].Z - p[i].Z) + p[i].X)
+                {
+                    inside = !inside;
+                }
+            }
+
+            return inside;
+        }
+
+        /// <summary>The shortest distance from (x, z) to the polygon's outline.</summary>
+        public static double DistanceToOutline(IReadOnlyList<PlanPoint> p, double x, double z)
+        {
+            double best = double.MaxValue;
+            if (p == null) return best;
+            for (int i = 0, j = p.Count - 1; i < p.Count; j = i++)
+            {
+                best = Math.Min(best, Segments.DistanceToSegment(x, z, p[j].X, p[j].Z, p[i].X, p[i].Z));
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// A point well inside the polygon for its name: the area centroid when it lies inside, else the
+        /// middle of the widest stretch inside along the centroid's line (L-shaped rooms).
+        /// </summary>
+        public static (double X, double Z) LabelPoint(IReadOnlyList<PlanPoint> p)
+        {
+            double a2 = SignedArea2(p), cx = 0, cz = 0;
+            for (int i = 0, j = p.Count - 1; i < p.Count; j = i++)
+            {
+                double f = (p[j].X * p[i].Z) - (p[i].X * p[j].Z);
+                cx += (p[j].X + p[i].X) * f;
+                cz += (p[j].Z + p[i].Z) * f;
+            }
+
+            if (Math.Abs(a2) > 1e-9)
+            {
+                cx /= 3 * a2;
+                cz /= 3 * a2;
+                if (Contains(p, cx, cz)) return (cx, cz);
+            }
+            else
+            {
+                cx = p[0].X;
+                cz = p[0].Z;
+            }
+
+            // Crossings of the horizontal line through the centroid; the widest inside stretch wins.
+            var xs = new List<double>();
+            for (int i = 0, j = p.Count - 1; i < p.Count; j = i++)
+            {
+                if ((p[i].Z > cz) != (p[j].Z > cz)) xs.Add((p[j].X - p[i].X) * (cz - p[i].Z) / (p[j].Z - p[i].Z) + p[i].X);
+            }
+
+            xs.Sort();
+            double bestWidth = -1, bestX = cx;
+            for (int k = 0; k + 1 < xs.Count; k += 2)
+            {
+                if (xs[k + 1] - xs[k] > bestWidth)
+                {
+                    bestWidth = xs[k + 1] - xs[k];
+                    bestX = (xs[k] + xs[k + 1]) / 2;
+                }
+            }
+
+            return (bestX, cz);
+        }
+
         private static double Cross(PlanPoint a, PlanPoint b, PlanPoint c) =>
             ((b.X - a.X) * (c.Z - a.Z)) - ((b.Z - a.Z) * (c.X - a.X));
 

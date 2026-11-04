@@ -34,7 +34,7 @@ You need:
 
 Then:
 1. Clone the repo and open the folder `IndoorNavigation/` in Unity Hub. Let the packages resolve.
-2. **Window → General → Test Runner → EditMode → Run All.** Expect 313 tests (303 Core and ten adapter tests; the three IKDC package tests are skipped when `StreamingAssets/IKDC` is absent). The current source has passed compilation and 306 offline tests; full Unity execution remains pending (see `Docs/device-tests.md`).
+2. **Window → General → Test Runner → EditMode → Run All.** Expect 329 tests (318 Core and 11 adapter tests; the four IKDC package tests are skipped when `StreamingAssets/IKDC` is absent). The current source has passed compilation and 322 offline tests; full Unity execution remains pending (see `Docs/device-tests.md`).
 3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard (on screen 1, choose the floor, then **Tell the app where I am** works with sample doors):
 
    | Key | Does |
@@ -100,7 +100,8 @@ Where to look:
 |---|---|
 | `Docs/walking-skeleton-guide.md` | Unity set-up of the App scene, the commit order of the skeleton, six lessons |
 | `Docs/real-position-guide.md` | The idea behind world maps and door-corner alignment (part A); parts C and D are history |
-| `Docs/build-14-guide.md` | **Current build:** the floor-1 plan under the route, the 3D miniature and exploded view (screen D), and the floor-1 test |
+| `Docs/build-15-guide.md` | **Current build:** blueprint-style 2D map with north-up/heading-up and view cone, the drawing as ground truth, the AR track with occlusion and line of sight, and starting from any floor-1 map |
+| `Docs/build-14-guide.md` | Build 14: the floor-1 plan under the route, the 3D miniature and exploded view (screen D), and the floor-1 test |
 | `Docs/build-7-guide.md` | Builds 7 to 10 (finding your position, arrows in AR) and the floor-by-floor lab visit 2 |
 | `Docs/continue-corner-check.md` | **Current diagnostic task:** measure corner residuals while Continue updates the map; interpretation and criteria for deciding a correction |
 | `Docs/recording-pause-and-cleanup.md` | Build 13: Pause saves and tests an unchanged checkpoint, Continue resumes, checkpoint button cleanup and startup fixes |

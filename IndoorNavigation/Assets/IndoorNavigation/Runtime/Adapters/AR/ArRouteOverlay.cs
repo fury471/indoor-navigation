@@ -7,28 +7,40 @@ using UnityEngine;
 namespace IndoorNavigation.Adapters.AR
 {
     /// <summary>
-    /// Draws in the camera view (screen A): the route ahead as a line on the floor with a post at its
-    /// end, and, for the developer, a post on every known door corner, which shows at a glance how far
-    /// the position has drifted since the last fix. Plan points become session points through the
-    /// current <see cref="PlanAlignment"/>; the lines live under the XR Origin's trackables, so they
-    /// stay put in the room while ARKit tracks. Only the near part of the route is drawn
-    /// (<c>RouteAhead</c>, decision record 11).
+    /// Draws in the camera view (screen A): the route ahead as a flat teal track on the floor with
+    /// moving white chevrons (blueprint screen A, decision record 12), the destination as an orange
+    /// pin when it is in line of sight, and, for the developer, a post on every known door corner,
+    /// which shows at a glance how far the position has drifted since the last fix. Plan points become
+    /// session points through the current <see cref="PlanAlignment"/>; everything lives under the XR
+    /// Origin's trackables, so it stays put in the room while ARKit tracks. Only the near part of the
+    /// route is drawn (<c>RouteAhead</c>, decision record 11). Real walls hide what lies behind them
+    /// through the depth sensor's occlusion, set up by the composition root.
     /// </summary>
     public sealed class ArRouteOverlay : MonoBehaviour
     {
-        public const float LineWidthMetres = 0.12f;
-        public const float AboveFloorMetres = 0.02f;
-        public const float EndPostMetres = 1.2f;
+        public const float TrackHalfWidthMetres = 0.28f;
+        public const float AboveFloorMetres = 0.015f;
+        public const float CornerRadiusMetres = 0.7f;
+        public const float CutFadeMetres = 1.5f;
+        public const float PinHeightMetres = 1.1f;
         public const float DoorPostMetres = 1.0f;
 
-        private static readonly Color RouteColour = new Color(0.15f, 0.55f, 1f, 0.9f);
+        // Blueprint tokens: accent (route) and destination.
+        private static readonly Color RouteColour = new Color32(0x0F, 0x76, 0x6E, 0xFF);
+        private static readonly Color DestinationColour = new Color32(0xD9, 0x48, 0x0F, 0xFF);
         private static readonly Color DoorColour = new Color(1f, 0.62f, 0.1f, 0.9f);
 
         private XROrigin origin;
-        private Material routeMaterial;
+        private Material trackMaterial;
+        private Material pinMaterial;
         private Material doorMaterial;
-        private LineRenderer path;
-        private LineRenderer endPost;
+        private Mesh trackMesh;
+        private GameObject track;
+        private GameObject pin;
+        private readonly List<Vector3> vertices = new List<Vector3>();
+        private readonly List<Vector2> uvs = new List<Vector2>();
+        private readonly List<Color> colours = new List<Color>();
+        private readonly List<int> triangles = new List<int>();
         private readonly List<LineRenderer> doorPosts = new List<LineRenderer>();
         private readonly Dictionary<string, LineRenderer> cornerPosts = new Dictionary<string, LineRenderer>(StringComparer.Ordinal);
         private int cornersFrame;
@@ -50,39 +62,198 @@ namespace IndoorNavigation.Adapters.AR
                 source = new Material(shader);
             }
 
-            routeMaterial = Tinted(source, RouteColour);
             doorMaterial = Tinted(source, DoorColour);
+            pinMaterial = Tinted(source, DestinationColour);
+            plainSource = source;
         }
 
-        /// <summary>Draws the route ahead. <paramref name="planPoints"/> start at the user; fewer than two hides it.</summary>
-        public void ShowPath(PlanAlignment alignment, IReadOnlyList<(double X, double Z)> planPoints)
+        private Material plainSource;
+
+        /// <summary>
+        /// The parent that holds session coordinates: the XR Origin's trackables. XROrigin creates it in
+        /// Awake, which does not run for a component added in an Editor test; then the origin itself stands in.
+        /// </summary>
+        private Transform SessionSpace => origin.TrackablesParent != null ? origin.TrackablesParent : origin.transform;
+
+        /// <summary>
+        /// The track's own shader (Resources/RouteRibbon.shader), loaded the first time the route is
+        /// drawn; without it, the plain route colour.
+        /// </summary>
+        private Material TrackMaterial()
         {
-            if (alignment == null || planPoints == null || planPoints.Count < 2 || routeMaterial == null)
+            if (trackMaterial != null || plainSource == null) return trackMaterial;
+            Shader ribbon = Resources.Load<Shader>("RouteRibbon");
+            bool usable = ribbon != null && ribbon.isSupported;
+            trackMaterial = usable ? new Material(ribbon) { name = "Route track" } : Tinted(plainSource, RouteColour);
+            if (!usable) Debug.LogWarning("[IndoorNavigation] RouteRibbon shader missing or unsupported; the AR route is drawn plain.");
+            return trackMaterial;
+        }
+
+        /// <summary>
+        /// Draws the route ahead. <paramref name="planPoints"/> start at the user; fewer than two hides
+        /// the track. <paramref name="metresToDestination"/> is the route length from the first point to
+        /// the destination: the chevrons are laid out by it, so they stay put in the room as the start
+        /// point moves with the user. <paramref name="reachesDestination"/> tells whether the last point
+        /// is the destination; otherwise the cut end fades out. <paramref name="pinAt"/> places the
+        /// destination pin, or null to hide it (out of sight).
+        /// </summary>
+        public void ShowPath(
+            PlanAlignment alignment, IReadOnlyList<(double X, double Z)> planPoints, double metresToDestination,
+            bool reachesDestination, (double X, double Z)? pinAt)
+        {
+            if (alignment == null || TrackMaterial() == null)
             {
                 HidePath();
                 return;
             }
 
-            if (path == null) path = NewLine("Route ahead", routeMaterial, LineWidthMetres);
-            if (endPost == null) endPost = NewLine("Route end", routeMaterial, LineWidthMetres / 2);
-
             float y = (float)alignment.FloorHeight + AboveFloorMetres;
-            path.positionCount = planPoints.Count;
-            for (int i = 0; i < planPoints.Count; i++) path.SetPosition(i, ToSession(alignment, planPoints[i], y));
+            if (planPoints != null && planPoints.Count >= 2)
+            {
+                var session = new List<Vector3>(planPoints.Count);
+                foreach ((double X, double Z) p in planPoints) session.Add(ToSession(alignment, p, y));
+                BuildTrack(Rounded(session, CornerRadiusMetres), (float)metresToDestination, reachesDestination);
+                SetActive(track, true);
+            }
+            else
+            {
+                SetActive(track, false);
+            }
 
-            Vector3 end = ToSession(alignment, planPoints[planPoints.Count - 1], y);
-            endPost.positionCount = 2;
-            endPost.SetPosition(0, end);
-            endPost.SetPosition(1, new Vector3(end.x, end.y + EndPostMetres, end.z));
-
-            SetActive(path, true);
-            SetActive(endPost, true);
+            if (pinAt.HasValue)
+            {
+                if (pin == null) pin = NewPin();
+                pin.transform.localPosition = ToSession(alignment, pinAt.Value, (float)alignment.FloorHeight);
+                SetActive(pin, true);
+            }
+            else
+            {
+                SetActive(pin, false);
+            }
         }
 
         public void HidePath()
         {
-            SetActive(path, false);
-            SetActive(endPost, false);
+            SetActive(track, false);
+            SetActive(pin, false);
+        }
+
+        /// <summary>
+        /// Rounds every corner with a quadratic curve through the corner, at most
+        /// <paramref name="radius"/> from it and at most half of each leg, so turns read as smooth bends.
+        /// </summary>
+        private static List<Vector3> Rounded(List<Vector3> points, float radius)
+        {
+            if (points.Count < 3) return points;
+            var result = new List<Vector3> { points[0] };
+            for (int i = 1; i < points.Count - 1; i++)
+            {
+                Vector3 a = points[i - 1], c = points[i], b = points[i + 1];
+                float inLength = (c - a).magnitude, outLength = (b - c).magnitude;
+                float r = Mathf.Min(radius, inLength / 2f, outLength / 2f);
+                if (r < 0.05f)
+                {
+                    result.Add(c);
+                    continue;
+                }
+
+                Vector3 p0 = c + (a - c).normalized * r, p2 = c + (b - c).normalized * r;
+                const int steps = 6;
+                for (int k = 0; k <= steps; k++)
+                {
+                    float t = (float)k / steps;
+                    result.Add(((1 - t) * (1 - t) * p0) + (2 * (1 - t) * t * c) + (t * t * p2));
+                }
+            }
+
+            result.Add(points[points.Count - 1]);
+            return result;
+        }
+
+        /// <summary>A strip of quads along the points: uv.x across (0 to 1), uv.y the metres left to the destination.</summary>
+        private void BuildTrack(List<Vector3> points, float metresToDestination, bool reachesDestination)
+        {
+            if (track == null)
+            {
+                track = new GameObject("Route track");
+                track.transform.SetParent(SessionSpace, false); // session coordinates, as the alignment
+                trackMesh = new Mesh { name = "Route track" };
+                trackMesh.MarkDynamic();
+                track.AddComponent<MeshFilter>().sharedMesh = trackMesh;
+                MeshRenderer meshRenderer = track.AddComponent<MeshRenderer>();
+                meshRenderer.sharedMaterial = trackMaterial;
+                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                meshRenderer.receiveShadows = false;
+            }
+
+            vertices.Clear();
+            uvs.Clear();
+            colours.Clear();
+            triangles.Clear();
+
+            float total = 0f;
+            for (int i = 1; i < points.Count; i++) total += (points[i] - points[i - 1]).magnitude;
+
+            float along = 0f;
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (i > 0) along += (points[i] - points[i - 1]).magnitude;
+                Vector3 tangent = (points[Mathf.Min(i + 1, points.Count - 1)] - points[Mathf.Max(i - 1, 0)]);
+                tangent.y = 0f;
+                if (tangent.sqrMagnitude < 1e-8f) tangent = Vector3.forward;
+                tangent.Normalize();
+                var side = new Vector3(-tangent.z, 0f, tangent.x) * TrackHalfWidthMetres;
+
+                float fade = reachesDestination ? 1f : Mathf.Clamp01((total - along) / CutFadeMetres);
+                var colour = new Color(1f, 1f, 1f, fade);
+                float metresLeft = metresToDestination - along;
+                vertices.Add(points[i] + side);
+                vertices.Add(points[i] - side);
+                uvs.Add(new Vector2(0f, metresLeft));
+                uvs.Add(new Vector2(1f, metresLeft));
+                colours.Add(colour);
+                colours.Add(colour);
+                if (i > 0)
+                {
+                    int v = (i - 1) * 2;
+                    triangles.Add(v);
+                    triangles.Add(v + 2);
+                    triangles.Add(v + 1);
+                    triangles.Add(v + 1);
+                    triangles.Add(v + 2);
+                    triangles.Add(v + 3);
+                }
+            }
+
+            trackMesh.Clear();
+            trackMesh.SetVertices(vertices);
+            trackMesh.SetUVs(0, uvs);
+            trackMesh.SetColors(colours);
+            trackMesh.SetTriangles(triangles, 0);
+            trackMesh.RecalculateBounds();
+        }
+
+        /// <summary>The destination pin: a thin orange post with a ball on top, standing on the floor.</summary>
+        private GameObject NewPin()
+        {
+            var root = new GameObject("Destination pin");
+            root.transform.SetParent(SessionSpace, false);
+            Part(PrimitiveType.Cylinder, root.transform, new Vector3(0f, PinHeightMetres / 2f, 0f), new Vector3(0.035f, PinHeightMetres / 2f, 0.035f));
+            Part(PrimitiveType.Sphere, root.transform, new Vector3(0f, PinHeightMetres, 0f), Vector3.one * 0.22f);
+            return root;
+        }
+
+        private void Part(PrimitiveType type, Transform parent, Vector3 position, Vector3 scale)
+        {
+            GameObject part = GameObject.CreatePrimitive(type);
+            Collider collider = part.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = position;
+            part.transform.localScale = scale;
+            MeshRenderer meshRenderer = part.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = pinMaterial;
+            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         /// <summary>Draws a post on both corners of every door given (on the user's floor).</summary>
@@ -138,7 +309,7 @@ namespace IndoorNavigation.Adapters.AR
             frame = cornersFrame;
             if (id == null || !cornerPosts.TryGetValue(id, out LineRenderer line)
                 || line == null || !line.gameObject.activeInHierarchy || line.positionCount < 2) return false;
-            foot = origin.TrackablesParent.InverseTransformPoint(line.transform.TransformPoint(line.GetPosition(0)));
+            foot = SessionSpace.InverseTransformPoint(line.transform.TransformPoint(line.GetPosition(0)));
             return true;
         }
 
@@ -161,7 +332,7 @@ namespace IndoorNavigation.Adapters.AR
         private LineRenderer NewLine(string name, Material material, float width)
         {
             var line = new GameObject(name).AddComponent<LineRenderer>();
-            line.transform.SetParent(origin.TrackablesParent, false); // session coordinates, as the alignment
+            line.transform.SetParent(SessionSpace, false); // session coordinates, as the alignment
             line.useWorldSpace = false;
             line.sharedMaterial = material;
             line.widthMultiplier = width;
@@ -182,6 +353,11 @@ namespace IndoorNavigation.Adapters.AR
         private static void SetActive(LineRenderer line, bool on)
         {
             if (line != null && line.gameObject.activeSelf != on) line.gameObject.SetActive(on);
+        }
+
+        private static void SetActive(GameObject thing, bool on)
+        {
+            if (thing != null && thing.activeSelf != on) thing.SetActive(on);
         }
     }
 }

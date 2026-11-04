@@ -168,7 +168,10 @@
     min-height: 200px;
     margin: 8px 0;
     border-radius: 20px;
-    background-color: var(--surface);
+    border-width: 1px;
+    border-color: var(--border);
+    background-color: var(--ground);
+    overflow: hidden;
 }
 
 .minimap {
@@ -824,13 +827,7 @@
 }
 
 /* D · 3D miniature, and the "3D" switch on the 2D maps (decision record 8). */
-.map-switch {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 56px;
-    margin: 0;
-}
+
 
 .miniature-title {
     flex-grow: 1;
@@ -868,7 +865,7 @@
 
 .miniature-view {
     overflow: hidden;
-    background-color: #F4F2EE;
+    background-color: var(--ground);
 }
 
 .miniature-labels {
@@ -910,5 +907,52 @@
     bottom: 10px;
     color: var(--muted);
     font-size: 12px;
+    -unity-text-align: middle-center;
+}
+
+/* Map controls on the 2D map (blueprint: 2D/3D switch top left; round map controls 52 at the right, 12 apart). */
+.segmented--map {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(255, 255, 255, 0.92);
+    border-width: 1px;
+    border-color: var(--border);
+}
+
+.segmented--map .segment--on {
+    background-color: var(--accent-soft);
+    color: var(--accent);
+}
+
+.map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.map-control {
+    width: 52px;
+    height: 52px;
+    margin: 0 0 12px 0;
+    padding: 0;
+    border-radius: 26px;
+    border-width: 1px;
+    border-color: var(--border);
+    background-color: var(--surface);
+    align-items: center;
+    justify-content: center;
+}
+
+.map-control--on {
+    background-color: var(--accent-soft);
+    border-color: var(--accent);
+}
+
+.map-label {
+    position: absolute;
+    width: 120px;
+    font-size: 11px;
+    color: var(--muted);
     -unity-text-align: middle-center;
 }

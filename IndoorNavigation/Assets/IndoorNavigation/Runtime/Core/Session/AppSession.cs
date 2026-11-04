@@ -40,6 +40,7 @@ namespace IndoorNavigation.Core.Session
         private int searchNumber; // tells the latest search apart from older ones still running
         private int lastLocateSecond = -1;
         private PlanPose? lastFound;
+        private readonly IDeviceAttitude attitude;
 
         public AppSession(
             IVenueDirectory directory,
@@ -58,7 +59,7 @@ namespace IndoorNavigation.Core.Session
             this.search = search ?? throw new ArgumentNullException(nameof(search));
             this.log = log ?? throw new ArgumentNullException(nameof(log));
             this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
-            if (attitude == null) throw new ArgumentNullException(nameof(attitude));
+            this.attitude = attitude ?? throw new ArgumentNullException(nameof(attitude));
             Study = study ?? new StudySettings();
 
             // First start: choose a building. Later starts: check the remembered building for updates.
@@ -81,6 +82,12 @@ namespace IndoorNavigation.Core.Session
 
         public SessionState State => machine.State;
         public ViewMode View { get; } = new ViewMode();
+
+        /// <summary>North-up or heading-up on the 2D map (blueprint: Orientation, screens B and C). Kept for the whole session.</summary>
+        public MapOrientation MapOrientation { get; private set; } = MapOrientation.NorthUp;
+
+        /// <summary>The camera's horizontal field of view, for the view cone on the 2D map.</summary>
+        public double CameraFovDegrees => attitude.HorizontalFovDegrees;
         public StudySettings Study { get; }
 
         /// <summary>The blueprint code of the screen to show now.</summary>
@@ -660,6 +667,14 @@ namespace IndoorNavigation.Core.Session
         /// over the floors, stacked. "Back to route" (or 2D) closes it. Only while previewing or
         /// navigating; any other state closes it by itself.
         /// </summary>
+        /// <summary>B, C: Orientation. Switches between north-up and heading-up.</summary>
+        public void ToggleMapOrientation()
+        {
+            MapOrientation = MapOrientation == MapOrientation.NorthUp ? MapOrientation.HeadingUp : MapOrientation.NorthUp;
+            Log("map", MapOrientation == MapOrientation.NorthUp ? "north-up" : "heading-up");
+            NotifyChanged();
+        }
+
         public void ShowMiniature(bool show)
         {
             MapKind kind = show ? MapKind.ThreeD : MapKind.TwoD;
