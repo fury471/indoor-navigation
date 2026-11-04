@@ -141,8 +141,8 @@ namespace IndoorNavigation.Core.Miniature
     /// </summary>
     public static class MiniatureBuilder
     {
-        public const double WallHeight = 1.2;
-        public const double WallThickness = 0.15;
+        public const double WallHeight = 0.6;
+        public const double WallThickness = 0.12;
         public const double FloorGap = 10.0;
         public const double SlabDepth = 0.4;
         public const double RouteWidth = 0.7;
@@ -367,7 +367,7 @@ namespace IndoorNavigation.Core.Miniature
         private static void Side(MeshPart mesh, double ax, double az, double bx, double bz, double y0, double y1) =>
             mesh.Quad(mesh.Vertex(ax, y0, az), mesh.Vertex(ax, y1, az), mesh.Vertex(bx, y1, bz), mesh.Vertex(bx, y0, bz));
 
-        public const double QuietWallHeight = 0.5;
+        public const double QuietWallHeight = 0.25;
 
         /// <summary>Whether a wall belongs to the demo zone: its middle inside a zone, or within 1 m of one.</summary>
         private static bool InDemo(FloorPlan plan, PlanSegment wall)

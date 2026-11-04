@@ -271,3 +271,19 @@
   - The dot is joined to the route when starting inside the VR lab.
   - The AR floor ring and pin at the toilet lobby.
   - Time to first fix with and without an area chip.
+
+## Build 17 — straightened plan, rooms from walls, route margins, blueprint look (4 Nov 2026)
+
+- Reported by Fury (phone test, 19:15): labelled walls were not square; the 2D and 3D looked off-blueprint; the route ran close to walls.
+- Decision record 15:
+  - Fury's walls straightened against the drawing: 150 pieces became 130 walls; median shift 0.07 m; ink under the walls 89.6 → 109.6.
+  - Rooms rebuilt from the walls: 57 spaces, with VR lab, Toilets, lifts and Stairs S1 named.
+  - The corridor route on x = 38.4, with doors crossed square-on. Every route edge keeps ≥ 0.5 m from walls away from doorways (lowest 0.58 m), and no edge crosses a wall.
+  - The 2D and 3D in the blueprint palette, with 0.6 m walls in the miniature.
+  - Package 1.4.0. VR lab → Toilet 1: 24.1 m.
+- Validation: Core, UI, Adapters and App compile against stand-ins for the Unity API. 319 Core tests and 7 IKDC package tests pass offline; the new package test is the route clearance. Expected Unity EditMode total: 333. Offline previews of 2D (north-up, during the route, heading-up) and 3D were rendered with the mirror renderer.
+- Device result: pending. Checks:
+  - Walls straight and corners closed on the 2D map.
+  - The route in the corridor's middle in 2D and in AR.
+  - The AR track through the VR lab door and the toilet lobby opening without touching the frames.
+  - The miniature's look against screen D of the blueprint.

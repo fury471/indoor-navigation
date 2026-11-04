@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -60,7 +61,7 @@ namespace IndoorNavigation.Adapters.Tests
             VenuePackage venue = Load();
             Route toilet = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "d-toilet-1", new RouteOptions());
             Assert.IsNotNull(toilet);
-            Assert.AreEqual(23.6, toilet.LengthMetres, 0.5, "Through the toilet lobby's doorway in the corridor wall (build 16b), not across its corner.");
+            Assert.AreEqual(24.1, toilet.LengthMetres, 0.5, "Along the corridor's middle and through the toilet lobby's doorway (build 17).");
 
             Route up = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "stairs-3", new RouteOptions());
             Assert.IsNotNull(up);
@@ -115,6 +116,33 @@ namespace IndoorNavigation.Adapters.Tests
                 }
             }
         }
+
+        [Test]
+        public void Route_KeepsHalfAMetreFromWalls_AwayFromDoorways()
+        {
+            // The scans and the drawing disagree by 0.1-0.3 m (decision record 14), so the route keeps
+            // 0.5 m from every wall, except within 0.6 m of a doorway, which it crosses square-on.
+            VenuePackage venue = Load();
+            FloorPlan plan = venue.PlanOf(1);
+            foreach (GraphEdge edge in venue.Graph.Edges)
+            {
+                GraphNode a = venue.Graph.Node(edge.FromId), b = venue.Graph.Node(edge.ToId);
+                if (a.Floor != 1 || b.Floor != 1) continue;
+                double length = Math.Sqrt(((b.X - a.X) * (b.X - a.X)) + ((b.Z - a.Z) * (b.Z - a.Z)));
+                for (double t = 0; t <= length; t += 0.1)
+                {
+                    double x = a.X + (b.X - a.X) * t / Math.Max(length, 1e-9), z = a.Z + (b.Z - a.Z) * t / Math.Max(length, 1e-9);
+                    if ((IsDoorway(a) && t < 0.6) || (IsDoorway(b) && length - t < 0.6)) continue;
+                    foreach (PlanSegment wall in plan.Walls)
+                    {
+                        Assert.GreaterOrEqual(Segments.DistanceToSegment(x, z, wall.A.X, wall.A.Z, wall.B.X, wall.B.Z), 0.5, edge.FromId + " - " + edge.ToId);
+                    }
+                }
+            }
+        }
+
+        private static bool IsDoorway(GraphNode node) =>
+            node.Kind == NodeKind.Door || node.Kind == NodeKind.Lift || node.Kind == NodeKind.Stairs;
 
         [Test]
         public void Search_FindsPlacesByWordAndFloorNumber()

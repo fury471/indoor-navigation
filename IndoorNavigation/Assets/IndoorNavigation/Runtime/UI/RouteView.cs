@@ -28,20 +28,24 @@ namespace IndoorNavigation.UI
         private const double LabelMinArea = 6.0;
         private const float ConeRadius = 46f;
 
-        // Blueprint tokens (Tokens.uss) and map legend.
+        // Blueprint tokens (Tokens.uss) and the map views of screens B to D: grey ground, the building's
+        // halls a shade lighter, rooms white, walls as light hairlines (the blueprint draws rooms as white
+        // cards with a light border), doors and stairs lighter still, the route on top.
         private static readonly Color Ground = new Color32(0xEE, 0xF0, 0xF2, 0xFF);
         private static readonly Color Room = new Color32(0xFF, 0xFF, 0xFF, 0xFF);
-        private static readonly Color Hall = new Color32(0xF8, 0xF9, 0xFA, 0xFF);
-        private static readonly Color Outside = new Color32(0xF4, 0xF5, 0xF7, 0xFF);
-        private static readonly Color Connection = new Color32(0xE3, 0xF1, 0xEF, 0xFF);
-        private static readonly Color WallDemo = new Color32(0x8A, 0x91, 0x9C, 0xFF);
-        private static readonly Color WallQuiet = new Color32(0xCD, 0xD2, 0xD8, 0xFF);
+        private static readonly Color Hall = new Color32(0xF7, 0xF8, 0xFA, 0xFF);
+        private static readonly Color RoomQuiet = new Color32(0xF7, 0xF8, 0xFA, 0xFF);
+        private static readonly Color HallQuiet = new Color32(0xF2, 0xF3, 0xF5, 0xFF);
+        private static readonly Color WallDemo = new Color32(0xB4, 0xBA, 0xC2, 0xFF);
+        private static readonly Color WallQuiet = new Color32(0xD9, 0xDC, 0xE1, 0xFF);
+        private static readonly Color Detail = new Color32(0xCD, 0xD1, 0xD7, 0xFF);
+        private static readonly Color DetailQuiet = new Color32(0xE3, 0xE5, 0xE8, 0xFF);
         private static readonly Color Accent = new Color32(0x0F, 0x76, 0x6E, 0xFF);
         private static readonly Color Walked = new Color32(0xB8, 0xBE, 0xC6, 0xFF);
         private static readonly Color You = new Color32(0x25, 0x63, 0xEB, 0xFF);
         private static readonly Color Destination = new Color32(0xD9, 0x48, 0x0F, 0xFF);
         private static readonly Color Muted = new Color32(0x5B, 0x62, 0x70, 0xFF);
-        private static readonly Color Glass = new Color32(0x8F, 0xB8, 0xDE, 0xFF);
+        private static readonly Color Glass = new Color32(0x9F, 0xC5, 0xE8, 0xFF);
 
         private VenuePackage venue;
         private Route route;
@@ -229,13 +233,36 @@ namespace IndoorNavigation.UI
                 painter.Fill();
             }
 
-            ClassifyWalls(plan);
+            // Stairs: their treads, as hairlines, under the walls (blueprint: the stairs card's hatching).
             painter.lineCap = LineCap.Butt;
+            painter.lineWidth = 1f;
+            foreach (PlanSegment line in plan.StairLines)
+            {
+                painter.strokeColor = InDemo(plan, (line.A.X + line.B.X) / 2, (line.A.Z + line.B.Z) / 2) ? Detail : DetailQuiet;
+                Line(painter, toScreen(line.A.X, line.A.Z), toScreen(line.B.X, line.B.Z));
+            }
+
+            // Doors as architectural plans draw them, but quieter than walls: the open leaf and a hairline
+            // swing (decision record 14).
+            foreach (PlanDoorSymbol door in plan.DoorSymbols)
+            {
+                bool demo = InDemo(plan, door.Hinge.X, door.Hinge.Z);
+                painter.strokeColor = demo ? Detail : DetailQuiet;
+                painter.lineWidth = 0.75f;
+                Swing(painter, door, toScreen);
+                painter.strokeColor = demo ? WallDemo : WallQuiet;
+                painter.lineWidth = demo ? Mathf.Clamp(0.06f * scale, 1f, 1.5f) : 1f;
+                Line(painter, toScreen(door.Hinge.X, door.Hinge.Z), toScreen(door.LeafEnd.X, door.LeafEnd.Z));
+            }
+
+            // Walls: straight lines meeting at exact corners (build 17), so round caps close every corner.
+            ClassifyWalls(plan);
+            painter.lineCap = LineCap.Round;
             for (int pass = 0; pass < 2; pass++)
             {
                 bool demo = pass == 1; // quiet walls first, the demo zone's on top
                 painter.strokeColor = demo ? WallDemo : WallQuiet;
-                painter.lineWidth = demo ? Mathf.Clamp(0.12f * scale, 1.25f, 2.5f) : 1f;
+                painter.lineWidth = demo ? Mathf.Clamp(0.1f * scale, 1.5f, 2.5f) : 1f;
                 for (int i = 0; i < plan.Walls.Count; i++)
                 {
                     if (wallInDemo[i] != demo) continue;
@@ -244,29 +271,9 @@ namespace IndoorNavigation.UI
                 }
             }
 
-            // Stairs: their treads, thin, as the evacuation plan draws them.
-            painter.lineWidth = 1f;
-            foreach (PlanSegment line in plan.StairLines)
-            {
-                painter.strokeColor = InDemo(plan, (line.A.X + line.B.X) / 2, (line.A.Z + line.B.Z) / 2) ? WallDemo : WallQuiet;
-                Line(painter, toScreen(line.A.X, line.A.Z), toScreen(line.B.X, line.B.Z));
-            }
-
             painter.strokeColor = Glass;
-            painter.lineWidth = Mathf.Clamp(0.1f * scale, 1.25f, 2f);
+            painter.lineWidth = Mathf.Clamp(0.1f * scale, 1.5f, 2.5f);
             foreach (PlanSegment glass in plan.GlassWalls) Line(painter, toScreen(glass.A.X, glass.A.Z), toScreen(glass.B.X, glass.B.Z));
-
-            // Doors as architectural plans draw them: the open leaf, and its swing as a thin quarter arc
-            // (decision record 14), instead of short wall stubs that read as clutter.
-            foreach (PlanDoorSymbol door in plan.DoorSymbols)
-            {
-                bool demo = InDemo(plan, door.Hinge.X, door.Hinge.Z);
-                painter.strokeColor = demo ? WallDemo : WallQuiet;
-                painter.lineWidth = demo ? Mathf.Clamp(0.08f * scale, 1f, 1.75f) : 1f;
-                Line(painter, toScreen(door.Hinge.X, door.Hinge.Z), toScreen(door.LeafEnd.X, door.LeafEnd.Z));
-                painter.lineWidth = 0.75f;
-                Swing(painter, door, toScreen);
-            }
         }
 
         /// <summary>The quarter arc a door sweeps, from its open leaf's end to the far jamb.</summary>
@@ -390,18 +397,9 @@ namespace IndoorNavigation.UI
 
         private static Color ColourOf(PlanSpace space)
         {
-            if (!space.InDemo) return Outside;
-            switch (space.Kind)
-            {
-                case PlanSpaceKind.Lift:
-                case PlanSpaceKind.Stairs:
-                    return Connection;
-                case PlanSpaceKind.Room:
-                case PlanSpaceKind.Toilet:
-                    return Room;
-                default:
-                    return Hall;
-            }
+            bool hall = space.Kind == PlanSpaceKind.Corridor || space.Kind == PlanSpaceKind.Other;
+            if (!space.InDemo) return hall ? HallQuiet : RoomQuiet;
+            return hall ? Hall : Room;
         }
 
         /// <summary>A wall counts as the demo zone's when its middle lies inside a demo zone (or within 1 m of one).</summary>

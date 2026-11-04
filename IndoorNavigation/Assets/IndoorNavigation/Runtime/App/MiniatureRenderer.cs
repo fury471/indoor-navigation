@@ -27,23 +27,24 @@ namespace IndoorNavigation.App
         private const float MaxPitch = 88f;
         private const float MinZoom = 0.25f;
 
-        // The blueprint's palette (spec board v0.2): grey ground, white slabs and rooms, light walls with
-        // mid-grey tops, teal route, blue you, orange destination.
+        // The blueprint's palette (spec board v0.2, screen D): grey ground, light grey slabs, white rooms,
+        // the building's halls a shade off white, low white walls whose light grey tops read as the 2D map's
+        // hairlines, teal route, blue you, orange destination.
         private static readonly Color Background = new Color32(0xEE, 0xF0, 0xF2, 0xFF);
 
         private static readonly Dictionary<MiniaturePart, Color> Colours = new Dictionary<MiniaturePart, Color>
         {
-            { MiniaturePart.Slab, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
+            { MiniaturePart.Slab, new Color32(0xF1, 0xF2, 0xF4, 0xFF) },
             { MiniaturePart.SlabEdge, new Color32(0xD5, 0xD9, 0xDE, 0xFF) },
-            { MiniaturePart.Space, new Color32(0xF4, 0xF5, 0xF7, 0xFF) },
+            { MiniaturePart.Space, new Color32(0xFA, 0xFA, 0xFB, 0xFF) },
             { MiniaturePart.DemoSpace, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
             { MiniaturePart.Corridor, new Color32(0xF8, 0xF9, 0xFA, 0xFF) },
             { MiniaturePart.Lift, new Color32(0xE3, 0xF1, 0xEF, 0xFF) },
             { MiniaturePart.Stairs, new Color32(0xE3, 0xF1, 0xEF, 0xFF) },
             { MiniaturePart.WallSideLight, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
-            { MiniaturePart.WallSideDark, new Color32(0xDD, 0xE1, 0xE6, 0xFF) },
-            { MiniaturePart.WallTop, new Color32(0x8A, 0x91, 0x9C, 0xFF) },
-            { MiniaturePart.WallQuiet, new Color32(0xE3, 0xE5, 0xE8, 0xFF) },
+            { MiniaturePart.WallSideDark, new Color32(0xE4, 0xE7, 0xEB, 0xFF) },
+            { MiniaturePart.WallTop, new Color32(0xB4, 0xBA, 0xC2, 0xFF) },
+            { MiniaturePart.WallQuiet, new Color32(0xE6, 0xE8, 0xEB, 0xFF) },
             { MiniaturePart.Route, new Color32(0x0F, 0x76, 0x6E, 0xFF) },
             { MiniaturePart.You, new Color32(0x25, 0x63, 0xEB, 0xFF) },
             { MiniaturePart.Destination, new Color32(0xD9, 0x48, 0x0F, 0xFF) },
