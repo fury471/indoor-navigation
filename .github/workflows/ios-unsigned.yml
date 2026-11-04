@@ -7,6 +7,14 @@ on:
         description: Release tag containing xcode-export.zip (for example export-001)
         required: true
         type: string
+      build_runner:
+        description: Build host (macos-15 is Apple Silicon; macos-15-intel is the fallback)
+        required: true
+        default: macos-15
+        type: choice
+        options:
+          - macos-15
+          - macos-15-intel
 
 permissions:
   contents: read
@@ -17,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.build_runner || 'macos-15' }}
     timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
@@ -68,8 +76,23 @@ jobs:
           # Windows ZIP creation does not preserve executable permission bits.
           find "$RUNNER_TEMP/xcode-export" -type f \
             \( -name '*.sh' -o -name il2cpp -o -name bee_backend \
-               -o -name usymtool -o -name clang -o -name 'clang++' \) \
+               -o -name usymtool -o -name usymtoolarm64 -o -name clang -o -name 'clang++' \) \
             -exec chmod u+x {} +
+          # Unity 6000.3 exports native tools for both macOS host architectures.
+          # Check the host tools separately from the arm64 iPhone target.
+          host_arch="$(uname -m)"
+          case "$host_arch" in
+            arm64) bee_platform=mac-arm64 ;;
+            x86_64) bee_platform=mac-x64 ;;
+            *) echo "Unsupported build-host architecture: $host_arch"; exit 1 ;;
+          esac
+          deploy="$RUNNER_TEMP/xcode-export/Il2CppOutputProject/IL2CPP/build/deploy_$host_arch"
+          {
+            echo "Build host: $host_arch"
+            file "$deploy/il2cpp" "$deploy/bee_backend/$bee_platform/bee_backend"
+          } | tee "$RUNNER_TEMP/diagnostics/host-tools.txt"
+          /usr/bin/lipo "$deploy/il2cpp" -verify_arch "$host_arch"
+          /usr/bin/lipo "$deploy/bee_backend/$bee_platform/bee_backend" -verify_arch "$host_arch"
           xcodebuild -list \
             -project "$RUNNER_TEMP/xcode-export/Unity-iPhone.xcodeproj" \
             | tee "$RUNNER_TEMP/diagnostics/project.txt"

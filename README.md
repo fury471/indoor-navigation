@@ -53,7 +53,7 @@ The Editor can't record or load world maps; that needs the iPhone. Everything in
 
 ## Building for the iPhone
 
-There is no Mac in the loop: Unity exports an Xcode project on Windows, GitHub Actions builds an unsigned IPA on a macOS runner, and Sideloadly signs and installs it.
+No local Mac is required: Unity exports an Xcode project on Windows, GitHub Actions builds an unsigned IPA on a macOS runner, and Sideloadly signs and installs it. The workflow defaults to Apple Silicon (`macos-15`), with `macos-15-intel` selectable as a fallback. Xcode remains pinned to 16.4. See `Docs/ios-build-runners.md` for compatibility checks and switching a queued run.
 
 1. Unity → **File → Build Profiles → iOS → Build** into a new, empty folder outside the repo, for example `E:\IndoorNavigationBuilds\position-010\Xcode`. The iOS profile builds `App.unity` only.
 2. From the repo root:
@@ -62,7 +62,7 @@ There is no Mac in the loop: Unity exports an Xcode project on Windows, GitHub A
    ```
    It checks the export, refuses to overwrite a ZIP and prints its SHA-256.
 3. GitHub → Releases → new release with a new tag (`export-position-010`) on the commit you pushed, attach `xcode-export.zip`.
-4. GitHub → Actions → **iOS unsigned build** → Run workflow with `export_tag` = that tag.
+4. GitHub → Actions → **iOS unsigned build** → Run workflow with `export_tag` = that tag and `build_runner` = `macos-15` (Apple Silicon). If changing from a queued Intel run, cancel the old run and start a new workflow run after pushing the workflow update. Re-running the old run retains its old workflow definition. Intel remains available through `macos-15-intel`.
 5. Download the `IndoorNavigation-unsigned.ipa` artifact (kept 3 days) and install it with Sideloadly over the old app, so the maps and logs on the phone stay.
 6. Record the test in `Docs/device-tests.md`: date, build tag, source commit, what passed, what didn't.
 
