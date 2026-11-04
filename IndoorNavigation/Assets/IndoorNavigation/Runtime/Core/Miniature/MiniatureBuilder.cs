@@ -309,7 +309,14 @@ namespace IndoorNavigation.Core.Miniature
                 if (InDemo(plan, wall)) AddWall(model, wall, y);
                 else AddQuietWall(model, wall, y);
             }
+
+            // Glass: a low pale wall, so the way looks barred but the view open. Stairs: their treads
+            // as thin strips on the floor. Doors stay openings in the walls.
+            foreach (PlanSegment glass in plan.GlassWalls) AddQuietWall(model, glass, y);
+            foreach (PlanSegment line in plan.StairLines) AddQuietWall(model, line, y, StairLineHeight);
         }
+
+        public const double StairLineHeight = 0.06;
 
         private static MiniaturePart PartOf(PlanSpace space)
         {
@@ -376,7 +383,7 @@ namespace IndoorNavigation.Core.Miniature
         }
 
         /// <summary>A low wall outside the demo zone, every face in one colour.</summary>
-        private static void AddQuietWall(MiniatureModel model, PlanSegment wall, double y)
+        private static void AddQuietWall(MiniatureModel model, PlanSegment wall, double y, double height = QuietWallHeight)
         {
             double ax = wall.A.X, az = -wall.A.Z, bx = wall.B.X, bz = -wall.B.Z;
             double len = Math.Sqrt(((bx - ax) * (bx - ax)) + ((bz - az) * (bz - az)));
@@ -385,7 +392,7 @@ namespace IndoorNavigation.Core.Miniature
             double[] cx = { ax + nx, bx + nx, bx - nx, ax - nx };
             double[] cz = { az + nz, bz + nz, bz - nz, az - nz };
             MeshPart mesh = model.Part(MiniaturePart.WallQuiet);
-            double y1 = y + QuietWallHeight;
+            double y1 = y + height;
             mesh.Quad(mesh.Vertex(cx[0], y1, cz[0]), mesh.Vertex(cx[1], y1, cz[1]), mesh.Vertex(cx[2], y1, cz[2]), mesh.Vertex(cx[3], y1, cz[3]));
             for (int i = 0; i < 4; i++) Side(mesh, cx[i], cz[i], cx[(i + 1) % 4], cz[(i + 1) % 4], y, y1);
         }

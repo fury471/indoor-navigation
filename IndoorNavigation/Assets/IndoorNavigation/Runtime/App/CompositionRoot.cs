@@ -181,7 +181,8 @@ namespace IndoorNavigation.App
             host.Add(ScreenCodes.Suggestions, new SuggestionsPresenter(ScreenElement(root, "4"), session));
             host.Add(ScreenCodes.Preview, new PreviewPresenter(ScreenElement(root, "5"), session));
             host.Add(ScreenCodes.Map2D, new NavigateMapPresenter(ScreenElement(root, "B"), session));
-            host.Add(ScreenCodes.ArGuidance, new NavigateArPresenter(ScreenElement(root, "A"), session));
+            PinLookup pin = overlay == null ? null : (PinLookup)overlay.TryGetPinViewport;
+            host.Add(ScreenCodes.ArGuidance, new NavigateArPresenter(ScreenElement(root, "A"), session, pin));
             host.Add(ScreenCodes.Arrived, new ArrivedPresenter(ScreenElement(root, "G"), session));
 
             // D · the 3D miniature, drawn by its own camera into a texture (decision record 8).

@@ -251,3 +251,23 @@
 - Unity Editor, 4 Nov 14:10: EditMode Run All 329/329 passed. Before that, three fixes: the occlusion set-up moved to the adapters (`DepthOcclusion.cs`), because the App assembly does not reference AR Subsystems; the submap rotation now tolerates a test without the venue's area list; and the overlay falls back to the XR Origin when its trackables do not exist yet. `OverlayShowsOneCorner…`, failing since build 13, now compares the round-tripped foot within 0.1 mm.
 - Device result: pending. Checks: time to first fix from each floor-1 zone; false-match test in the corridor; track hidden by walls and pin hidden from inside the VR lab; track legibility on different floors; heading-up turning; dot against the room at three doors.
 
+
+## Build 16 — route snap, AR floor target, area hint, labelled and calibrated plan (4 Nov 2026)
+
+- 16a (phone test of build 15, 4 Nov 15:10):
+  - The route starts at the nearest node the user can see, and the dot snaps onto the route leg, with a dotted link when more than 0.8 m off the route.
+  - The AR destination is an orange floor ring plus a screen pin "Name · N m".
+  - The north-up/heading-up button is also on Preview.
+  - Locate offers area chips. A chosen map gets 20 s and one reset per switch.
+- 16b (decision record 14):
+  - The drawing is calibrated with a second-order warp. Wall angle spread 1.32° → 0.52°; corner 89.21° → 89.84°. Door corners: fit 0.095 → 0.102 m; held out 0.147 → 0.160 m mean.
+  - The plan is built from Fury's labels: 149 walls, 1 glass wall, 51 doors, plus 47 traced stair lines.
+  - The lift doorways were opened where the recordings measured them.
+  - The toilet route goes through the lobby opening (new node `d-toilet-lobby`); VR lab → Toilet 1 is 23.6 m. Package 1.3.0.
+- Validation: Core, UI, Adapters and App compile against stand-ins for the Unity API. 319 Core tests and 6 IKDC package tests pass offline. The package tests include "every recorded doorway is open" and "labelled doors, stairs and glass are present". No route edge crosses a wall. Expected Unity EditMode total: 332.
+- Device result: pending. Checks:
+  - The doors read as leaf plus arc on the 2D map, with no wall stubs.
+  - The route from the VR lab to the toilets goes through the lobby opening.
+  - The dot is joined to the route when starting inside the VR lab.
+  - The AR floor ring and pin at the toilet lobby.
+  - Time to first fix with and without an area chip.

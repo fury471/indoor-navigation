@@ -9,7 +9,11 @@
         </ui:VisualElement>
         <ui:VisualElement class="row fix-row">
             <ui:Label name="destination" class="chip" />
-            <ui:VisualElement class="spacer" />
+            <ui:VisualElement name="ar-pin" class="ar-pin" picking-mode="Ignore">
+            <ui:VisualElement name="ar-pin-icon" class="ar-pin-icon" picking-mode="Ignore" />
+            <ui:Label name="ar-pin-label" class="ar-pin-label" picking-mode="Ignore" />
+        </ui:VisualElement>
+        <ui:VisualElement class="spacer" />
             <ui:Button name="fix-position" text="Arrows look wrong?" class="button button--small" />
         </ui:VisualElement>
         <ui:VisualElement class="spacer" />

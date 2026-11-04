@@ -50,6 +50,11 @@ namespace IndoorNavigation.Core.Positioning
 
         public const double MaxDwellSeconds = 25.0;
 
+        /// <summary>The map the person named gets this long on its first try, as they are probably right.</summary>
+        public const double RequestedDwellSeconds = 20.0;
+
+        private readonly bool requestedFirst;
+
         private readonly List<string> order;
         private int index;
 
@@ -58,6 +63,7 @@ namespace IndoorNavigation.Core.Positioning
             var list = new List<SubmapCandidate>(candidates ?? Array.Empty<SubmapCandidate>());
             list.Sort(Compare);
             order = list.ConvertAll(c => c.Id);
+            requestedFirst = list.Count > 0 && list[0].Requested;
         }
 
         public int Count => order.Count;
@@ -70,7 +76,9 @@ namespace IndoorNavigation.Core.Positioning
 
         public IReadOnlyList<string> Order => order;
 
-        public double DwellSeconds => Math.Min(MaxDwellSeconds, FirstDwellSeconds + Round * DwellStepSeconds);
+        public double DwellSeconds => Round == 0 && index == 0 && requestedFirst
+            ? RequestedDwellSeconds
+            : Math.Min(MaxDwellSeconds, FirstDwellSeconds + Round * DwellStepSeconds);
 
         /// <summary>True when the current map has had its time and another map is waiting.</summary>
         public bool ShouldMoveOn(double secondsOnCurrent) => order.Count > 1 && secondsOnCurrent >= DwellSeconds;

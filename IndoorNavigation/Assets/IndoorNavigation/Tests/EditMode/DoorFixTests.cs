@@ -299,6 +299,21 @@ namespace IndoorNavigation.Core.Tests
         }
 
         [Test]
+        public void Snap_JoinsTheUserToTheLeg_NotStraightToTheNextNode()
+        {
+            // 1 m beside the leg a-b: the route ahead starts on the leg at x = 4, not at the user.
+            RouteSnap snap = RouteProgress.Snap(StraightRoute(), 1, new PlanPose(1, 4, 1, 0));
+            Assert.IsTrue(snap.OnRoute);
+            Assert.AreEqual(4.0, snap.X, 1e-9);
+            Assert.AreEqual(0.0, snap.Z, 1e-9);
+            Assert.AreEqual(1, snap.NextIndex);
+            Assert.AreEqual(1.0, snap.OffRouteMetres, 1e-9);
+            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 1, new PlanPose(1, 4, 1, 0), maxMetres: 50);
+            Assert.AreEqual((4.0, 0.0), points[0]);
+            Assert.AreEqual(26.0, RouteProgress.RemainingMetres(StraightRoute(), 1, new PlanPose(1, 4, 1, 0)), 1e-9, "6 m to b along the leg (not 6.1 m from the user), 10 m to c, the stairs 0 m, 10 m on floor 2.");
+        }
+
+        [Test]
         public void StopsAtAFloorChange_AndDrawsNothingOnAnotherFloor()
         {
             List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 2, new PlanPose(1, 10, 0, 0), maxMetres: 50);

@@ -420,10 +420,44 @@ namespace IndoorNavigation.Core.Session
         {
             if (State != SessionState.Locating && !Relocating) return;
             ChoosingFloor = false;
+            HintedArea = null;
             UserFloor = floor;
             View.ShowFloor(floor);
             Log("locate", "floor " + floor.ToString(CultureInfo.InvariantCulture) + " chosen");
             position.StartLocatingOnFloor(floor);
+            StartGuide();
+            NotifyChanged();
+        }
+
+        /// <summary>The areas with world maps on the user's floor, for "Where on this floor?" on screen 1 (decision record 13).</summary>
+        public IReadOnlyList<AreaInfo> AreasOnFloor
+        {
+            get
+            {
+                var list = new List<AreaInfo>();
+                if (Venue == null) return list;
+                foreach (AreaInfo area in Venue.Manifest.Areas)
+                {
+                    if (area.Floor == UserFloor) list.Add(area);
+                }
+
+                return list;
+            }
+        }
+
+        /// <summary>The area the person said they are in, or null.</summary>
+        public string HintedArea { get; private set; }
+
+        /// <summary>
+        /// 1: a tap on "Where on this floor?" (optional). That area's map is tried first and longest;
+        /// the others follow, as without a tap (decision record 13, amended 4 Nov).
+        /// </summary>
+        public void HintArea(string areaId)
+        {
+            if ((State != SessionState.Locating && !Relocating) || ChoosingFloor || position.FixingDoor != null) return;
+            HintedArea = areaId;
+            Log("locate", "area hint " + areaId);
+            position.StartLocating(areaId);
             StartGuide();
             NotifyChanged();
         }
@@ -685,13 +719,37 @@ namespace IndoorNavigation.Core.Session
             NotifyChanged();
         }
 
+        /// <summary>
+        /// Where the route starts: the nearest node the user can see on the plan (no wall between), so
+        /// the route does not begin in the room behind a wall. Falls back to the nearest node.
+        /// </summary>
+        private GraphNode StartNode()
+        {
+            FloorPlan plan = Venue.PlanOf(UserFloor);
+            GraphNode nearest = Venue.Graph.NearestNode(UserFloor, Pose.X, Pose.Z);
+            if (plan == null) return nearest;
+            var nodes = new List<GraphNode>();
+            foreach (GraphNode node in Venue.Graph.Nodes)
+            {
+                if (node.Floor == UserFloor) nodes.Add(node);
+            }
+
+            nodes.Sort((a, b) => Pose.DistanceTo(a.Floor, a.X, a.Z).CompareTo(Pose.DistanceTo(b.Floor, b.X, b.Z)));
+            for (int i = 0; i < nodes.Count && i < 8; i++)
+            {
+                if (LineOfSight.Clear(plan, Pose.X, Pose.Z, nodes[i].X, nodes[i].Z)) return nodes[i];
+            }
+
+            return nearest;
+        }
+
         /// <summary>5: Back. Returns to the suggestions if there are any, otherwise to the request.</summary>
         public void BackFromPreview() =>
             Fire(Suggestions.Count > 0 ? SessionTrigger.BackToPlaces : SessionTrigger.EditSearch);
 
         private void PlanRoute()
         {
-            GraphNode from = Venue.Graph.NearestNode(UserFloor, Pose.X, Pose.Z);
+            GraphNode from = StartNode();
             string to = Venue.ApproachNodeOf(Destination);
             Route = from == null ? null : RoutePlanner.FindRoute(Venue.Graph, from.Id, to, new RouteOptions(AvoidStairs));
             Log("route", Route == null

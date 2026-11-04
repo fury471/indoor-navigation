@@ -26,14 +26,19 @@ namespace IndoorNavigation.Core.Routing
             if (route == null || nextNodeIndex < 0 || nextNodeIndex >= route.Nodes.Count || maxMetres <= 0) return points;
             if (route.Nodes[nextNodeIndex].Floor != pose.Floor) return points;
 
-            points.Add((pose.X, pose.Z));
+            // Start where the user is on the route (RouteProgress.Snap), so the track follows the
+            // corridor rather than cutting from the user to the next node through a wall.
+            RouteSnap snap = RouteProgress.Snap(route, nextNodeIndex, pose);
+            double x = snap.OnRoute ? snap.X : pose.X, z = snap.OnRoute ? snap.Z : pose.Z;
+            int first = snap.OnRoute ? snap.NextIndex : nextNodeIndex;
+            points.Add((x, z));
             double left = maxMetres;
-            double x = pose.X, z = pose.Z;
-            for (int i = nextNodeIndex; i < route.Nodes.Count; i++)
+            for (int i = first; i < route.Nodes.Count; i++)
             {
                 GraphNode node = route.Nodes[i];
                 if (node.Floor != pose.Floor) break;
                 double step = RouteGraph.PlanDistance(x, z, node.X, node.Z);
+                if (step < 1e-9) continue; // the user stands on this node
                 if (step >= left)
                 {
                     double t = step <= 0 ? 0 : left / step;

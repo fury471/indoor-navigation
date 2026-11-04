@@ -22,7 +22,6 @@ namespace IndoorNavigation.Adapters.AR
         public const float AboveFloorMetres = 0.015f;
         public const float CornerRadiusMetres = 0.7f;
         public const float CutFadeMetres = 1.5f;
-        public const float PinHeightMetres = 1.1f;
         public const float DoorPostMetres = 1.0f;
 
         // Blueprint tokens: accent (route) and destination.
@@ -233,27 +232,77 @@ namespace IndoorNavigation.Adapters.AR
             trackMesh.RecalculateBounds();
         }
 
-        /// <summary>The destination pin: a thin orange post with a ball on top, standing on the floor.</summary>
+        /// <summary>Height of the pin's anchor above the destination: where the screen-space pin points to.</summary>
+        public const float PinAnchorMetres = 1.4f;
+
+        /// <summary>
+        /// The destination on the floor: a flat orange ring with a dot, 0.8 m across, like the target
+        /// circle of walking AR guides. The pin itself is drawn by screen A as a crisp, constant-size
+        /// icon over this point (<see cref="TryGetPinViewport"/>), so it reads at any distance.
+        /// </summary>
         private GameObject NewPin()
         {
-            var root = new GameObject("Destination pin");
+            var root = new GameObject("Destination target");
             root.transform.SetParent(SessionSpace, false);
-            Part(PrimitiveType.Cylinder, root.transform, new Vector3(0f, PinHeightMetres / 2f, 0f), new Vector3(0.035f, PinHeightMetres / 2f, 0.035f));
-            Part(PrimitiveType.Sphere, root.transform, new Vector3(0f, PinHeightMetres, 0f), Vector3.one * 0.22f);
+            var mesh = new Mesh { name = "Destination target" };
+            var points = new List<Vector3>();
+            var indices = new List<int>();
+            const int steps = 48;
+            const float inner = 0.30f, outer = 0.40f, dot = 0.09f, lift = 0.05f;
+            for (int k = 0; k <= steps; k++)
+            {
+                float a = k * Mathf.PI * 2f / steps;
+                var direction = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                points.Add(direction * inner + Vector3.up * lift);
+                points.Add(direction * outer + Vector3.up * lift);
+                if (k > 0)
+                {
+                    int v = (k - 1) * 2;
+                    indices.AddRange(new[] { v, v + 1, v + 2, v + 2, v + 1, v + 3 });
+                }
+            }
+
+            int centre = points.Count;
+            points.Add(Vector3.up * lift);
+            for (int k = 0; k <= steps; k++)
+            {
+                float a = k * Mathf.PI * 2f / steps;
+                points.Add(new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * dot + Vector3.up * lift);
+                if (k > 0) indices.AddRange(new[] { centre, centre + k + 1, centre + k });
+            }
+
+            // Both sides, so it shows whichever way the plan's winding turns out.
+            int count = indices.Count;
+            for (int k = 0; k < count; k += 3) indices.AddRange(new[] { indices[k], indices[k + 2], indices[k + 1] });
+            mesh.SetVertices(points);
+            mesh.SetTriangles(indices, 0);
+            mesh.RecalculateBounds();
+            root.AddComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer meshRenderer = root.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = pinMaterial;
+            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return root;
         }
 
-        private void Part(PrimitiveType type, Transform parent, Vector3 position, Vector3 scale)
+        /// <summary>
+        /// Where the destination pin goes on screen, from 0 to 1 with 0 at the top left: the point
+        /// <see cref="PinAnchorMetres"/> above the destination. False while the destination is hidden
+        /// (out of line of sight), behind the camera, or not drawn.
+        /// </summary>
+        public bool TryGetPinViewport(out Vector2 viewport, out float metresAway)
         {
-            GameObject part = GameObject.CreatePrimitive(type);
-            Collider collider = part.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-            part.transform.SetParent(parent, false);
-            part.transform.localPosition = position;
-            part.transform.localScale = scale;
-            MeshRenderer meshRenderer = part.GetComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = pinMaterial;
-            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            viewport = default;
+            metresAway = 0f;
+            Camera camera = origin != null ? origin.Camera : null;
+            if (pin == null || !pin.activeSelf || camera == null) return false;
+            Vector3 anchor = pin.transform.position + (SessionSpace.up * PinAnchorMetres);
+            Vector3 p = camera.WorldToViewportPoint(anchor);
+            if (p.z <= 0.2f) return false;
+            viewport = new Vector2(p.x, 1f - p.y);
+            Vector3 flat = pin.transform.position - camera.transform.position;
+            flat.y = 0f;
+            metresAway = flat.magnitude;
+            return true;
         }
 
         /// <summary>Draws a post on both corners of every door given (on the user's floor).</summary>

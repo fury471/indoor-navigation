@@ -621,7 +621,11 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>Drops the current map and loads <paramref name="next"/> on the next frame.</summary>
         private void TryNextMap(string next, string why)
         {
-            AbandonMap();
+            // No reset here: LoadMap applies the next map and resets once. A reset without a map in
+            // between would restart tracking twice per switch.
+            useAnchorAlignment = false;
+            mapRecord = null;
+            waitingForRelocalisation = false;
             CurrentArea = next;
             pendingAlignment = null;
             loadPending = next != null;

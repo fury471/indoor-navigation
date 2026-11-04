@@ -34,6 +34,10 @@ namespace IndoorNavigation.UI.Screens
         private readonly ScrollView doorList;
         private readonly Button hideDoors;
         private readonly Button close;
+        private readonly VisualElement areaSection;
+        private readonly Label areaIntro;
+        private readonly VisualElement areaList;
+        private string areasShown;
         private string doorsShown;
         private string floorsShown;
 
@@ -54,6 +58,9 @@ namespace IndoorNavigation.UI.Screens
             doorList = Find<ScrollView>("door-list");
             hideDoors = Find<Button>("hide-doors");
             close = Find<Button>("close");
+            areaSection = Find<VisualElement>("area-section");
+            areaIntro = Find<Label>("area-intro");
+            areaList = Find<VisualElement>("area-list");
 
             changeFloor.clicked += Session.ChangeFloor;
             showDoors.clicked += Session.ShowDoors;
@@ -71,7 +78,7 @@ namespace IndoorNavigation.UI.Screens
             {
                 title.text = "Which floor are you on?";
                 SetVisible(floorSection, true);
-                foreach (VisualElement part in new VisualElement[] { floorRow, hint, status, showDoors, doorSection }) SetVisible(part, false);
+                foreach (VisualElement part in new VisualElement[] { floorRow, hint, status, showDoors, doorSection, areaSection }) SetVisible(part, false);
                 RenderFloors();
                 return;
             }
@@ -93,6 +100,7 @@ namespace IndoorNavigation.UI.Screens
             SetVisible(showDoors, !doors);
             showDoors.EnableInClassList("button--primary", reminder);
             SetVisible(doorSection, doors);
+            RenderAreas(!doors);
             SetVisible(hideDoors, doors && Session.TryingMap);
             if (doors) RenderDoors();
         }
@@ -118,6 +126,43 @@ namespace IndoorNavigation.UI.Screens
             if (!Session.TryingMap) return "";
             return "Recognising floor " + Session.UserFloor.ToString(CultureInfo.InvariantCulture) + "… "
                 + Session.LocateSeconds.ToString("F0", CultureInfo.InvariantCulture) + " s";
+        }
+
+        /// <summary>
+        /// "Where on this floor?": one chip per area with a map. Optional; a tap tries that area's map
+        /// first (decision record 13). The chosen one is highlighted.
+        /// </summary>
+        private void RenderAreas(bool show)
+        {
+            IReadOnlyList<AreaInfo> areas = Session.AreasOnFloor;
+            show = show && areas.Count > 1;
+            SetVisible(areaSection, show);
+            if (!show) return;
+            areaIntro.text = "Where on floor " + Session.UserFloor.ToString(CultureInfo.InvariantCulture) + "? Tap one to find you faster.";
+
+            var key = new System.Text.StringBuilder(Session.HintedArea ?? "");
+            foreach (AreaInfo a in areas) key.Append('|').Append(a.Id);
+            if (key.ToString() == areasShown) return;
+            areasShown = key.ToString();
+
+            areaList.Clear();
+            foreach (AreaInfo area in areas)
+            {
+                string id = area.Id;
+                var chip = new Button(() => Session.HintArea(id)) { text = ShortName(area) };
+                chip.AddToClassList("area-chip");
+                chip.EnableInClassList("area-chip--on", id == Session.HintedArea);
+                areaList.Add(chip);
+            }
+        }
+
+        /// <summary>"Floor 1, inside the VR lab" becomes "Inside the VR lab".</summary>
+        private static string ShortName(AreaInfo area)
+        {
+            string name = area.Name ?? area.Id;
+            int comma = name.IndexOf(", ", System.StringComparison.Ordinal);
+            if (comma >= 0 && name.StartsWith("Floor", System.StringComparison.Ordinal)) name = name.Substring(comma + 2);
+            return name.Length > 0 ? char.ToUpperInvariant(name[0]) + name.Substring(1) : name;
         }
 
         private void RenderFloors()

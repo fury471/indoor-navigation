@@ -19,7 +19,7 @@ namespace IndoorNavigation.Core.Venue
         public double Z { get; }
     }
 
-    /// <summary>A straight piece of wall, or a door between its two floor corners.</summary>
+    /// <summary>A straight piece of wall, glass or stair line, or a door between its two floor corners.</summary>
     public sealed class PlanSegment
     {
         public PlanSegment(double ax, double az, double bx, double bz)
@@ -67,6 +67,28 @@ namespace IndoorNavigation.Core.Venue
         public PlanSegment Corners { get; }
     }
 
+    /// <summary>
+    /// A door as the drawing shows it: the leaf, hinged at <see cref="Hinge"/>, drawn open to
+    /// <see cref="LeafEnd"/>, closing onto <see cref="ClosedEnd"/> (the far jamb). The swing is the
+    /// quarter arc from the leaf's end to the far jamb, as architectural plans draw doors.
+    /// </summary>
+    public sealed class PlanDoorSymbol
+    {
+        public PlanDoorSymbol(PlanPoint hinge, PlanPoint leafEnd, PlanPoint closedEnd)
+        {
+            Hinge = hinge;
+            LeafEnd = leafEnd;
+            ClosedEnd = closedEnd;
+        }
+
+        public PlanPoint Hinge { get; }
+        public PlanPoint LeafEnd { get; }
+        public PlanPoint ClosedEnd { get; }
+
+        /// <summary>The leaf's length, which is the radius of its swing.</summary>
+        public double Width => Math.Sqrt((LeafEnd.X - Hinge.X) * (LeafEnd.X - Hinge.X) + (LeafEnd.Z - Hinge.Z) * (LeafEnd.Z - Hinge.Z));
+    }
+
     /// <summary>An axis-aligned rectangle on the plan.</summary>
     public readonly struct PlanBounds
     {
@@ -109,7 +131,10 @@ namespace IndoorNavigation.Core.Venue
             IReadOnlyList<PlanSpace> spaces,
             IReadOnlyList<PlanSegment> walls,
             IReadOnlyList<PlanDoor> doors,
-            double northDegrees = 0)
+            double northDegrees = 0,
+            IReadOnlyList<PlanDoorSymbol> doorSymbols = null,
+            IReadOnlyList<PlanSegment> stairLines = null,
+            IReadOnlyList<PlanSegment> glassWalls = null)
         {
             Floor = floor;
             Name = name;
@@ -119,6 +144,9 @@ namespace IndoorNavigation.Core.Venue
             Walls = walls ?? Array.Empty<PlanSegment>();
             Doors = doors ?? Array.Empty<PlanDoor>();
             NorthDegrees = northDegrees;
+            DoorSymbols = doorSymbols ?? Array.Empty<PlanDoorSymbol>();
+            StairLines = stairLines ?? Array.Empty<PlanSegment>();
+            GlassWalls = glassWalls ?? Array.Empty<PlanSegment>();
         }
 
         public int Floor { get; }
@@ -128,6 +156,15 @@ namespace IndoorNavigation.Core.Venue
         public IReadOnlyList<PlanSpace> Spaces { get; }
         public IReadOnlyList<PlanSegment> Walls { get; }
         public IReadOnlyList<PlanDoor> Doors { get; }
+
+        /// <summary>The drawing's doors (leaf and swing), for the 2D map; the walls leave their openings.</summary>
+        public IReadOnlyList<PlanDoorSymbol> DoorSymbols { get; }
+
+        /// <summary>The treads and outlines of stairs: drawn, but they block neither walking on the map nor sight.</summary>
+        public IReadOnlyList<PlanSegment> StairLines { get; }
+
+        /// <summary>Glass walls: they bar the way but not the view, so line of sight ignores them.</summary>
+        public IReadOnlyList<PlanSegment> GlassWalls { get; }
 
         /// <summary>
         /// Where north lies, in degrees clockwise from the plan's up (−z). Read from the drawing's own

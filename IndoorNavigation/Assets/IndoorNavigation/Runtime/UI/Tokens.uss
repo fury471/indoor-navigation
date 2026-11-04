@@ -956,3 +956,51 @@
     color: var(--muted);
     -unity-text-align: middle-center;
 }
+
+/* 1 · "Where on this floor?" chips (decision record 13): optional, wrap over lines. */
+.locate-areas {
+    flex-shrink: 0;
+    margin: 4px 0 6px 0;
+}
+
+.area-chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.area-chip {
+    height: 44px;
+    margin: 0 8px 8px 0;
+    padding: 0 14px;
+    border-radius: 22px;
+    border-width: 1px;
+    border-color: var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+}
+
+.area-chip--on {
+    border-color: var(--accent);
+    background-color: var(--accent-soft);
+    color: var(--accent);
+    -unity-font-style: bold;
+}
+
+/* A · destination pin over the camera view (screen-space, constant size). */
+.ar-pin {
+    position: absolute;
+    width: 180px;
+    align-items: center;
+}
+
+.ar-pin-label {
+    margin-top: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background-color: rgba(20, 23, 31, 0.86);
+    color: #FFFFFF;
+    font-size: 13px;
+    -unity-font-style: bold;
+}

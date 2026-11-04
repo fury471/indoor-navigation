@@ -60,7 +60,7 @@ namespace IndoorNavigation.Adapters.Tests
             VenuePackage venue = Load();
             Route toilet = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "d-toilet-1", new RouteOptions());
             Assert.IsNotNull(toilet);
-            Assert.AreEqual(22.6, toilet.LengthMetres, 0.5);
+            Assert.AreEqual(23.6, toilet.LengthMetres, 0.5, "Through the toilet lobby's doorway in the corridor wall (build 16b), not across its corner.");
 
             Route up = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "stairs-3", new RouteOptions());
             Assert.IsNotNull(up);
@@ -87,6 +87,33 @@ namespace IndoorNavigation.Adapters.Tests
             ArGuidanceFrame atLobby = ArGuidance.Plan(route, next, new PlanPose(1, lobby.X, lobby.Z, 90), venue.PlanOf(1));
             Assert.IsNotNull(atLobby.PinAt, "In front of the toilets the destination shows.");
             Assert.IsTrue(atLobby.ReachesDestination);
+        }
+
+        [Test]
+        public void Plan_HasTheLabelledDoorsStairsAndGlass()
+        {
+            FloorPlan plan = Load().PlanOf(1);
+            Assert.Greater(plan.DoorSymbols.Count, 40, "Fury's labelled doors (4 Nov).");
+            Assert.Greater(plan.StairLines.Count, 10);
+            Assert.AreEqual(1, plan.GlassWalls.Count);
+            foreach (PlanDoorSymbol door in plan.DoorSymbols) Assert.That(door.Width, Is.InRange(0.3, 2.0), "A door leaf is between 0.3 and 2 m.");
+        }
+
+        [Test]
+        public void Plan_LeavesEveryRecordedDoorwayOpen()
+        {
+            FloorPlan plan = Load().PlanOf(1);
+            foreach (PlanDoor door in plan.Doors)
+            {
+                // Walk through the middle of the doorway, 0.6 m each side: no wall may stand in the way.
+                PlanPoint a = door.Corners.A, b = door.Corners.B;
+                double mx = (a.X + b.X) / 2, mz = (a.Z + b.Z) / 2, len = door.Corners.Length;
+                double nx = -(b.Z - a.Z) / len * 0.6, nz = (b.X - a.X) / len * 0.6;
+                foreach (PlanSegment wall in plan.Walls)
+                {
+                    Assert.Less(Segments.Crossing(mx - nx, mz - nz, mx + nx, mz + nz, wall.A.X, wall.A.Z, wall.B.X, wall.B.Z), 0, door.Id + " is blocked by a wall.");
+                }
+            }
         }
 
         [Test]

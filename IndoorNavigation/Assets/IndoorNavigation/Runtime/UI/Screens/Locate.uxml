@@ -19,6 +19,10 @@
                 <ui:VisualElement class="spacer" />
                 <ui:Button name="change-floor" text="Change floor" class="button button--small locate-change" />
             </ui:VisualElement>
+            <ui:VisualElement name="area-section" class="locate-areas">
+                <ui:Label name="area-intro" class="small" />
+                <ui:VisualElement name="area-list" class="area-chips" />
+            </ui:VisualElement>
             <ui:Label name="hint" class="body locate-hint" />
             <ui:Label name="status" class="small" />
             <ui:Button name="show-doors" text="Tell the app where I am" class="button" />

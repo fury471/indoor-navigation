@@ -13,6 +13,8 @@ namespace IndoorNavigation.UI.Screens
         private readonly VisualElement noRoute;
         private readonly Button start;
         private readonly VisualElement mapSwitch;
+        private readonly Button orientation;
+        private readonly CompassIcon compass = new CompassIcon();
         private readonly RouteView map = new RouteView();
 
         public PreviewPresenter(VisualElement root, AppSession session) : base(root, session)
@@ -26,6 +28,9 @@ namespace IndoorNavigation.UI.Screens
             Find<VisualElement>("map").Insert(0, map);
             Find<Button>("show-3d").clicked += () => Session.ShowMiniature(true);
             mapSwitch = Find<Button>("show-2d").parent;
+            orientation = Find<Button>("orientation");
+            orientation.Add(compass);
+            orientation.clicked += Session.ToggleMapOrientation;
 
             avoidStairs.RegisterValueChangedCallback(change => Session.SetAvoidStairs(change.newValue));
             start.clicked += Session.StartRoute;
@@ -48,7 +53,9 @@ namespace IndoorNavigation.UI.Screens
             start.SetEnabled(hasRoute);
             SetVisible(mapSwitch, hasRoute);
             summary.text = hasRoute ? Summary() : "";
-            map.Show(Session.Venue, Session.Route, Session.UserFloor, Session.Pose);
+            map.Show(Session.Venue, Session.Route, Session.UserFloor, Session.Pose, -1, Session.MapOrientation, Session.CameraFovDegrees);
+            orientation.EnableInClassList("map-control--on", Session.MapOrientation == MapOrientation.HeadingUp);
+            compass.Degrees = map.NorthOnScreenDegrees;
         }
 
         private string Summary()

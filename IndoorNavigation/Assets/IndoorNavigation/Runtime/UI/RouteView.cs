@@ -41,6 +41,7 @@ namespace IndoorNavigation.UI
         private static readonly Color You = new Color32(0x25, 0x63, 0xEB, 0xFF);
         private static readonly Color Destination = new Color32(0xD9, 0x48, 0x0F, 0xFF);
         private static readonly Color Muted = new Color32(0x5B, 0x62, 0x70, 0xFF);
+        private static readonly Color Glass = new Color32(0x8F, 0xB8, 0xDE, 0xFF);
 
         private VenuePackage venue;
         private Route route;
@@ -242,32 +243,95 @@ namespace IndoorNavigation.UI
                     Line(painter, toScreen(wall.A.X, wall.A.Z), toScreen(wall.B.X, wall.B.Z));
                 }
             }
+
+            // Stairs: their treads, thin, as the evacuation plan draws them.
+            painter.lineWidth = 1f;
+            foreach (PlanSegment line in plan.StairLines)
+            {
+                painter.strokeColor = InDemo(plan, (line.A.X + line.B.X) / 2, (line.A.Z + line.B.Z) / 2) ? WallDemo : WallQuiet;
+                Line(painter, toScreen(line.A.X, line.A.Z), toScreen(line.B.X, line.B.Z));
+            }
+
+            painter.strokeColor = Glass;
+            painter.lineWidth = Mathf.Clamp(0.1f * scale, 1.25f, 2f);
+            foreach (PlanSegment glass in plan.GlassWalls) Line(painter, toScreen(glass.A.X, glass.A.Z), toScreen(glass.B.X, glass.B.Z));
+
+            // Doors as architectural plans draw them: the open leaf, and its swing as a thin quarter arc
+            // (decision record 14), instead of short wall stubs that read as clutter.
+            foreach (PlanDoorSymbol door in plan.DoorSymbols)
+            {
+                bool demo = InDemo(plan, door.Hinge.X, door.Hinge.Z);
+                painter.strokeColor = demo ? WallDemo : WallQuiet;
+                painter.lineWidth = demo ? Mathf.Clamp(0.08f * scale, 1f, 1.75f) : 1f;
+                Line(painter, toScreen(door.Hinge.X, door.Hinge.Z), toScreen(door.LeafEnd.X, door.LeafEnd.Z));
+                painter.lineWidth = 0.75f;
+                Swing(painter, door, toScreen);
+            }
+        }
+
+        /// <summary>The quarter arc a door sweeps, from its open leaf's end to the far jamb.</summary>
+        private static void Swing(Painter2D painter, PlanDoorSymbol door, Func<double, double, Vector2> toScreen)
+        {
+            double r = door.Width;
+            if (r < 0.2) return;
+            double a0 = Math.Atan2(door.LeafEnd.Z - door.Hinge.Z, door.LeafEnd.X - door.Hinge.X);
+            double a1 = Math.Atan2(door.ClosedEnd.Z - door.Hinge.Z, door.ClosedEnd.X - door.Hinge.X);
+            double sweep = a1 - a0;
+            while (sweep > Math.PI) sweep -= 2 * Math.PI;
+            while (sweep < -Math.PI) sweep += 2 * Math.PI;
+            const int Steps = 10;
+            painter.BeginPath();
+            for (int k = 0; k <= Steps; k++)
+            {
+                double a = a0 + sweep * k / Steps;
+                Vector2 p = toScreen(door.Hinge.X + r * Math.Cos(a), door.Hinge.Z + r * Math.Sin(a));
+                if (k == 0) painter.MoveTo(p);
+                else painter.LineTo(p);
+            }
+
+            painter.Stroke();
+        }
+
+        private static bool InDemo(FloorPlan plan, double x, double z)
+        {
+            foreach (IReadOnlyList<PlanPoint> zone in plan.Zones)
+            {
+                if (Polygons.Contains(zone, x, z) || Polygons.DistanceToOutline(zone, x, z) < 1.0) return true;
+            }
+
+            return false;
         }
 
         private void DrawRoute(Painter2D painter, Func<double, double, Vector2> toScreen)
         {
             painter.lineCap = LineCap.Round;
 
-            // A white casing keeps the route legible over walls and room edges; the walked part is grey
-            // (blueprint legend: Already walked), the way ahead teal, both meeting at you.
-            bool navigating = nextNode > 0 && nextNode < route.Nodes.Count && WalkedEnd().HasValue;
+            // The route starts where you are on it (RouteProgress.Snap), as map apps join the dot to the
+            // route line, so it never cuts from the dot to the next node through a wall. Walked part grey
+            // (blueprint legend: Already walked), the way ahead teal, with a white casing for legibility.
             PlanPose? here = WalkedEnd();
+            RouteSnap snap = here.HasValue ? RouteProgress.Snap(route, Math.Max(0, nextNode), here.Value) : default;
+            bool navigating = nextNode > 0 && nextNode < route.Nodes.Count && snap.OnRoute;
+            PlanPose? at = snap.OnRoute ? new PlanPose(floor, snap.X, snap.Z, 0) : (PlanPose?)null;
+            int ahead = snap.OnRoute ? snap.NextIndex : 0;
+
             painter.strokeColor = Color.white;
             painter.lineWidth = 9f;
-            RoutePath(painter, toScreen, 0, route.Nodes.Count - 1, null, null);
+            if (navigating) RoutePath(painter, toScreen, 0, ahead - 1, null, at);
+            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null);
             painter.lineWidth = 5f;
             if (navigating)
             {
                 painter.strokeColor = Walked;
-                RoutePath(painter, toScreen, 0, nextNode - 1, null, here);
-                painter.strokeColor = Accent;
-                RoutePath(painter, toScreen, nextNode, route.Nodes.Count - 1, here, null);
+                RoutePath(painter, toScreen, 0, ahead - 1, null, at);
             }
-            else
-            {
-                painter.strokeColor = Accent;
-                RoutePath(painter, toScreen, 0, route.Nodes.Count - 1, null, null);
-            }
+
+            painter.strokeColor = Accent;
+            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null);
+
+            // Off the line by more than a step: a dotted link from the dot to the route, as walking
+            // directions draw it, instead of a solid line through whatever lies between.
+            if (snap.OnRoute && snap.OffRouteMetres > 0.8) Dotted(painter, toScreen(here.Value.X, here.Value.Z), toScreen(snap.X, snap.Z));
 
             // Floor connection badge where the route leaves this floor (blueprint legend).
             for (int i = 0; i + 1 < route.Nodes.Count; i++)
@@ -277,6 +341,14 @@ namespace IndoorNavigation.UI
             }
 
             if (route.End.Floor == floor) Pin(painter, toScreen(route.End.X, route.End.Z));
+        }
+
+        private static void Dotted(Painter2D painter, Vector2 from, Vector2 to)
+        {
+            float length = (to - from).magnitude;
+            if (length < 1f) return;
+            Vector2 step = (to - from) / length;
+            for (float d = 4f; d < length - 2f; d += 8f) Dot(painter, from + step * d, 2f, Walked, 0f);
         }
 
         /// <summary>Where the walked part ends: you, when you are on this floor.</summary>

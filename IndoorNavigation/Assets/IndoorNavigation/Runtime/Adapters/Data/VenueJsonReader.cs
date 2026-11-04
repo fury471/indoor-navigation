@@ -91,8 +91,23 @@ namespace IndoorNavigation.Adapters.Data
                 doors.Add(new PlanDoor(d.id ?? "", Empty(d.name), new PlanSegment(d.ax, d.az, d.bx, d.bz)));
             }
 
+            var symbols = new List<PlanDoorSymbol>();
+            foreach (DoorSymbolDto d in dto.doorSymbols ?? Array.Empty<DoorSymbolDto>())
+            {
+                symbols.Add(new PlanDoorSymbol(new PlanPoint(d.hx, d.hz), new PlanPoint(d.lx, d.lz), new PlanPoint(d.ex, d.ez)));
+            }
+
             string name = Empty(dto.name) ?? "Floor " + dto.floor.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            return new FloorPlan(dto.floor, name, new PlanBounds(dto.view.minX, dto.view.minZ, dto.view.maxX, dto.view.maxZ), zones, spaces, walls, doors, dto.northDegrees);
+            return new FloorPlan(
+                dto.floor, name, new PlanBounds(dto.view.minX, dto.view.minZ, dto.view.maxX, dto.view.maxZ), zones, spaces, walls, doors, dto.northDegrees,
+                symbols, Segments(dto.stairs), Segments(dto.glass));
+        }
+
+        private static List<PlanSegment> Segments(SegmentDto[] list)
+        {
+            var result = new List<PlanSegment>();
+            foreach (SegmentDto s in list ?? Array.Empty<SegmentDto>()) result.Add(new PlanSegment(s.ax, s.az, s.bx, s.bz));
+            return result;
         }
 
         /// <summary>The package file that holds a floor's plan, by name: floor-1-plan.json is floor 1's, in any folder.</summary>
@@ -232,6 +247,14 @@ namespace IndoorNavigation.Adapters.Data
         public SegmentDto[] walls;
         public DoorDto[] doors;
 
+        /// <summary>The drawing's doors: hinge (h), open leaf end (l), far jamb (e).</summary>
+        public DoorSymbolDto[] doorSymbols;
+
+        /// <summary>Stair treads and outlines.</summary>
+        public SegmentDto[] stairs;
+
+        public SegmentDto[] glass;
+
         /// <summary>Where north is, clockwise from the plan's up; 0 when the file does not say.</summary>
         public double northDegrees;
     }
@@ -243,6 +266,8 @@ namespace IndoorNavigation.Adapters.Data
     [Serializable] internal sealed class SpaceDto { public string id; public string name; public string kind; public bool inDemo; public double[] xz; }
 
     [Serializable] internal sealed class SegmentDto { public double ax; public double az; public double bx; public double bz; }
+
+    [Serializable] internal sealed class DoorSymbolDto { public double hx; public double hz; public double lx; public double lz; public double ex; public double ez; }
 
     [Serializable] internal sealed class DoorDto { public string id; public string name; public double ax; public double az; public double bx; public double bz; }
 
