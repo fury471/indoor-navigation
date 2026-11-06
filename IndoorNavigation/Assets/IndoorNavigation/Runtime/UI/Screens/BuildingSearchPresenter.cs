@@ -1,71 +1,86 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using IndoorNavigation.Core.Session;
 using IndoorNavigation.Core.Venue;
 using UnityEngine.UIElements;
 
 namespace IndoorNavigation.UI.Screens
 {
-    /// <summary>V1 · Choose a building. The skeleton downloads straight from the list; V2 comes later.</summary>
+    /// <summary>V1, V1b and V2: search supported buildings, inspect coverage, then download.</summary>
     public sealed class BuildingSearchPresenter : ScreenPresenter
     {
         private readonly ScrollView list;
-        private readonly Label empty;
+        private readonly TextField query;
+        private readonly VisualElement empty;
         private IReadOnlyList<VenueSummary> renderedVenues;
+        private VenueSummary selected;
 
         public BuildingSearchPresenter(VisualElement root, AppSession session) : base(root, session)
         {
             list = Find<ScrollView>("venue-list");
-            empty = Find<Label>("empty");
+            query = Find<TextField>("query");
+            query.textEdition.placeholder = "Search by building name";
+            empty = Find<VisualElement>("empty");
+            query.RegisterValueChangedCallback(_ => Rebuild());
+            Find<Button>("show-all").clicked += () => query.value = "";
+            Find<Button>("back").clicked += Back;
+            Find<Button>("another").clicked += Back;
+            Find<Button>("download").clicked += () =>
+            {
+                if (selected?.Status == VenueStatus.Available) RunAsync(Session.DownloadAsync(selected.Id));
+            };
+            SetVisible(Find<VisualElement>("details-view"), false);
         }
 
         public override void Render()
         {
-            SetVisible(empty, Session.Venues.Count == 0);
-            if (ReferenceEquals(renderedVenues, Session.Venues))
+            if (!ReferenceEquals(renderedVenues, Session.Venues))
             {
-                return; // the same list as last time; do not rebuild the rows
+                renderedVenues = Session.Venues;
+                Rebuild();
             }
+        }
 
-            renderedVenues = Session.Venues;
+        private void Back()
+        {
+            selected = null;
+            SetVisible(Find<VisualElement>("details-view"), false);
+            SetVisible(Find<VisualElement>("search-view"), true);
+        }
+
+        private void Rebuild()
+        {
             list.Clear();
             foreach (VenueSummary venue in Session.Venues)
             {
-                list.Add(Row(venue));
+                if (venue.Name.IndexOf(query.value?.Trim() ?? "", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                var row = new Button(() => ShowDetails(venue));
+                row.AddToClassList("catalogue-card");
+                NavigationPanels.Text(row, venue.Name + "  ›", "strong");
+                NavigationPanels.Text(row, venue.Coverage, "small");
+                NavigationPanels.Text(row, StatusText(venue.Status), "small");
+                list.Add(row);
             }
+            SetVisible(empty, list.childCount == 0);
         }
 
-        private VisualElement Row(VenueSummary venue)
+        private void ShowDetails(VenueSummary venue)
         {
-            var card = new VisualElement();
-            card.AddToClassList("card");
-
-            var name = new Label(venue.Name);
-            name.AddToClassList("strong");
-            var coverage = new Label(venue.Coverage);
-            coverage.AddToClassList("small");
-            var status = new Label(StatusText(venue.Status));
-            status.AddToClassList("small");
-
-            var download = new Button(() => RunAsync(Session.DownloadAsync(venue.Id))) { text = "Download and continue" };
-            download.AddToClassList("button");
-            download.AddToClassList("button--primary");
-            download.SetEnabled(venue.Status == VenueStatus.Available);
-
-            card.Add(name);
-            card.Add(coverage);
-            card.Add(status);
-            card.Add(download);
-            return card;
+            selected = venue;
+            Find<Label>("venue-name").text = venue.Name;
+            Find<Label>("venue-status").text = StatusText(venue.Status);
+            Find<Label>("venue-status").EnableInClassList("state-pill--ok", venue.Status == VenueStatus.Available);
+            Find<Label>("coverage").text = venue.Coverage;
+            Find<Label>("download-size").text = venue.DownloadBytes > 0
+                ? "Building data · " + (venue.DownloadBytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB"
+                : "Building data is included with this app.";
+            Find<Button>("download").SetEnabled(venue.Status == VenueStatus.Available);
+            SetVisible(Find<VisualElement>("search-view"), false);
+            SetVisible(Find<VisualElement>("details-view"), true);
         }
 
-        private static string StatusText(VenueStatus status)
-        {
-            switch (status)
-            {
-                case VenueStatus.Available: return "Available";
-                case VenueStatus.ComingSoon: return "Coming soon";
-                default: return "Not available now";
-            }
-        }
+        private static string StatusText(VenueStatus status) =>
+            status == VenueStatus.Available ? "Available" : status == VenueStatus.ComingSoon ? "Coming soon" : "Not available now";
     }
 }

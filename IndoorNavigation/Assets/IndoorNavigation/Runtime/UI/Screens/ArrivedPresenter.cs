@@ -1,4 +1,5 @@
 using IndoorNavigation.Core.Session;
+using IndoorNavigation.Core.Ports;
 using UnityEngine.UIElements;
 
 namespace IndoorNavigation.UI.Screens
@@ -10,6 +11,7 @@ namespace IndoorNavigation.UI.Screens
         private readonly Label where;
         private readonly Label hint;
         private readonly Label checkedOn;
+        private readonly RouteView map = new RouteView();
 
         public ArrivedPresenter(VisualElement root, AppSession session) : base(root, session)
         {
@@ -17,6 +19,8 @@ namespace IndoorNavigation.UI.Screens
             where = Find<Label>("where");
             hint = Find<Label>("hint");
             checkedOn = Find<Label>("checked");
+            Find<VisualElement>("map").Insert(0, map);
+            Find<VisualElement>("arrived-icon").Add(new NavigationIcon("check"));
             Find<Button>("found-it").clicked += Session.FoundIt;
         }
 
@@ -32,6 +36,8 @@ namespace IndoorNavigation.UI.Screens
             hint.text = Session.Destination.Hint ?? "";
             checkedOn.text = Session.Destination.LastChecked == null ? "" : "Checked " + Session.Destination.LastChecked;
             SetVisible(hint, Session.Destination.Hint != null);
+            map.Show(Session.Venue, Session.Route, Session.Venue.FloorOf(Session.Destination),
+                Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null, Session.NextNodeIndex);
         }
     }
 }

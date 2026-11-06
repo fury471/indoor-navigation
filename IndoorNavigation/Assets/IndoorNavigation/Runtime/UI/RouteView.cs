@@ -54,6 +54,11 @@ namespace IndoorNavigation.UI
         private int nextNode = -1;
         private MapOrientation orientation = MapOrientation.NorthUp;
         private double fovDegrees = 60;
+        private bool uncertain;
+        private bool otherFloor;
+        private Vector2 pan;
+        private float zoom = 1;
+        private readonly Dictionary<int, Vector2> pointers = new Dictionary<int, Vector2>();
         private readonly List<Label> labels = new List<Label>();
         private FloorPlan wallsOf;
         private readonly List<bool> wallInDemo = new List<bool>();
@@ -75,24 +80,78 @@ namespace IndoorNavigation.UI
         /// <summary>When false, room names are left out (the minimap is too small for them).</summary>
         public bool ShowLabels { get; set; } = true;
 
+        /// <summary>Pan and pinch affect only this drawing. The AR world and route stay fixed.</summary>
+        public void EnableInteraction(Action<bool> interaction)
+        {
+            pickingMode = PickingMode.Position;
+            RegisterCallback<PointerDownEvent>(e =>
+            {
+                pointers[e.pointerId] = e.position;
+                this.CapturePointer(e.pointerId);
+                interaction(true);
+                e.StopPropagation();
+            });
+            RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (!pointers.TryGetValue(e.pointerId, out Vector2 before)) return;
+                Vector2 now = e.position;
+                if (pointers.Count == 1) pan += now - before;
+                else foreach (var other in pointers)
+                {
+                    if (other.Key == e.pointerId) continue;
+                    float was = Vector2.Distance(before, other.Value), next = Vector2.Distance(now, other.Value);
+                    if (was > 4 && next > 4) zoom = Mathf.Clamp(zoom * next / was, 0.6f, 5f);
+                    break;
+                }
+                pointers[e.pointerId] = now;
+                PlaceLabels(); MarkDirtyRepaint();
+                e.StopPropagation();
+            });
+            Action<int> release = id =>
+            {
+                if (!pointers.Remove(id)) return;
+                if (this.HasPointerCapture(id)) this.ReleasePointer(id);
+                if (pointers.Count == 0) interaction(false);
+            };
+            RegisterCallback<PointerUpEvent>(e => release(e.pointerId));
+            RegisterCallback<PointerCancelEvent>(e => release(e.pointerId));
+            RegisterCallback<PointerCaptureOutEvent>(e => release(e.pointerId));
+            RegisterCallback<WheelEvent>(e =>
+            {
+                zoom = Mathf.Clamp(zoom * Mathf.Pow(1.1f, -e.delta.y / 3), 0.6f, 5f);
+                PlaceLabels(); MarkDirtyRepaint(); e.StopPropagation();
+            });
+        }
+
+        public void Recentre()
+        {
+            pan = Vector2.zero;
+            zoom = 1;
+            PlaceLabels();
+            MarkDirtyRepaint();
+        }
+
         /// <summary>Where north points on screen, degrees clockwise from up: for the compass on the Orientation button.</summary>
         public float NorthOnScreenDegrees => (float)(Rotation() + (Plan?.NorthDegrees ?? 0));
 
         public void Show(
             VenuePackage venuePackage, Route plannedRoute, int floorShown, PlanPose? youAreHere,
-            int nextNodeIndex = -1, MapOrientation mapOrientation = MapOrientation.NorthUp, double cameraFovDegrees = 60)
+            int nextNodeIndex = -1, MapOrientation mapOrientation = MapOrientation.NorthUp, double cameraFovDegrees = 60,
+            bool positionUncertain = false, int? userFloor = null)
         {
             bool newPlan = venuePackage != venue || floorShown != floor;
             venue = venuePackage;
             route = plannedRoute;
             floor = floorShown;
             you = youAreHere;
+            uncertain = positionUncertain;
+            otherFloor = userFloor.HasValue && userFloor.Value != floorShown;
             nextNode = nextNodeIndex;
             orientation = mapOrientation == MapOrientation.HeadingUp && youAreHere.HasValue && youAreHere.Value.Floor == floorShown
                 ? MapOrientation.HeadingUp
                 : MapOrientation.NorthUp;
             fovDegrees = Math.Max(20, Math.Min(120, cameraFovDegrees));
-            if (newPlan) MakeLabels();
+            if (newPlan) { pan = Vector2.zero; zoom = 1; MakeLabels(); }
             PlaceLabels();
             MarkDirtyRepaint();
         }
@@ -199,9 +258,12 @@ namespace IndoorNavigation.UI
             toScreen = (x, z) =>
             {
                 double dx = x - px, dz = z - pz;
-                return new Vector2((float)(cx + (dx * cos - dz * sin) * s), (float)(cy + (dx * sin + dz * cos) * s));
+                float x0 = (float)(cx + (dx * cos - dz * sin) * s);
+                float y0 = (float)(cy + (dx * sin + dz * cos) * s);
+                Vector2 centre = area.center;
+                return centre + (new Vector2(x0, y0) - centre) * zoom + pan;
             };
-            scale = (float)s;
+            scale = (float)s * zoom;
             return true;
         }
 
@@ -218,8 +280,17 @@ namespace IndoorNavigation.UI
             if (you.HasValue && you.Value.Floor == floor)
             {
                 Vector2 at = toScreen(you.Value.X, you.Value.Z);
-                DrawCone(painter, at, (float)(you.Value.HeadingDegrees + Rotation()), (float)fovDegrees);
-                Dot(painter, at, 7f, You, 3f);
+                if (uncertain)
+                {
+                    Dot(painter, at, 18f, new Color(0.36f, 0.39f, 0.44f, 0.12f), 0);
+                    Dot(painter, at, 8f, Muted, 3f);
+                    Dot(painter, at, 5f, Color.white, 0);
+                }
+                else
+                {
+                    DrawCone(painter, at, (float)(you.Value.HeadingDegrees + Rotation()), (float)fovDegrees);
+                    Dot(painter, at, 7f, You, 3f);
+                }
             }
         }
 
@@ -333,7 +404,7 @@ namespace IndoorNavigation.UI
                 RoutePath(painter, toScreen, 0, ahead - 1, null, at);
             }
 
-            painter.strokeColor = Accent;
+            painter.strokeColor = uncertain ? new Color32(0xB3, 0xD7, 0xD4, 255) : Accent;
             RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null);
 
             // Off the line by more than a step: a dotted link from the dot to the route, as walking
@@ -386,9 +457,27 @@ namespace IndoorNavigation.UI
             StrokeLine(painter, points);
         }
 
-        private static void StrokeLine(Painter2D painter, List<Vector2> points)
+        private void StrokeLine(Painter2D painter, List<Vector2> points)
         {
             if (points.Count < 2) return;
+            if (otherFloor)
+            {
+                float travelled = 0;
+                for (int i = 1; i < points.Count; i++)
+                {
+                    Vector2 delta = points[i] - points[i - 1];
+                    float length = delta.magnitude;
+                    for (float d = 0; d < length;)
+                    {
+                        float phase = travelled % 14f;
+                        float part = Mathf.Min(length - d, (phase < 9f ? 9f : 14f) - phase);
+                        if (part < 0.001f) part = Mathf.Min(0.001f, length - d);
+                        if (phase < 9f) Line(painter, points[i - 1] + delta * (d / length), points[i - 1] + delta * ((d + part) / length));
+                        d += part; travelled += part;
+                    }
+                }
+                return;
+            }
             painter.BeginPath();
             painter.MoveTo(points[0]);
             for (int i = 1; i < points.Count; i++) painter.LineTo(points[i]);

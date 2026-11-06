@@ -1,15 +1,30 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- 2 · Ask: what do you need? -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen">
-        <ui:VisualElement class="row">
+        <ui:VisualElement class="row building-row">
             <ui:Label name="building" class="chip" />
             <ui:VisualElement class="spacer" />
-            <ui:Button name="change" text="Change" class="button button--small" />
+            <ui:Button name="change" text="Change" class="text-button" />
         </ui:VisualElement>
         <ui:Label text="What do you need?" class="title" />
         <ui:Label text="Describe it in your own words, or name a place." class="body" />
-        <ui:TextField name="request" class="text-field" />
-        <ui:Button name="search" text="Search" class="button button--primary" />
+        <ui:TextField name="request" tooltip="A place or what you need" class="text-field" />
+        <ui:ScrollView class="visitor-scroll" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden">
+            <ui:VisualElement name="typing">
+                <ui:Label text="Places" class="section-label" />
+                <ui:VisualElement name="typed-places" />
+            </ui:VisualElement>
+            <ui:VisualElement name="discovery">
+                <ui:Label text="Common places" class="section-label" />
+                <ui:VisualElement name="common" class="common-places" />
+                <ui:Label text="Or describe a need" class="section-label" />
+                <ui:Button name="example-print" text="Where can I print?  ›" class="catalogue-card" />
+                <ui:Button name="example-charge" text="I need to charge my phone  ›" class="catalogue-card" />
+            </ui:VisualElement>
+        </ui:ScrollView>
+        <ui:VisualElement class="visitor-footer">
+            <ui:Button name="search" text="Search" class="button button--primary" />
+            <ui:Button name="browse" text="Browse places" class="button" />
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

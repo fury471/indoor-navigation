@@ -51,7 +51,16 @@ namespace IndoorNavigation.UI
 
             GraphNode next = session.Route.Nodes[session.NextNodeIndex];
             double metres = session.Pose.DistanceTo(next.Floor, next.X, next.Z);
-            return (WalkTo(next, session.Destination), "In " + Metres(metres));
+            return (RouteStep(session, session.NextNodeIndex), "In " + Metres(metres));
+        }
+
+        public static string RouteStep(AppSession session, int index)
+        {
+            GraphNode next = session.Route.Nodes[index];
+            if (index > 0 && session.Route.Nodes[index - 1].Floor != next.Floor)
+                return (session.Route.Nodes[index - 1].Kind == NodeKind.Lift ? "Take the lift to floor " : "Take the stairs to floor ") + next.Floor;
+            if (index == session.Route.Nodes.Count - 1) return "Arrive at " + session.Destination.Name;
+            return WalkTo(next, session.Destination);
         }
 
         private static string WalkTo(GraphNode node, Place destination)

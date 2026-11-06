@@ -1,10 +1,32 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- V1 · Choose a building -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen">
-        <ui:Label text="Which building are you in?" class="title" />
-        <ui:Label text="The app works in buildings that have been mapped. Pick yours to download its map." class="body" />
-        <ui:ScrollView name="venue-list" />
-        <ui:Label name="empty" text="Looking for supported buildings…" class="body" />
+        <ui:VisualElement name="search-view" class="visitor-scroll">
+            <ui:Label text="Which building are you in?" class="title" />
+            <ui:Label text="The app works in buildings that have been mapped. Pick yours to download its map." class="body" />
+            <ui:TextField name="query" tooltip="Search by building name" class="text-field" />
+            <ui:Label text="Supported buildings" class="section-label" />
+            <ui:ScrollView name="venue-list" class="visitor-scroll" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden" />
+            <ui:VisualElement name="empty" class="card">
+                <ui:Label text="No supported building matches" class="strong" />
+                <ui:Label text="Try another name, or see all supported buildings." class="body" />
+                <ui:Button name="show-all" text="Show supported buildings" class="button button--primary" />
+            </ui:VisualElement>
+            <ui:Label text="Not all of a building may be mapped. Check the coverage before you continue." class="small" />
+        </ui:VisualElement>
+        <ui:VisualElement name="details-view" class="visitor-scroll">
+            <ui:Button name="back" text="‹  Buildings" class="text-button" />
+            <ui:Label name="venue-name" class="title" />
+            <ui:Label name="venue-status" class="state-pill" />
+            <ui:Label text="What's mapped" class="section-label" />
+            <ui:VisualElement class="card">
+                <ui:Label name="coverage" class="body" />
+                <ui:Label text="Only the mapped part of this building is supported." class="small" />
+            </ui:VisualElement>
+            <ui:VisualElement class="spacer" />
+            <ui:Label name="download-size" class="small" />
+            <ui:Button name="download" text="Download and continue" class="button button--primary" />
+            <ui:Button name="another" text="Choose another building" class="button" />
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

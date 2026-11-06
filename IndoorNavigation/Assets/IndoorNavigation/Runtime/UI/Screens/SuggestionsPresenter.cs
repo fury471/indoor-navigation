@@ -22,6 +22,7 @@ namespace IndoorNavigation.UI.Screens
             noMatchText = Find<Label>("no-match-text");
             Find<Button>("refine").clicked += () => RunAsync(Session.RefineAsync());
             Find<Button>("edit").clicked += Session.EditSearch;
+            Find<Button>("browse").clicked += () => Session.BrowsePlaces();
         }
 
         public override void Render()
@@ -29,6 +30,8 @@ namespace IndoorNavigation.UI.Screens
             request.text = Session.RequestText ?? "";
             bool none = Session.Suggestions.Count == 0;
             SetVisible(noMatch, none);
+            SetVisible(Find<Button>("browse"), none);
+            SetVisible(Find<Button>("refine"), !none);
             noMatchText.text = Session.Answer?.Text ?? "";
             if (renderedAnswer == Session.Answer)
             {
@@ -46,7 +49,7 @@ namespace IndoorNavigation.UI.Screens
         private VisualElement Card(Place place, string reason)
         {
             var card = new Button(() => Session.PickPlace(place.Id));
-            card.AddToClassList("card");
+            card.AddToClassList("catalogue-card");
             card.style.height = StyleKeyword.Auto;
             card.style.alignItems = Align.FlexStart;
 

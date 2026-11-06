@@ -1,12 +1,19 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- G · Arrived -->
     <Style src="../Tokens.uss" />
-    <ui:VisualElement class="screen">
-        <ui:VisualElement class="spacer" />
-        <ui:VisualElement class="sheet">
-            <ui:Label text="You've arrived" class="title" />
-            <ui:Label name="place" class="strong" />
-            <ui:Label name="where" class="body" />
+    <ui:VisualElement class="screen route-screen">
+        <ui:VisualElement class="instruction-card">
+            <ui:VisualElement name="arrived-icon" class="icon-tile" />
+            <ui:VisualElement class="instruction-copy">
+                <ui:Label text="You've arrived" class="instruction-title" />
+                <ui:Label name="place" class="small" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="map" class="map route-map">
+            <ui:Label text="Destination on the map" class="map-status" picking-mode="Ignore" />
+        </ui:VisualElement>
+        <ui:VisualElement class="sheet route-sheet">
+            <ui:VisualElement class="sheet-handle" />
+            <ui:Label name="where" class="strong" />
             <ui:Label name="hint" class="body" />
             <ui:Label name="checked" class="small" />
             <ui:Button name="found-it" text="Found it" class="button button--primary" />

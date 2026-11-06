@@ -1,29 +1,51 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- 5 · Route preview and options, with 5b · No step-free route -->
     <Style src="../Tokens.uss" />
-    <ui:VisualElement class="screen">
-        <ui:VisualElement class="row">
-            <ui:Button name="back" text="Back" class="button button--small" />
+    <ui:VisualElement class="screen route-screen">
+        <ui:VisualElement class="instruction-card row">
+            <ui:Button name="back" text="‹" tooltip="Back" class="back-button" />
+            <ui:VisualElement class="instruction-copy">
+                <ui:Label name="destination" class="strong" />
+                <ui:Label name="where" class="small" />
+            </ui:VisualElement>
         </ui:VisualElement>
-        <ui:Label name="destination" class="title" />
-        <ui:Label name="where" class="body" />
-        <ui:VisualElement name="map" class="map">
+        <ui:VisualElement name="map" class="map route-map">
             <ui:VisualElement class="segmented segmented--map">
                 <ui:Button name="show-2d" text="2D" class="segment segment--on" />
                 <ui:Button name="show-3d" text="3D" class="segment" />
             </ui:VisualElement>
             <ui:VisualElement class="map-controls">
+                <ui:Button name="floors" tooltip="Choose floor" class="map-control" />
                 <ui:Button name="orientation" tooltip="North up or heading up" class="map-control" />
+                <ui:Button name="recentre" tooltip="Recentre on my floor" class="map-control" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement class="sheet">
-            <ui:Label name="summary" class="strong" />
-            <ui:Toggle name="avoid-stairs" label="Avoid stairs" />
+        <ui:VisualElement class="sheet route-sheet">
+            <ui:VisualElement class="sheet-handle" />
+            <ui:Label name="summary" class="route-summary" />
+            <ui:Toggle name="avoid-stairs" label="Avoid stairs" class="route-option" />
             <ui:VisualElement name="no-route" class="warning">
-                <ui:Label text="No step-free route mapped" class="strong" />
-                <ui:Label text="Every mapped way to this place has stairs or steps." class="warning-text" />
+                <ui:Label name="no-route-title" class="strong" />
+                <ui:Label name="no-route-detail" class="warning-text" />
             </ui:VisualElement>
+            <ui:Button name="steps" text="Steps as text  ›" class="button button--small" />
             <ui:Button name="start" text="Start" class="button button--primary" />
+        </ui:VisualElement>
+        <ui:VisualElement name="first-tip" class="overlay">
+            <ui:VisualElement class="sheet dialog-sheet">
+                <ui:Label text="Two ways to follow the route" class="title" />
+                <ui:VisualElement class="row first-tip-row">
+                    <ui:VisualElement class="first-tip-option">
+                        <ui:Label text="Raise the phone" class="strong" />
+                        <ui:Label text="AR arrows on the camera view" class="small" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="first-tip-option">
+                        <ui:Label text="Lower it" class="strong" />
+                        <ui:Label text="The map, like now" class="small" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:Label text="Tap the lock to stay in one view. Pay attention to your surroundings as you walk." class="body" />
+                <ui:Button name="got-it" text="Got it" class="button button--primary" />
+            </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

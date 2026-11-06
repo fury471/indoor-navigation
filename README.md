@@ -6,11 +6,12 @@ It is the project of the course MAMN41 (UX/XR) at Lund University, built in Unit
 
 Owner: Fury (fury471). Licence: MIT.
 
-## Status on 31 Oct 2026
+## Status on 5 Nov 2026
 
 | Part | State |
 |---|---|
 | Walking skeleton: ten visitor screens, the session statechart, route planner, sample two-floor package, developer panel | Done; device-tested 26 Oct |
+| Visitor UI refinement from the October blueprint | Building details, typing suggestions, floor picker/other-floor view, lock and manual map controls, route steps, recovery tips and revised layouts implemented; Unity rendering/layout checks at three phone sizes. See `Docs/blueprint-refinement.md`; iPhone check pending |
 | Real phone attitude (raise for AR, lower for 2D) | Done; device-tested 26 Oct |
 | Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
 | **Where are you?** when the map is slow: mark the door of the room you're in, or of the corridor door you're at (decision 11); Fix position at any time; route ahead drawn in AR | Build 10 (build 9's fixes from build 8, plus inner-room wording) code done; layout checked at iPhone SE and 16 Pro sizes; device test pending |
@@ -18,8 +19,8 @@ Owner: Fury (fury471). Licence: MIT.
 | Live corner anchors while recording and after restoring a map | Build 11 device report: improved alignment, with about 25–30 cm remaining offset after a loop during active recording/Continue; cause not yet established |
 | Check left / Check right during recording and checkpoint testing | Updated 31 Oct export: final paused group has 56 samples at six corners, 14.96–23.87 cm residuals during a user-reported ~20 m walk. Independent building/plan accuracy remains unverified |
 | Pause → checkpoint test → Continue; recording cleanup | Updated log contains 82 paused checks in two checkpoint groups and reloads completing in 12.7, 4.5 and 7.7 s. No post/anchor separation at log precision. Full Unity execution and the remaining device checklist are pending |
-| Floor plan and miniature of the real building | Converter works on practice scans. RoomPlan failed in the lab on 29 Oct, so the plan will come from the evacuation plans (not built yet) |
-| Low-phone prompt (decision 9), minimap in AR | Next |
+| Floor plan and miniature of the real building | Evacuation-derived floor-1 plan and miniature in local IKDC package 1.4.0; see build 17 in `Docs/device-tests.md`. Full plans for the other floors remain open |
+| AR minimap and low-phone recovery | Tappable heading-up minimap and lost-position tips implemented. The uncertainty-based prompt and thresholds in decision 9 still need the low-phone walk |
 | Venue service, natural-language search with an LLM, floors 2 and 3, study set-up | After the seminar |
 
 `Docs/device-tests.md` has every device test, and `Docs/lab-visit-1.md` what we learnt in the lab.
@@ -34,7 +35,7 @@ You need:
 
 Then:
 1. Clone the repo and open the folder `IndoorNavigation/` in Unity Hub. Let the packages resolve.
-2. **Window → General → Test Runner → EditMode → Run All.** Expect 329 tests (318 Core and 11 adapter tests; the four IKDC package tests are skipped when `StreamingAssets/IKDC` is absent). The current source has passed compilation and 322 offline tests; full Unity execution remains pending (see `Docs/device-tests.md`).
+2. **Window → General → Test Runner → EditMode → Run All.** Expect 343 tests (328 Core, 14 adapter and one UI integration test; seven IKDC package tests are skipped when `StreamingAssets/IKDC` is absent). The UI test temporarily enters Play mode to exercise the real screens at phone sizes and saves PNGs to `Library/BlueprintReview`. See `Docs/device-tests.md` for the latest verification.
 3. Open `Assets/IndoorNavigation/Scenes/App.unity` and press Play. In the Editor, position and phone attitude are placeholders that you drive from the keyboard (on screen 1, choose the floor, then **Tell the app where I am** works with sample doors):
 
    | Key | Does |
@@ -98,6 +99,7 @@ Where to look:
 
 | Document | What it is for |
 |---|---|
+| `Docs/blueprint-refinement.md` | Current visitor UI changes, implemented blueprint views, Unity screenshot checks and remaining work |
 | `Docs/walking-skeleton-guide.md` | Unity set-up of the App scene, the commit order of the skeleton, six lessons |
 | `Docs/real-position-guide.md` | The idea behind world maps and door-corner alignment (part A); parts C and D are history |
 | `Docs/build-15-guide.md` | **Current build:** blueprint-style 2D map with north-up/heading-up and view cone, the drawing as ground truth, the AR track with occlusion and line of sight, and starting from any floor-1 map |
@@ -138,5 +140,5 @@ Short list; the architecture document has the full plan.
 1. Run the Continue corner-check comparison (`Docs/continue-corner-check.md`): establish baseline/revisit residuals, then select and validate a correction for the remaining build-11 offset. Earlier build-10 checks in `Docs/build-7-guide.md` part D remain relevant where not yet verified.
 2. Lab visit 2, floor by floor: a map per floor with every start door marked and named; automatic start, door fix and drift measured (part E).
 3. The plan from the evacuation-plan photos, fitted onto each floor's door corners; the route graph between the named doors; the catalogue; package 1.1.0.
-4. The "raise the phone" prompt (decision 9), the minimap in AR, floor height along the ramp.
+4. Validate the refined visitor screens on the iPhone (`Docs/blueprint-refinement.md`); measure the uncertainty-based "raise the phone" prompt (decision 9) and floor height along the ramp.
 5. After the seminar: the venue service, LLM search, the measured localisation test (world map versus door fix), the study.

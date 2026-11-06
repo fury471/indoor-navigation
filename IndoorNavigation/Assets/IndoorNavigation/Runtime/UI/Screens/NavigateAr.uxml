@@ -1,22 +1,31 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <!-- A · Phone raised: AR + minimap. Transparent, so the camera view shows through; the route ahead
-         is drawn on the floor by the AR overlay. "Arrows look wrong?" fixes the position at a door. -->
     <Style src="../Tokens.uss" />
-    <ui:VisualElement class="screen screen--transparent">
-        <ui:VisualElement class="card">
-            <ui:Label name="instruction" class="strong" />
-            <ui:Label name="instruction-detail" class="small" />
+    <ui:VisualElement class="screen screen--transparent ar-screen">
+        <ui:Button name="steps" tooltip="Read route steps" class="instruction-card">
+            <ui:VisualElement name="instruction-icon" class="icon-tile" picking-mode="Ignore" />
+            <ui:VisualElement class="instruction-copy" picking-mode="Ignore">
+                <ui:Label name="instruction" class="instruction-title" />
+                <ui:Label name="instruction-detail" class="small" />
+            </ui:VisualElement>
+        </ui:Button>
+        <ui:Label name="destination" class="ar-destination" />
+        <ui:VisualElement class="spacer" picking-mode="Ignore" />
+        <ui:Button name="show-tips" text="Look around slowly · Show tips" class="ar-recovery" />
+        <ui:VisualElement class="spacer" picking-mode="Ignore" />
+        <ui:VisualElement class="row ar-bottom">
+            <ui:Button name="minimap-button" tooltip="Open 2D map" class="minimap-button">
+                <ui:VisualElement name="minimap" class="minimap" picking-mode="Ignore" />
+            </ui:Button>
+            <ui:VisualElement class="spacer" />
+            <ui:VisualElement class="ar-controls">
+                <ui:Button name="hold-view" tooltip="Hold this view" class="map-control" />
+                <ui:Button name="show-map" tooltip="Open 2D map" class="map-control" />
+            </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement class="row fix-row">
-            <ui:Label name="destination" class="chip" />
-            <ui:VisualElement name="ar-pin" class="ar-pin" picking-mode="Ignore">
-            <ui:VisualElement name="ar-pin-icon" class="ar-pin-icon" picking-mode="Ignore" />
+        <ui:Button name="fix-position" text="Arrows look wrong? Fix position" class="text-button ar-fix" />
+        <ui:VisualElement name="ar-pin" class="ar-pin" picking-mode="Ignore">
+            <ui:VisualElement name="ar-pin-icon" picking-mode="Ignore" />
             <ui:Label name="ar-pin-label" class="ar-pin-label" picking-mode="Ignore" />
         </ui:VisualElement>
-        <ui:VisualElement class="spacer" />
-            <ui:Button name="fix-position" text="Arrows look wrong?" class="button button--small" />
-        </ui:VisualElement>
-        <ui:VisualElement class="spacer" />
-        <ui:VisualElement name="minimap" class="minimap" />
     </ui:VisualElement>
 </ui:UXML>

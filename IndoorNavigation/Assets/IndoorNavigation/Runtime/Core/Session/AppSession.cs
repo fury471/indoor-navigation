@@ -169,6 +169,9 @@ namespace IndoorNavigation.Core.Session
         public PositionState PositionState => position.State;
         public PlanPose Pose => position.Pose;
 
+        /// <summary>A historical fix, never a live position while tracking is lost.</summary>
+        public PlanPose? LastKnownPose => lastFound;
+
         /// <summary>The floor the user is on, as last confirmed.</summary>
         public int UserFloor { get; private set; }
 
@@ -679,8 +682,55 @@ namespace IndoorNavigation.Core.Session
 
             Destination = place;
             PlanRoute();
+            View.ShowFloor(UserFloor);
             Log("place", place.Id);
             Fire(SessionTrigger.PickPlace);
+        }
+
+        /// <summary>2b: a catalogue name selected while typing skips the question step.</summary>
+        public void PickNamedPlace(string placeId)
+        {
+            Place place = Venue?.FindPlace(placeId);
+            if (place == null || !machine.CanFire(SessionTrigger.PickNamedPlace)) return;
+            Destination = place;
+            Answer = null;
+            PlanRoute();
+            View.ShowFloor(UserFloor);
+            Log("place", place.Id);
+            Fire(SessionTrigger.PickNamedPlace);
+        }
+
+        /// <summary>Local common-place chips use only routable entries in this building's catalogue.</summary>
+        public void BrowsePlaces(string term = null)
+        {
+            if (Venue == null || (!machine.CanFire(SessionTrigger.BrowsePlaces) && State != SessionState.ChoosingPlace)) return;
+            term = term?.Trim();
+            RequestText = string.IsNullOrWhiteSpace(term) ? "Places in this building" : term.Trim();
+            var matches = new List<Suggestion>();
+            foreach (Place place in Venue.Places)
+            {
+                if (Venue.ApproachNodeOf(place) == null) continue;
+                bool match = string.IsNullOrWhiteSpace(term)
+                    || place.Name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0
+                    || (place.Type?.IndexOf(term, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
+                foreach (string keyword in place.Keywords)
+                    match |= keyword.IndexOf(term ?? "", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (match) matches.Add(new Suggestion(place.Id, place.Description ?? place.Hint ?? "Recorded in this building"));
+            }
+            Answer = matches.Count > 0 ? SearchAnswer.Found(matches) : SearchAnswer.NoMatch("No recorded place matches. Try another name or describe what you need.");
+            if (State == SessionState.ChoosingPlace) NotifyChanged();
+            else Fire(SessionTrigger.BrowsePlaces);
+        }
+
+        public IReadOnlyList<Place> NamedPlaces(string text)
+        {
+            var matches = new List<Place>();
+            if (Venue == null || string.IsNullOrWhiteSpace(text)) return matches;
+            foreach (Place place in Venue.Places)
+                if (place.Name.IndexOf(text.Trim(), StringComparison.OrdinalIgnoreCase) >= 0 && Venue.ApproachNodeOf(place) != null) matches.Add(place);
+            matches.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            if (matches.Count > 5) matches.RemoveRange(5, matches.Count - 5);
+            return matches;
         }
 
         /// <summary>5: The Avoid stairs switch. Replans at once.</summary>
@@ -715,7 +765,49 @@ namespace IndoorNavigation.Core.Session
             if (View.Map == kind) return;
             if (show && State != SessionState.Previewing && State != SessionState.Navigating) return;
             View.SetMap(kind);
+            if (!show) View.SetPose(tilt.Pose);
             Log("view", show ? "3D" : "2D");
+            NotifyChanged();
+        }
+
+        /// <summary>B2/C: browsing changes only the displayed floor, never the confirmed user floor.</summary>
+        public void ShowMapFloor(int floor)
+        {
+            if (Venue == null || (State != SessionState.Previewing && State != SessionState.Navigating)) return;
+            bool exists = false;
+            foreach (FloorInfo info in Venue.Manifest.Floors) exists |= info.Number == floor;
+            if (!exists) return;
+            View.ShowFloor(floor);
+            View.SetMap(MapKind.TwoD);
+            Log("map", "view floor " + floor.ToString(CultureInfo.InvariantCulture));
+            NotifyChanged();
+        }
+
+        /// <summary>A: the map button and minimap explicitly select 2D, including when the view is locked.</summary>
+        public void Show2DMap()
+        {
+            if (State != SessionState.Navigating && State != SessionState.Previewing) return;
+            View.SetMap(MapKind.TwoD);
+            View.SelectPose(PhonePose.Lowered);
+            View.ShowFloor(UserFloor);
+            Log("view", "map selected by hand");
+            NotifyChanged();
+        }
+
+        public void ToggleViewHold()
+        {
+            if (State != SessionState.Navigating) return;
+            View.SetHold(!View.HoldView);
+            if (!View.HoldView) View.SetPose(tilt.Pose);
+            Log("view", View.HoldView ? "held" : "automatic");
+            NotifyChanged();
+        }
+
+        /// <summary>Keep a sheet or map gesture on screen while the phone moves.</summary>
+        public void SetViewInteraction(bool interacting)
+        {
+            View.SetInteracting(interacting);
+            if (!interacting) View.SetPose(tilt.Pose);
             NotifyChanged();
         }
 
@@ -833,6 +925,7 @@ namespace IndoorNavigation.Core.Session
 
         private void OnPoseChanged(PlanPose pose)
         {
+            if (PositionState == PositionState.Found) lastFound = pose;
             LogPoseThrottled(pose);
             if (State == SessionState.Navigating)
             {
@@ -932,6 +1025,14 @@ namespace IndoorNavigation.Core.Session
 
         private void OnStateChanged(SessionState from, SessionState to)
         {
+            View.SetInteracting(false);
+            if (to == SessionState.Asking || to == SessionState.ChoosingBuilding)
+            {
+                View.SetMap(MapKind.TwoD);
+                View.SetHold(false);
+                View.SetPose(tilt.Pose);
+                if (to == SessionState.ChoosingBuilding) lastFound = null;
+            }
             Log("state", from + " -> " + to);
             if (View.Map == MapKind.ThreeD && to != SessionState.Previewing && to != SessionState.Navigating)
             {

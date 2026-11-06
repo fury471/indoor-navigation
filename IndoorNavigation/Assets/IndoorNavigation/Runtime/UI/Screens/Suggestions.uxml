@@ -2,14 +2,15 @@
     <!-- 4 · Suggestions with reasons, with 4b · No matching place -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen">
-        <ui:Label name="request" class="strong" />
-        <ui:ScrollView name="list" />
+        <ui:Label text="Places for you" class="title" />
+        <ui:Label name="request" class="body" />
+        <ui:ScrollView name="list" class="visitor-scroll" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden" />
         <ui:VisualElement name="no-match" class="card">
             <ui:Label text="No recorded place matches" class="strong" />
             <ui:Label name="no-match-text" class="body" />
         </ui:VisualElement>
-        <ui:VisualElement class="spacer" />
         <ui:Label text="Suggestions come only from the building's records." class="small" />
+        <ui:Button name="browse" text="Browse all places" class="button" />
         <ui:Button name="refine" text="Refine search" class="button" />
         <ui:Button name="edit" text="Edit search" class="button" />
     </ui:VisualElement>

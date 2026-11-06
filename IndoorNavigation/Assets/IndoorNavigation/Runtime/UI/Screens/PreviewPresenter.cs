@@ -1,4 +1,6 @@
 using IndoorNavigation.Core.Session;
+using IndoorNavigation.Core.Ports;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace IndoorNavigation.UI.Screens
@@ -16,6 +18,10 @@ namespace IndoorNavigation.UI.Screens
         private readonly Button orientation;
         private readonly CompassIcon compass = new CompassIcon();
         private readonly RouteView map = new RouteView();
+        private readonly MapControls controls;
+        private readonly NavigationPanels panels;
+        private readonly VisualElement firstTip;
+        private const string TipKey = "IndoorNavigation.RouteTipSeen";
 
         public PreviewPresenter(VisualElement root, AppSession session) : base(root, session)
         {
@@ -23,9 +29,26 @@ namespace IndoorNavigation.UI.Screens
             where = Find<Label>("where");
             summary = Find<Label>("summary");
             avoidStairs = Find<Toggle>("avoid-stairs");
+            var knob = new VisualElement { pickingMode = PickingMode.Ignore };
+            knob.AddToClassList("toggle-knob");
+            avoidStairs.Q(className: "unity-toggle__checkmark")?.Add(knob);
             noRoute = Find<VisualElement>("no-route");
             start = Find<Button>("start");
             Find<VisualElement>("map").Insert(0, map);
+            map.EnableInteraction(Session.SetViewInteraction);
+            panels = new NavigationPanels(root, session);
+            controls = new MapControls(root, session, panels, map.Recentre);
+            Find<Button>("steps").clicked += panels.ShowSteps;
+            firstTip = Find<VisualElement>("first-tip");
+            SetVisible(firstTip, false);
+            Find<Button>("got-it").clicked += () =>
+            {
+                PlayerPrefs.SetInt(TipKey, 1);
+                PlayerPrefs.Save();
+                SetVisible(firstTip, false);
+                Session.SetViewInteraction(false);
+                Session.StartRoute();
+            };
             Find<Button>("show-3d").clicked += () => Session.ShowMiniature(true);
             mapSwitch = Find<Button>("show-2d").parent;
             orientation = Find<Button>("orientation");
@@ -33,7 +56,11 @@ namespace IndoorNavigation.UI.Screens
             orientation.clicked += Session.ToggleMapOrientation;
 
             avoidStairs.RegisterValueChangedCallback(change => Session.SetAvoidStairs(change.newValue));
-            start.clicked += Session.StartRoute;
+            start.clicked += () =>
+            {
+                if (Session.Study.Condition == StudyCondition.TwoDOnly || PlayerPrefs.GetInt(TipKey, 0) == 1) Session.StartRoute();
+                else { Session.SetViewInteraction(true); SetVisible(firstTip, true); firstTip.BringToFront(); }
+            };
             Find<Button>("back").clicked += Session.BackFromPreview;
         }
 
@@ -50,12 +77,18 @@ namespace IndoorNavigation.UI.Screens
 
             bool hasRoute = Session.Route != null;
             SetVisible(noRoute, !hasRoute);
+            Find<Label>("no-route-title").text = Session.AvoidStairs ? "No step-free route mapped" : "No route mapped";
+            Find<Label>("no-route-detail").text = Session.AvoidStairs ? "Try switching off Avoid stairs, or choose another place." : "The building's records do not connect your position to this place.";
             start.SetEnabled(hasRoute);
+            Find<Button>("steps").SetEnabled(hasRoute);
             SetVisible(mapSwitch, hasRoute);
             summary.text = hasRoute ? Summary() : "";
-            map.Show(Session.Venue, Session.Route, Session.UserFloor, Session.Pose, -1, Session.MapOrientation, Session.CameraFovDegrees);
+            bool lost = Session.PositionState != PositionState.Found;
+            map.Show(Session.Venue, Session.Route, Session.View.FloorShown, lost ? Session.LastKnownPose : Session.Pose, -1,
+                Session.MapOrientation, Session.CameraFovDegrees, lost, Session.UserFloor);
             orientation.EnableInClassList("map-control--on", Session.MapOrientation == MapOrientation.HeadingUp);
             compass.Degrees = map.NorthOnScreenDegrees;
+            controls.Render();
         }
 
         private string Summary()

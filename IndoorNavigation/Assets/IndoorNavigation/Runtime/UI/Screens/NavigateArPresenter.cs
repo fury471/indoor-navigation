@@ -27,6 +27,8 @@ namespace IndoorNavigation.UI.Screens
         private readonly Label instructionDetail;
         private readonly Label destination;
         private readonly RouteView minimap = new RouteView();
+        private readonly NavigationPanels panels;
+        private readonly Button hold;
 
         public NavigateArPresenter(VisualElement root, AppSession session, PinLookup pin = null) : base(root, session)
         {
@@ -47,6 +49,16 @@ namespace IndoorNavigation.UI.Screens
             destination = Find<Label>("destination");
             Find<VisualElement>("minimap").Add(minimap);
             minimap.ShowLabels = false;
+            panels = new NavigationPanels(root, session);
+            Find<VisualElement>("instruction-icon").Add(new NavigationIcon("turn"));
+            Find<Button>("steps").clicked += panels.ShowSteps;
+            Find<Button>("show-tips").clicked += panels.ShowTips;
+            Find<Button>("minimap-button").clicked += Session.Show2DMap;
+            Find<Button>("show-map").Add(new NavigationIcon("map"));
+            Find<Button>("show-map").clicked += Session.Show2DMap;
+            hold = Find<Button>("hold-view");
+            hold.Add(new NavigationIcon("hold"));
+            hold.clicked += Session.ToggleViewHold;
             Find<Button>("fix-position").clicked += Session.FixPosition;
         }
 
@@ -58,14 +70,19 @@ namespace IndoorNavigation.UI.Screens
             }
 
             (string title, string detail) = Wording.Instruction(Session);
-            instruction.text = title;
-            instructionDetail.text = Session.AwaitingFloorChange ? "Lower the phone to confirm the floor" : detail;
+            bool lost = Session.PositionState != PositionState.Found;
+            instruction.text = lost ? "Position uncertain" : title;
+            instructionDetail.text = lost ? "Arrows are hidden until you're found" : Session.AwaitingFloorChange ? "Open the map to confirm the floor" : detail;
+            Find<Button>("steps").EnableInClassList("instruction-card--warning", lost);
+            SetVisible(Find<Button>("show-tips"), lost);
+            hold.EnableInClassList("map-control--on", Session.View.HoldView);
+            hold.tooltip = Session.View.HoldView ? "View held. Tap to resume tilt switching" : "Hold this view";
             destination.text = "To " + Session.Destination.Name;
             // Blueprint: a small heading-up map centred on you.
             minimap.Show(
                 Session.Venue, Session.Route, Session.UserFloor,
-                Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null,
-                Session.NextNodeIndex, MapOrientation.HeadingUp, Session.CameraFovDegrees);
+                lost ? Session.LastKnownPose : Session.Pose,
+                Session.NextNodeIndex, MapOrientation.HeadingUp, Session.CameraFovDegrees, lost, Session.UserFloor);
         }
 
         /// <summary>
@@ -75,14 +92,14 @@ namespace IndoorNavigation.UI.Screens
         /// </summary>
         private void PlacePin()
         {
-            if (pinLookup == null || Root.style.display.value == DisplayStyle.None || Session.Destination == null
+            if (pinLookup == null || Session.PositionState != PositionState.Found || Root.style.display.value == DisplayStyle.None || Session.Destination == null
                 || !pinLookup(out Vector2 viewport, out float metres))
             {
                 SetVisible(pinMarker, false);
                 return;
             }
 
-            Rect area = Root.contentRect;
+            Rect area = pinMarker.parent.layout;
             if (area.width < 1 || viewport.x < -0.05f || viewport.x > 1.05f || viewport.y < 0f || viewport.y > 1f)
             {
                 SetVisible(pinMarker, false);

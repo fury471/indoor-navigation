@@ -287,3 +287,11 @@
   - The route in the corridor's middle in 2D and in AR.
   - The AR track through the VR lab door and the toilet lobby opening without touching the frames.
   - The miniature's look against screen D of the blueprint.
+
+## Visitor UI blueprint refinement (5 Nov 2026, local source)
+
+- Implemented: building search/details, local typing suggestions and common-place browsing; map/AR controls and floor browsing; text steps, first-route tip, destination details and recovery tips; last-known-position feedback; revised preview, navigation, miniature and arrival layouts. See `blueprint-refinement.md` for exact coverage and remaining blueprint work.
+- Screen C is registered with the existing map presenter. Floor browsing never changes the user's confirmed floor. Held views still allow an explicit map tap, and unlocking/leaving 3D uses the current phone attitude. A final review also fixed view buttons being captured as miniature orbit gestures.
+- Validation: **343/343 tests passed in Unity 6000.3.24f1**, including 328 Core, 14 adapter tests with the local IKDC package, and one UI integration test. Runtime sources compiled against Unity's actual assemblies. New Core regressions cover floor browsing, view hold/manual map, tilt during gestures/sheets, leaving 3D, study mode, last-known fixes and catalogue navigation.
+- The UI test loads the production UXML/presenters and renders the sample flow at **390 x 844** and **375 x 667**, plus the real IKDC plan at **402 x 874**. It checks control bindings, touch-target heights, screen bounds and clipped map controls. Screenshot review found clipped controls on the short screen; a compact bottom-row layout fixes them. Images and XML are in the ignored `IndoorNavigation/Library/BlueprintReview` folder.
+- Device result: **pending**. These are Unity-rendered screens using placeholder position/attitude, not iPhone camera captures. No IPA or Xcode export was produced. Validate real tilt/lock interaction, keyboard and gestures, AR pin alignment, tracking loss/recovery, confirmed floor changes and arrival on the next device build.

@@ -187,6 +187,12 @@ namespace IndoorNavigation.Core.Tests
             PoseChanged?.Invoke(pose);
         }
 
+        public void SetLost()
+        {
+            State = PositionState.Lost;
+            StateChanged?.Invoke(State);
+        }
+
         public void MoveTo(GraphNode node) => MoveTo(new PlanPose(node.Floor, node.X, node.Z, 0));
     }
 

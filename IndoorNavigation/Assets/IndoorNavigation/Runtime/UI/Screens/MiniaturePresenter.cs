@@ -47,6 +47,8 @@ namespace IndoorNavigation.UI.Screens
             summary = Find<Label>("summary");
             viewport = Find<VisualElement>("viewport");
             labelLayer = Find<VisualElement>("labels");
+            var panels = new NavigationPanels(root, session);
+            Find<Button>("steps").clicked += panels.ShowSteps;
             viewport.Insert(0, picture);
             picture.style.position = Position.Absolute;
             picture.style.left = 0;
@@ -86,10 +88,12 @@ namespace IndoorNavigation.UI.Screens
             if (Session.Route == null || Session.Destination == null) return;
 
             destination.text = Session.Destination.Name;
+            Find<Label>("instruction").text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Title : "Route overview";
             string via = Session.Route.UsesStairs ? " · stairs" : Session.Route.UsesLift ? " · lift" : "";
-            summary.text = Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Metres(Session.Route.LengthMetres) + via;
+            summary.text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Detail
+                : Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Metres(Session.Route.LengthMetres) + via;
 
-            PlanPose? you = Session.State == SessionState.Previewing || Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null;
+            PlanPose? you = Session.PositionState == PositionState.Found ? Session.Pose : (PlanPose?)null;
             if (!NeedsRebuild(you)) return;
 
             builtVenue = Session.Venue;
@@ -131,7 +135,7 @@ namespace IndoorNavigation.UI.Screens
 
             // Pixels per UI point: the screen's height over the panel's height.
             float rootHeight = viewport.panel.visualTree.layout.height;
-            float ppp = rootHeight > 1 ? Screen.height / rootHeight : 1f;
+            float ppp = rootHeight > 1 ? Mathf.Max(1f, Screen.height / rootHeight) : 1f;
             float side = Mathf.Max(area.width, area.height) * ppp;
             if (side > MaxPictureSide) ppp *= MaxPictureSide / side;
 
@@ -142,6 +146,9 @@ namespace IndoorNavigation.UI.Screens
 
         private void OnPointerDown(PointerDownEvent e)
         {
+            // Floating 2D/3D buttons live over the viewport; their taps must not start an orbit.
+            for (VisualElement target = e.target as VisualElement; target != null && target != viewport; target = target.parent)
+                if (target is Button) return;
             pointers[e.pointerId] = e.position;
             viewport.CapturePointer(e.pointerId);
             e.StopPropagation();
@@ -223,10 +230,14 @@ namespace IndoorNavigation.UI.Screens
 
                 // Floor labels sit just above their slab's corner; the destination's name is centred over its marker.
                 float width = entry.Centred ? DestinationLabelWidth : EstimatedWidth(entry.Label);
+                width = Mathf.Min(width, Mathf.Max(1, area.width - 16));
                 float x = p.x * area.width, y = p.y * area.height;
                 var box = new Rect(entry.Centred ? x - (width / 2) : x - 4, y - 22, width, LabelHeight);
                 for (int tries = 0; tries < 8 && Overlaps(box, placed); tries++) box.y += LabelHeight + 2;
+                box.x = Mathf.Clamp(box.x, 8, Mathf.Max(8, area.width - width - 8));
+                box.y = Mathf.Clamp(box.y, 8, Mathf.Max(8, area.height - LabelHeight - 8));
                 placed.Add(box);
+                entry.Label.style.maxWidth = Mathf.Max(1, area.width - 16);
                 entry.Label.style.left = box.x;
                 entry.Label.style.top = box.y;
             }

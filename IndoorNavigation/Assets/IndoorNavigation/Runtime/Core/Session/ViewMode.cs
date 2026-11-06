@@ -14,6 +14,7 @@ namespace IndoorNavigation.Core.Session
         public MapKind Map { get; private set; } = MapKind.TwoD;
         public int FloorShown { get; private set; }
         public bool HoldView { get; private set; }
+        public bool Interacting { get; private set; }
 
         /// <summary>
         /// Applies a pose from the tilt switch. Ignored while the view is held or the
@@ -21,7 +22,7 @@ namespace IndoorNavigation.Core.Session
         /// </summary>
         public bool SetPose(PhonePose pose)
         {
-            if (HoldView || Map == MapKind.ThreeD || pose == Pose)
+            if (HoldView || Interacting || Map == MapKind.ThreeD || pose == Pose)
             {
                 return false;
             }
@@ -36,6 +37,11 @@ namespace IndoorNavigation.Core.Session
         public void ShowFloor(int floor) => FloorShown = floor;
 
         public void SetHold(bool hold) => HoldView = hold;
+
+        /// <summary>Explicit map controls work even while automatic tilt switching is held.</summary>
+        public void SelectPose(PhonePose pose) => Pose = pose;
+
+        public void SetInteracting(bool interacting) => Interacting = interacting;
     }
 
     /// <summary>How the 2D map is turned: north up (the drawing's north arrow), or the way the phone faces up.</summary>

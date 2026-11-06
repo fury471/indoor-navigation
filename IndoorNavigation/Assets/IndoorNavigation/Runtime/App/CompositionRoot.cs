@@ -180,7 +180,9 @@ namespace IndoorNavigation.App
             host.Add(ScreenCodes.Clarify, new ClarifyPresenter(ScreenElement(root, "3"), session));
             host.Add(ScreenCodes.Suggestions, new SuggestionsPresenter(ScreenElement(root, "4"), session));
             host.Add(ScreenCodes.Preview, new PreviewPresenter(ScreenElement(root, "5"), session));
-            host.Add(ScreenCodes.Map2D, new NavigateMapPresenter(ScreenElement(root, "B"), session));
+            var mapPresenter = new NavigateMapPresenter(ScreenElement(root, "B"), session);
+            host.Add(ScreenCodes.Map2D, mapPresenter);
+            host.Add(ScreenCodes.OtherFloor, mapPresenter);
             PinLookup pin = overlay == null ? null : (PinLookup)overlay.TryGetPinViewport;
             host.Add(ScreenCodes.ArGuidance, new NavigateArPresenter(ScreenElement(root, "A"), session, pin));
             host.Add(ScreenCodes.Arrived, new ArrivedPresenter(ScreenElement(root, "G"), session));

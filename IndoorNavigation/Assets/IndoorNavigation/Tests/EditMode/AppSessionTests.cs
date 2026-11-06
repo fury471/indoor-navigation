@@ -282,5 +282,143 @@ namespace IndoorNavigation.Core.Tests
                 Assert.AreEqual("TwoDOnly", record.Condition);
             }
         }
+
+        [Test]
+        public void BrowsingFloors_DoesNotMoveTheUserOrRoute_AndRejectsUnknownFloors()
+        {
+            GoToPreview("cable-drawer");
+            session.StartRoute();
+            var route = session.Route;
+            int next = session.NextNodeIndex;
+            session.ShowMapFloor(2);
+            Assert.AreEqual("C", session.Screen);
+            Assert.AreEqual(1, session.UserFloor);
+            Assert.AreSame(route, session.Route);
+            Assert.AreEqual(next, session.NextNodeIndex);
+            session.ShowMapFloor(99);
+            Assert.AreEqual(2, session.View.FloorShown);
+            session.Show2DMap();
+            Assert.AreEqual("B", session.Screen);
+            Assert.AreEqual(1, session.View.FloorShown);
+        }
+
+        private void TiltTo(double degrees)
+        {
+            attitude.Report(degrees);
+            clock.Advance(0.6);
+            attitude.Report(degrees);
+        }
+
+        [Test]
+        public void HoldAndManualMap_WorkWhileRaised_AndUnlockUsesCurrentAttitude()
+        {
+            GoToPreview("cable-drawer");
+            session.StartRoute();
+            TiltTo(80);
+            Assert.AreEqual("A", session.Screen);
+            session.ToggleViewHold();
+            session.Show2DMap();
+            Assert.AreEqual("B", session.Screen, "An explicit map tap works even when locked.");
+            Assert.IsTrue(session.View.HoldView);
+            session.ToggleViewHold();
+            Assert.AreEqual("A", session.Screen, "Unlock catches up even without another tilt threshold crossing.");
+        }
+
+        [Test]
+        public void AMapGestureOrOpenSheet_SuspendsTiltUntilItEnds()
+        {
+            GoToPreview("cable-drawer");
+            session.StartRoute();
+            session.SetViewInteraction(true);
+            TiltTo(80);
+            Assert.AreEqual("B", session.Screen);
+            session.SetViewInteraction(false);
+            Assert.AreEqual("A", session.Screen);
+        }
+
+        [Test]
+        public void LeavingMiniature_ResumesTheCurrentPhoneAttitude()
+        {
+            GoToPreview("cable-drawer");
+            session.StartRoute();
+            session.ShowMiniature(true);
+            TiltTo(80);
+            Assert.AreEqual("D", session.Screen);
+            session.ShowMiniature(false);
+            Assert.AreEqual("A", session.Screen);
+        }
+
+        [Test]
+        public void TwoDOnly_RemainsIn2D_AfterUnlockAndManualMap()
+        {
+            GoToPreview("cable-drawer");
+            study.Condition = StudyCondition.TwoDOnly;
+            session.StartRoute();
+            session.ToggleViewHold();
+            TiltTo(80);
+            session.ToggleViewHold();
+            session.Show2DMap();
+            Assert.AreEqual("B", session.Screen);
+        }
+
+        [Test]
+        public void LastKnownPosition_TracksGoodFixes_AndFreezesOnLoss()
+        {
+            GoToAsking();
+            var good = new PlanPose(1, 12, 13, 25);
+            position.MoveTo(good);
+            position.SetLost();
+            position.MoveTo(new PlanPose(1, 100, 100, 90));
+            Assert.AreEqual(good.X, session.LastKnownPose.Value.X);
+            Assert.AreEqual(good.Z, session.LastKnownPose.Value.Z);
+            Assert.AreEqual(PositionState.Lost, session.PositionState);
+        }
+
+        [Test]
+        public void TypedCataloguePlace_SkipsSearch_AndBackReturnsToAsk()
+        {
+            GoToAsking();
+            Assert.IsNotEmpty(session.NamedPlaces("PRINTER"));
+            Assert.IsEmpty(session.NamedPlaces("not a real place"));
+            Assert.IsEmpty(session.NamedPlaces("  "));
+            session.PickNamedPlace("missing");
+            Assert.AreEqual(SessionState.Asking, session.State);
+            session.PickNamedPlace("printer");
+            Assert.AreEqual(SessionState.Previewing, session.State);
+            Assert.AreEqual("printer", session.Destination.Id);
+            Assert.IsNotNull(session.Route);
+            Assert.AreEqual(0, search.Requests.Count);
+            session.BackFromPreview();
+            Assert.AreEqual(SessionState.Asking, session.State);
+        }
+
+        [Test]
+        public void CommonPlaces_UseCatalogue_AndEmptyResultsCanBrowseAgain()
+        {
+            GoToAsking();
+            session.BrowsePlaces("not a real place");
+            Assert.AreEqual(SessionState.ChoosingPlace, session.State);
+            Assert.IsEmpty(session.Suggestions);
+            session.BrowsePlaces("printer");
+            Assert.IsNotEmpty(session.Suggestions);
+            foreach (var suggestion in session.Suggestions) Assert.IsNotNull(venue.FindPlace(suggestion.PlaceId));
+            session.PickPlace(session.Suggestions[0].PlaceId);
+            Assert.AreEqual(SessionState.Previewing, session.State);
+        }
+
+        [Test]
+        public void EndingFromMiniature_DoesNotLeaveTheNextRouteWithAStaleView()
+        {
+            GoToPreview("cable-drawer");
+            session.StartRoute();
+            session.ShowMiniature(true);
+            TiltTo(80);
+            session.EndRoute();
+            session.PickNamedPlace("cable-drawer");
+            session.StartRoute();
+            Assert.AreEqual("A", session.Screen);
+            Assert.IsFalse(session.View.Interacting);
+            Assert.IsFalse(session.View.HoldView);
+        }
     }
 }
