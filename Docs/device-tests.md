@@ -315,5 +315,6 @@
   - F shows a warning icon and two actions, Show tips and End route. F3 numbers its tips.
 - Walking time assumes 1 m/s and rounds up to whole minutes (`Wording.Minutes`).
 - Validation: Core, UI, Adapters and App compile against stand-ins for the Unity API. 328 Core tests pass offline. An HTML replica of 20 screen states at 390 × 844 and 375 × 667 shows no button off screen or under 43 points. The fonts, icons and real rendering are unverified until Unity runs the UI test.
-- Unity result: pending. Run EditMode **Run All** (expect 343) and review `Library/BlueprintReview`.
+- Source commit: 8511ddc, plus three small fixes after the first render (see the next line).
+- Unity result (13 Nov, 19:14): EditMode Run All **343/343 passed**. The renders in `Library/BlueprintReview` show the font, icons, lists and bottom sheets as intended. Three defects were found in them and fixed afterwards: a building name wrapping over its detail line on V1, the map's status pill wrapping and being cut off, and the floor number losing its tile on the selected row. Run the tests once more to confirm these.
 - Device result: pending. Checks: the list in `blueprint-refinement.md`, "Next device check".

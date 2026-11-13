@@ -94,8 +94,8 @@ namespace IndoorNavigation.UI.Screens
             SetVisible(Find<Button>("details"), !lost);
             SetVisible(Find<Button>("show-tips"), lost);
             var mapStatus = Find<Label>("map-status");
-            mapStatus.text = lost ? (Session.LastKnownPose.HasValue && Session.LastKnownPose.Value.Floor == Session.View.FloorShown ? "Grey ring: your last known position" : "Your last known position is on another floor")
-                : Session.View.HoldView ? "View held · tap the lock to resume" : "";
+            mapStatus.text = lost ? (Session.LastKnownPose.HasValue && Session.LastKnownPose.Value.Floor == Session.View.FloorShown ? "Last known position" : "Last position: another floor")
+                : Session.View.HoldView ? "View locked" : "";
             SetVisible(mapStatus, mapStatus.text.Length > 0);
 
             SetVisible(positionBanner, Session.PositionState != PositionState.Found && !Session.AwaitingFloorChange);

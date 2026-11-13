@@ -1191,7 +1191,7 @@
 Button.list-row:active { background-color: var(--accent-soft); }
 .list-row--on { background-color: var(--accent-soft); }
 .list-row--plain .list-title { -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Regular.ttf"); }
-.list-copy { flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0; align-items: flex-start; }
+.list-copy { flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0; }
 .list-copy > Label { flex-shrink: 0; margin: 1px 0; padding: 0; }
 .list-row > .icon-tile { width: 40px; height: 40px; border-radius: 12px; }
 .list-trailing { flex-shrink: 0; margin-left: 10px; }
@@ -1265,3 +1265,7 @@ Button.list-row:active { background-color: var(--accent-soft); }
 .miniature-floor--you { color: var(--text); }
 .list-copy > .pill { margin: 4px 0 0 0; padding: 2px 9px; }
 .list-copy > .pill--solid { margin: 0 0 4px 0; }
+
+/* Build 19, after the first Unity render: titles keep the row's full width, so they wrap only when they must. */
+.list-row--on > .number-tile { background-color: var(--surface); }
+.map-status { white-space: nowrap; }
