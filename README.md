@@ -6,12 +6,12 @@ It is the project of the course MAMN41 (UX/XR) at Lund University, built in Unit
 
 Owner: Fury (fury471). Licence: MIT.
 
-## Status on 5 Nov 2026
+## Status on 13 Nov 2026
 
 | Part | State |
 |---|---|
 | Walking skeleton: ten visitor screens, the session statechart, route planner, sample two-floor package, developer panel | Done; device-tested 26 Oct |
-| Visitor UI refinement from the October blueprint | Building details, typing suggestions, floor picker/other-floor view, lock and manual map controls, route steps, recovery tips and revised layouts implemented; Unity rendering/layout checks at three phone sizes. See `Docs/blueprint-refinement.md`; iPhone check pending |
+| Visitor screens against the October blueprint | Build 18 (first pass) tested on the iPhone: better, not yet the blueprint. Build 19 (second pass: font, lists, icons, bottom sheets) is in the source; Unity UI test and iPhone check pending. See `Docs/blueprint-refinement.md` |
 | Real phone attitude (raise for AR, lower for 2D) | Done; device-tested 26 Oct |
 | Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
 | **Where are you?** when the map is slow: mark the door of the room you're in, or of the corridor door you're at (decision 11); Fix position at any time; route ahead drawn in AR | Build 10 (build 9's fixes from build 8, plus inner-room wording) code done; layout checked at iPhone SE and 16 Pro sizes; device test pending |
@@ -99,25 +99,27 @@ Where to look:
 
 | Document | What it is for |
 |---|---|
-| `Docs/blueprint-refinement.md` | Current visitor UI changes, implemented blueprint views, Unity screenshot checks and remaining work |
+| `Docs/blueprint-refinement.md` | **Current work:** the visitor screens against the blueprint, pass 1 (build 18) and pass 2 (build 19), and what is left |
 | `Docs/walking-skeleton-guide.md` | Unity set-up of the App scene, the commit order of the skeleton, six lessons |
 | `Docs/real-position-guide.md` | The idea behind world maps and door-corner alignment (part A); parts C and D are history |
-| `Docs/build-15-guide.md` | **Current build:** blueprint-style 2D map with north-up/heading-up and view cone, the drawing as ground truth, the AR track with occlusion and line of sight, and starting from any floor-1 map |
-| `Docs/build-14-guide.md` | Build 14: the floor-1 plan under the route, the 3D miniature and exploded view (screen D), and the floor-1 test |
-| `Docs/build-7-guide.md` | Builds 7 to 10 (finding your position, arrows in AR) and the floor-by-floor lab visit 2 |
-| `Docs/continue-corner-check.md` | **Current diagnostic task:** measure corner residuals while Continue updates the map; interpretation and criteria for deciding a correction |
-| `Docs/recording-pause-and-cleanup.md` | Build 13: Pause saves and tests an unchanged checkpoint, Continue resumes, checkpoint button cleanup and startup fixes |
-| `Docs/map-analysis-2026-10-31.md` | Analysis of the supplied iPhone logs/native map archives: measured residuals, workflow evidence, alignment gaps and next checks |
-| `Docs/map-loop-analysis-2026-10-31.md` | Updated export: paused-checkpoint measurements and the user-reported ~20 m final-group walk; supersedes the initial analysis for current results |
+| `Docs/build-15-guide.md` | blueprint-style 2D map with north-up/heading-up and view cone, the drawing as ground truth, the AR track with occlusion and line of sight, and starting from any floor-1 map |
+| `Docs/archive/build-14-guide.md` | Build 14: the floor-1 plan under the route, the 3D miniature and exploded view (screen D), and the floor-1 test |
+| `Docs/archive/build-7-guide.md` | Builds 7 to 10 (finding your position, arrows in AR) and the floor-by-floor lab visit 2 |
+| `Docs/archive/continue-corner-check.md` | **Current diagnostic task:** measure corner residuals while Continue updates the map; interpretation and criteria for deciding a correction |
+| `Docs/archive/recording-pause-and-cleanup.md` | Build 13: Pause saves and tests an unchanged checkpoint, Continue resumes, checkpoint button cleanup and startup fixes |
+| `Docs/archive/map-analysis-2026-10-31.md` | Analysis of the supplied iPhone logs/native map archives: measured residuals, workflow evidence, alignment gaps and next checks |
+| `Docs/archive/map-loop-analysis-2026-10-31.md` | Updated export: paused-checkpoint measurements and the user-reported ~20 m final-group walk; supersedes the initial analysis for current results |
 | `Docs/spatial-alignment-and-acceptance.md` | Proposed partial-WorldMap qualification and the common coordinate relationship between evacuation-derived geometry, the 2D plan and the 3D miniature |
 | `Docs/world-map-guide.md` | How to record, test, continue and delete world maps (builds 4–6) |
 | `Docs/lab-visit-1.md` | What happened in the lab on 29 Oct, the numbers, and what changed because of it |
-| `Docs/localisation-experiment.md` | The localisation method and how it is measured |
+| `Docs/archive/localisation-experiment.md` | The localisation method and how it is measured |
 | `Docs/device-tests.md` | Every device test, newest last |
 | `Docs/decisions/` | Decision records 1–11 (context, decision, consequences, sources) |
 | `Tools/scan-to-plan/README.md` | The scan converter, its checks and its limits |
 
 The architecture document, the UI blueprint (38 boards) and the reference log live outside the repo; ask Fury for access. Where they and the repo disagree about the code, the repo wins.
+
+`Docs/archive/` keeps guides and one-off analyses that later builds replaced. They are history: read them for why something was done, not for how the app works now.
 
 ## Rules for working here
 
@@ -137,7 +139,7 @@ The architecture document, the UI blueprint (38 boards) and the reference log li
 
 Short list; the architecture document has the full plan.
 
-1. Run the Continue corner-check comparison (`Docs/continue-corner-check.md`): establish baseline/revisit residuals, then select and validate a correction for the remaining build-11 offset. Earlier build-10 checks in `Docs/build-7-guide.md` part D remain relevant where not yet verified.
+1. Run the Continue corner-check comparison (`Docs/archive/continue-corner-check.md`): establish baseline/revisit residuals, then select and validate a correction for the remaining build-11 offset. Earlier build-10 checks in `Docs/archive/build-7-guide.md` part D remain relevant where not yet verified.
 2. Lab visit 2, floor by floor: a map per floor with every start door marked and named; automatic start, door fix and drift measured (part E).
 3. The plan from the evacuation-plan photos, fitted onto each floor's door corners; the route graph between the named doors; the catalogue; package 1.1.0.
 4. Validate the refined visitor screens on the iPhone (`Docs/blueprint-refinement.md`); measure the uncertainty-based "raise the phone" prompt (decision 9) and floor height along the ramp.

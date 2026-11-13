@@ -2,7 +2,8 @@
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen route-screen">
         <ui:Button name="steps" tooltip="Read route steps" class="instruction-card">
-            <ui:VisualElement class="instruction-copy">
+            <ui:VisualElement name="instruction-icon" class="icon-tile" picking-mode="Ignore" />
+            <ui:VisualElement class="instruction-copy" picking-mode="Ignore">
                 <ui:Label name="instruction" class="instruction-title" />
                 <ui:Label name="summary" class="small" />
             </ui:VisualElement>
@@ -17,7 +18,7 @@
         </ui:VisualElement>
         <ui:VisualElement class="sheet route-sheet">
             <ui:VisualElement class="sheet-handle" />
-            <ui:Label name="destination" class="strong" />
+            <ui:Label name="destination" class="sheet-title sheet-copy" />
             <ui:VisualElement class="row">
                 <ui:Button name="reset-view" text="Reset view" class="button half-button" />
                 <ui:Button name="back-to-route" text="Back to route" class="button button--primary half-button" />

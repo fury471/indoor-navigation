@@ -33,6 +33,13 @@ namespace IndoorNavigation.UI.Screens
             knob.AddToClassList("toggle-knob");
             avoidStairs.Q(className: "unity-toggle__checkmark")?.Add(knob);
             noRoute = Find<VisualElement>("no-route");
+            Find<Button>("back").Add(new NavigationIcon("back", NavigationIcon.Ink));
+            Find<VisualElement>("avoid-icon").Add(new NavigationIcon("steps"));
+            Find<VisualElement>("steps-icon").Add(new NavigationIcon("list"));
+            Find<VisualElement>("steps-chevron").Add(new NavigationIcon("chevron", NavigationIcon.Muted));
+            Find<VisualElement>("no-route-icon").Add(new NavigationIcon("warning", NavigationIcon.Warning));
+            Find<VisualElement>("tip-raise-icon").Add(new NavigationIcon("straight"));
+            Find<VisualElement>("tip-lower-icon").Add(new NavigationIcon("map"));
             start = Find<Button>("start");
             Find<VisualElement>("map").Insert(0, map);
             map.EnableInteraction(Session.SetViewInteraction);
@@ -78,11 +85,18 @@ namespace IndoorNavigation.UI.Screens
             bool hasRoute = Session.Route != null;
             SetVisible(noRoute, !hasRoute);
             Find<Label>("no-route-title").text = Session.AvoidStairs ? "No step-free route mapped" : "No route mapped";
-            Find<Label>("no-route-detail").text = Session.AvoidStairs ? "Try switching off Avoid stairs, or choose another place." : "The building's records do not connect your position to this place.";
+            Find<Label>("no-route-detail").text = Session.AvoidStairs ? "Switch off Avoid stairs, or choose another place." : "The building's records do not connect your position to this place.";
+            Find<Label>("avoid-detail").text = !hasRoute ? (Session.AvoidStairs ? "On: only step-free routes" : "Off")
+                : Session.Route.UsesStairs ? "This route uses the stairs"
+                : Session.Route.UsesLift ? "This route uses the lift" : "This route has no stairs";
+            int steps = hasRoute ? Session.Route.Nodes.Count - 1 : 0;
+            Find<Label>("steps-detail").text = hasRoute ? steps + (steps == 1 ? " step" : " steps") + ", from here to " + Session.Destination.Name : "No route to describe";
+            SetVisible(Find<VisualElement>("summary-row"), hasRoute);
             start.SetEnabled(hasRoute);
             Find<Button>("steps").SetEnabled(hasRoute);
             SetVisible(mapSwitch, hasRoute);
-            summary.text = hasRoute ? Summary() : "";
+            summary.text = hasRoute ? Wording.Minutes(Session.Route.LengthMetres) : "";
+            Find<Label>("summary-detail").text = hasRoute ? Summary() : "";
             bool lost = Session.PositionState != PositionState.Found;
             map.Show(Session.Venue, Session.Route, Session.View.FloorShown, lost ? Session.LastKnownPose : Session.Pose, -1,
                 Session.MapOrientation, Session.CameraFovDegrees, lost, Session.UserFloor);
@@ -93,7 +107,9 @@ namespace IndoorNavigation.UI.Screens
 
         private string Summary()
         {
-            string via = Session.Route.UsesStairs ? " · stairs" : Session.Route.UsesLift ? " · lift" : "";
+            int floor = Session.Venue.FloorOf(Session.Destination);
+            string to = floor != Session.UserFloor ? " to " + Wording.Floor(floor).ToLowerInvariant() : "";
+            string via = Session.Route.UsesStairs ? " · stairs" + to : Session.Route.UsesLift ? " · lift" + to : "";
             return Wording.Metres(Session.Route.LengthMetres) + via;
         }
     }

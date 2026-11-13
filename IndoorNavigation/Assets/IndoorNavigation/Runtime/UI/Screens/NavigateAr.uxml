@@ -3,6 +3,7 @@
     <ui:VisualElement class="screen screen--transparent ar-screen">
         <ui:Button name="steps" tooltip="Read route steps" class="instruction-card">
             <ui:VisualElement name="instruction-icon" class="icon-tile" picking-mode="Ignore" />
+            <ui:VisualElement name="warning-icon" class="icon-tile icon-tile--warning" picking-mode="Ignore" />
             <ui:VisualElement class="instruction-copy" picking-mode="Ignore">
                 <ui:Label name="instruction" class="instruction-title" />
                 <ui:Label name="instruction-detail" class="small" />

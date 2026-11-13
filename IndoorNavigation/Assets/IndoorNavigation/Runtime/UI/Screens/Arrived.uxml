@@ -2,7 +2,7 @@
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen route-screen">
         <ui:VisualElement class="instruction-card">
-            <ui:VisualElement name="arrived-icon" class="icon-tile" />
+            <ui:VisualElement name="arrived-icon" class="icon-tile icon-tile--solid" />
             <ui:VisualElement class="instruction-copy">
                 <ui:Label text="You've arrived" class="instruction-title" />
                 <ui:Label name="place" class="small" />
@@ -13,9 +13,9 @@
         </ui:VisualElement>
         <ui:VisualElement class="sheet route-sheet">
             <ui:VisualElement class="sheet-handle" />
-            <ui:Label name="where" class="strong" />
+            <ui:Label name="where" class="sheet-title" />
             <ui:Label name="hint" class="body" />
-            <ui:Label name="checked" class="small" />
+            <ui:Label name="checked" class="small sheet-copy" />
             <ui:Button name="found-it" text="Found it" class="button button--primary" />
         </ui:VisualElement>
     </ui:VisualElement>

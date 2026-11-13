@@ -18,13 +18,18 @@ namespace IndoorNavigation.UI.Screens
         {
             building = Find<Label>("building");
             request = Find<TextField>("request");
-            request.textEdition.placeholder = "A place, or what you need";
+            SearchField.Decorate(request, "A place, or what you need");
             search = Find<Button>("search");
             Find<Button>("change").clicked += () => RunAsync(Session.ChangeBuildingAsync());
             search.clicked += () => RunAsync(Session.AskAsync(request.value));
             Find<Button>("browse").clicked += () => Session.BrowsePlaces();
-            Find<Button>("example-print").clicked += () => { request.value = "Where can I print?"; request.Focus(); };
-            Find<Button>("example-charge").clicked += () => { request.value = "I need to charge my phone"; request.Focus(); };
+            // Examples of described needs: a tap fills the field, so the visitor can edit before searching.
+            VisualElement examples = Find<VisualElement>("examples");
+            foreach (string example in new[] { "Where can I print?", "I need to charge my phone", "Where is the nearest toilet?" })
+            {
+                string text = example;
+                ListRows.Row(examples, null, text, null, () => { request.value = text; request.Focus(); }).AddToClassList("list-row--plain");
+            }
             request.RegisterValueChangedCallback(_ => UpdateTyping());
             request.RegisterCallback<KeyDownEvent>(e =>
             {
@@ -70,11 +75,7 @@ namespace IndoorNavigation.UI.Screens
             SetVisible(Find<VisualElement>("typing"), matches.Count > 0);
             foreach (Place place in matches)
             {
-                var row = new Button(() => Session.PickNamedPlace(place.Id));
-                row.AddToClassList("catalogue-card");
-                NavigationPanels.Text(row, place.Name + "  ›", "strong");
-                NavigationPanels.Text(row, Wording.Where(Session.Venue, place), "small");
-                places.Add(row);
+                ListRows.Row(places, ListRows.Tile("place"), place.Name, Wording.Where(Session.Venue, place), () => Session.PickNamedPlace(place.Id));
             }
         }
     }

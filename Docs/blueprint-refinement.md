@@ -34,6 +34,26 @@ The UI test exercises the sample two-floor flow at 390 x 844 and 375 x 667. When
 
 In Unity, run **Window > General > Test Runner > EditMode > Run All**. This test suite is not an iOS build or an on-device AR validation.
 
+## Pass 2 (build 19, 13 November 2026)
+
+Build 18 was tested on the iPhone. It was better, but still looked different from the blueprint, and some interactions were awkward. The 16 rendered screen states were then compared with blueprint pages 2–12.
+
+| Found in build 18 | Blueprint | Build 19 |
+|---|---|---|
+| Unity's default font: thin headings, wide letter spacing, titles wrapping | Atkinson Hyperlegible, bold headings | The font ships in `Runtime/UI/Fonts`; bold text uses the bold file |
+| One card per list row, "›" typed after the text | One card, hairlines, icon tile, chevron at the right | `ListRows` builds every list this way |
+| Status as full-width bar or plain text | Small pill | `.pill` |
+| Search fields without icon | Magnifier, accent border | `SearchField.Decorate` |
+| Grey band under each sheet | Sheet to the bottom edge | The safe area is inside the sheet |
+| Centred dialogs for steps, tips, floors | Sheets from the bottom (F3), menu at the button (B2) | Bottom sheets; a tap outside closes them |
+| "Position uncertain" with a turn arrow, four actions | Warning icon, two actions | Warning icon; Show tips and End route, plus Fix position |
+| "Viewing another floor" in two rows | One card with **My floor** | One card |
+| Route preview shows "24 m" | Time, distance, floor change | "1 min", then "24 m · stairs to floor 2" |
+
+Kept although the blueprint lacks them: **Fix position** (decision record 11), **Browse places** in place of "Choose on map", and the map in place of a photo on arrival.
+
+Different from the blueprint on purpose: the floor picker is a bottom sheet, not a menu beside the floor button, because the sheet is within reach of the thumb and is the same pattern as steps and tips.
+
 ## Remaining blueprint work
 
 The blueprint is broader than the working app. Welcome/camera-permission screens, map-based place selection and manual position assignment, off-route replanning, report submission, destination photos, real downloads/cache recovery and the remote natural-language service remain separate work. The present refinement does not pretend those services exist. Common-place browsing uses catalogue text; it does not infer missing facilities or offer an unimplemented map picker.

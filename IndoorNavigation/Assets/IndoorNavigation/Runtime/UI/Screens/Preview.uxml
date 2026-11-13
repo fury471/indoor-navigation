@@ -2,7 +2,7 @@
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen route-screen">
         <ui:VisualElement class="instruction-card row">
-            <ui:Button name="back" text="‹" tooltip="Back" class="back-button" />
+            <ui:Button name="back" tooltip="Back" class="back-button" />
             <ui:VisualElement class="instruction-copy">
                 <ui:Label name="destination" class="strong" />
                 <ui:Label name="where" class="small" />
@@ -21,29 +21,53 @@
         </ui:VisualElement>
         <ui:VisualElement class="sheet route-sheet">
             <ui:VisualElement class="sheet-handle" />
-            <ui:Label name="summary" class="route-summary" />
-            <ui:Toggle name="avoid-stairs" label="Avoid stairs" class="route-option" />
-            <ui:VisualElement name="no-route" class="warning">
-                <ui:Label name="no-route-title" class="strong" />
-                <ui:Label name="no-route-detail" class="warning-text" />
+            <ui:VisualElement name="summary-row" class="row summary-row">
+                <ui:Label name="summary" class="route-summary" />
+                <ui:Label name="summary-detail" class="small summary-detail" />
             </ui:VisualElement>
-            <ui:Button name="steps" text="Steps as text  ›" class="button button--small" />
+            <ui:VisualElement name="no-route" class="row warning">
+                <ui:VisualElement name="no-route-icon" class="icon-tile icon-tile--warning" />
+                <ui:VisualElement class="instruction-copy">
+                    <ui:Label name="no-route-title" class="list-title" />
+                    <ui:Label name="no-route-detail" class="warning-text" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="list-card">
+                <ui:VisualElement class="list-row list-row--first">
+                    <ui:VisualElement name="avoid-icon" class="icon-tile" />
+                    <ui:VisualElement class="list-copy">
+                        <ui:Label text="Avoid stairs" class="list-title" />
+                        <ui:Label name="avoid-detail" class="small" />
+                    </ui:VisualElement>
+                    <ui:Toggle name="avoid-stairs" tooltip="Avoid stairs" class="route-option" />
+                </ui:VisualElement>
+                <ui:Button name="steps" tooltip="Read the route as text steps" class="list-row">
+                    <ui:VisualElement name="steps-icon" class="icon-tile" picking-mode="Ignore" />
+                    <ui:VisualElement class="list-copy" picking-mode="Ignore">
+                        <ui:Label text="Steps as text" class="list-title" picking-mode="Ignore" />
+                        <ui:Label name="steps-detail" class="small" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="steps-chevron" class="list-trailing" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
             <ui:Button name="start" text="Start" class="button button--primary" />
         </ui:VisualElement>
         <ui:VisualElement name="first-tip" class="overlay">
             <ui:VisualElement class="sheet dialog-sheet">
-                <ui:Label text="Two ways to follow the route" class="title" />
                 <ui:VisualElement class="row first-tip-row">
                     <ui:VisualElement class="first-tip-option">
-                        <ui:Label text="Raise the phone" class="strong" />
-                        <ui:Label text="AR arrows on the camera view" class="small" />
+                        <ui:VisualElement name="tip-raise-icon" class="first-tip-icon" />
+                        <ui:Label text="Raise the phone" class="list-title first-tip-text" />
+                        <ui:Label text="AR arrows on the camera view" class="small first-tip-text" />
                     </ui:VisualElement>
                     <ui:VisualElement class="first-tip-option">
-                        <ui:Label text="Lower it" class="strong" />
-                        <ui:Label text="The map, like now" class="small" />
+                        <ui:VisualElement name="tip-lower-icon" class="first-tip-icon" />
+                        <ui:Label text="Lower it" class="list-title first-tip-text" />
+                        <ui:Label text="The map, like now" class="small first-tip-text" />
                     </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:Label text="Tap the lock to stay in one view. Pay attention to your surroundings as you walk." class="body" />
+                <ui:Label text="Two ways to follow the route" class="sheet-title" />
+                <ui:Label text="Tap the lock to stay in one view. Watch where you walk." class="small first-tip-note" />
                 <ui:Button name="got-it" text="Got it" class="button button--primary" />
             </ui:VisualElement>
         </ui:VisualElement>

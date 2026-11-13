@@ -20,7 +20,7 @@ namespace IndoorNavigation.UI.Screens
             hint = Find<Label>("hint");
             checkedOn = Find<Label>("checked");
             Find<VisualElement>("map").Insert(0, map);
-            Find<VisualElement>("arrived-icon").Add(new NavigationIcon("check"));
+            Find<VisualElement>("arrived-icon").Add(new NavigationIcon("check", NavigationIcon.White));
             Find<Button>("found-it").clicked += Session.FoundIt;
         }
 

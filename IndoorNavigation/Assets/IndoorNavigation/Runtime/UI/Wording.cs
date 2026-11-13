@@ -11,6 +11,18 @@ namespace IndoorNavigation.UI
         public static string Metres(double metres) =>
             metres.ToString("F0", CultureInfo.InvariantCulture) + " m";
 
+        /// <summary>
+        /// Walking time for the route summary, rounded up to whole minutes. It assumes an unhurried
+        /// indoor pace of 1 m/s, so that the app does not promise a time people cannot keep.
+        /// </summary>
+        public static string Minutes(double metres) =>
+            System.Math.Max(1, (int)System.Math.Ceiling(metres / 60.0)).ToString(CultureInfo.InvariantCulture) + " min";
+
+        /// <summary>"0.4 MB", or "320 KB" for a small package: never "0.0 MB".</summary>
+        public static string Size(long bytes) =>
+            bytes >= 104858 ? (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB"
+                : System.Math.Max(1, bytes / 1024).ToString(CultureInfo.InvariantCulture) + " KB";
+
         public static string Floor(int floor) => "Floor " + floor.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>"Lab 2 · Floor 2": the room a place is in, and its floor.</summary>

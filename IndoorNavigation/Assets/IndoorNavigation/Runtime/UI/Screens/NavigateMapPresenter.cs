@@ -44,6 +44,8 @@ namespace IndoorNavigation.UI.Screens
             panels = new NavigationPanels(root, session);
             controls = new MapControls(root, session, panels, map.Recentre);
             Find<VisualElement>("instruction-icon").Add(new NavigationIcon("turn"));
+            Find<VisualElement>("warning-icon").Add(new NavigationIcon("warning", NavigationIcon.Warning));
+            Find<VisualElement>("floors-icon").Add(new NavigationIcon("floors", NavigationIcon.Muted));
             Find<VisualElement>("destination-icon").Add(new PinIcon());
             Find<Button>("steps").clicked += panels.ShowSteps;
             Find<Button>("details").clicked += panels.ShowDetails;
@@ -76,14 +78,23 @@ namespace IndoorNavigation.UI.Screens
             (string title, string detail) = Wording.Instruction(Session);
             bool lost = Session.PositionState != PositionState.Found;
             bool otherFloor = Session.View.FloorShown != Session.UserFloor;
-            instruction.text = lost ? "Position uncertain" : otherFloor ? "Viewing " + Wording.Floor(Session.View.FloorShown).ToLowerInvariant() : title;
-            instructionDetail.text = lost ? "Turn instructions are paused" : otherFloor ? "You're on " + Wording.Floor(Session.UserFloor).ToLowerInvariant() : detail;
+            // Screen C: while another floor is on screen, its own card replaces the instruction card,
+            // so "My floor" sits where the eye already is (blueprint C).
+            instruction.text = lost ? "Position uncertain" : title;
+            instructionDetail.text = lost ? "Turn instructions are paused" : detail;
             Find<Button>("steps").EnableInClassList("instruction-card--warning", lost);
+            SetVisible(Find<Button>("steps"), !otherFloor);
+            SetVisible(Find<VisualElement>("instruction-icon"), !lost);
+            SetVisible(Find<VisualElement>("warning-icon"), lost);
             SetVisible(Find<VisualElement>("other-floor"), otherFloor);
-            Find<Label>("floor-notice").text = "Viewing another floor";
+            Find<Label>("floor-shown").text = "Viewing " + Wording.Floor(Session.View.FloorShown).ToLowerInvariant();
+            Find<Label>("floor-notice").text = "You're on " + Wording.Floor(Session.UserFloor).ToLowerInvariant();
             SetVisible(Find<VisualElement>("destination-row"), !lost && !Session.AwaitingFloorChange);
+            // Blueprint F: while the position is uncertain the sheet offers two actions, tips and End route.
+            SetVisible(Find<Button>("details"), !lost);
+            SetVisible(Find<Button>("show-tips"), lost);
             var mapStatus = Find<Label>("map-status");
-            mapStatus.text = lost ? (Session.LastKnownPose.HasValue && Session.LastKnownPose.Value.Floor == Session.View.FloorShown ? "Last known position" : "Position not available on this floor")
+            mapStatus.text = lost ? (Session.LastKnownPose.HasValue && Session.LastKnownPose.Value.Floor == Session.View.FloorShown ? "Grey ring: your last known position" : "Your last known position is on another floor")
                 : Session.View.HoldView ? "View held · tap the lock to resume" : "";
             SetVisible(mapStatus, mapStatus.text.Length > 0);
 
@@ -95,7 +106,7 @@ namespace IndoorNavigation.UI.Screens
 
             destination.text = Session.Destination.Name;
             double metres = RouteProgress.RemainingMetres(Session.Route, Session.NextNodeIndex, Session.Pose);
-            remaining.text = Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Metres(metres) + " to go";
+            remaining.text = Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Minutes(metres) + " · " + Wording.Metres(metres);
             map.Show(
                 Session.Venue, Session.Route, Session.View.FloorShown,
                 lost ? Session.LastKnownPose : Session.Pose,

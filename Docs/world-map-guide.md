@@ -1,6 +1,6 @@
 # World maps: guide for builds 4 to 6
 
-> **Current build-13 amendment:** the historical build steps below remain as records. Current tests and build steps are in the README. Pause now saves and reloads a checkpoint for validation; Continue resumes after relocalisation. The duplicate World maps checkpoint button was removed; use Developer panel → Log check point. See `recording-pause-and-cleanup.md`.
+> **Current build-13 amendment:** the historical build steps below remain as records. Current tests and build steps are in the README. Pause now saves and reloads a checkpoint for validation; Continue resumes after relocalisation. The duplicate World maps checkpoint button was removed; use Developer panel → Log check point. See `archive/recording-pause-and-cleanup.md`.
 
 Build 4 (`export-position-004`, 30 Oct) made the world-map recorder a small map library: you name each map, test how well it relocalises, and continue it later to make it bigger. A recording that is interrupted can't be saved.
 
@@ -8,7 +8,7 @@ Build 5 (`export-position-005`, 30 Oct) fixes why build 4 could not relocalise e
 
 **The bug.** ARKit keeps a loaded world map as the session's initial world map, and a session reset runs again with it ("This is equivalent to setting the initialWorldMap property", Unity, ARKitSessionSubsystem.ApplyWorldMap). The app loads `area-1`'s map at start, so every new recording began by relocalising against that old map, and the saved map was spoiled. The logs of 29 Oct show it: right after `recording started`, tracking went to `Limited Relocalizing`. The LocalisationLab scene never had this, because it recorded in a fresh launch with no map loaded. Build 5 clears the old map before a new recording starts, and the recorder refuses to save if a new recording is ever found relocalising.
 
-> **Builds 7 and 8 (30 Oct) change how the position is found:** you name the floor and its map is tried; whenever you choose, you can say which room or door you are at instead (decision record 11). Recording still works as below, plus naming each door; lab visit 2 follows `build-7-guide.md` part E instead of part D here.
+> **Builds 7 and 8 (30 Oct) change how the position is found:** you name the floor and its map is tried; whenever you choose, you can say which room or door you are at instead (decision record 11). Recording still works as below, plus naming each door; lab visit 2 follows `archive/build-7-guide.md` part E instead of part D here.
 
 Why these builds exist: `lab-visit-1.md`. Their device results: `device-tests.md`. The idea behind world maps and door corners: `real-position-guide.md` part A.
 

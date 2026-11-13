@@ -3,15 +3,19 @@
     <ui:VisualElement class="screen route-screen">
         <ui:Button name="steps" tooltip="Read route steps" class="instruction-card">
             <ui:VisualElement name="instruction-icon" class="icon-tile" picking-mode="Ignore" />
+            <ui:VisualElement name="warning-icon" class="icon-tile icon-tile--warning" picking-mode="Ignore" />
             <ui:VisualElement class="instruction-copy" picking-mode="Ignore">
                 <ui:Label name="instruction" class="instruction-title" />
                 <ui:Label name="instruction-detail" class="small" />
             </ui:VisualElement>
         </ui:Button>
-        <ui:VisualElement name="other-floor" class="row other-floor-banner">
-            <ui:Label name="floor-notice" class="small" />
-            <ui:VisualElement class="spacer" />
-            <ui:Button name="my-floor" text="My floor" class="button button--small button--soft" />
+        <ui:VisualElement name="other-floor" class="instruction-card">
+            <ui:VisualElement name="floors-icon" class="icon-tile icon-tile--quiet" />
+            <ui:VisualElement class="instruction-copy">
+                <ui:Label name="floor-shown" class="instruction-title" />
+                <ui:Label name="floor-notice" class="small" />
+            </ui:VisualElement>
+            <ui:Button name="my-floor" text="My floor" class="button button--small button--soft card-button" />
         </ui:VisualElement>
         <ui:VisualElement name="map" class="map route-map">
             <ui:VisualElement class="segmented segmented--map">
@@ -29,14 +33,13 @@
         <ui:VisualElement class="sheet route-sheet">
             <ui:VisualElement class="sheet-handle" />
             <ui:VisualElement name="floor-card">
-                <ui:Label name="floor-question" class="strong" />
+                <ui:Label name="floor-question" class="sheet-title" />
                 <ui:Label text="Confirm at the top of the stairs or after leaving the lift." class="small" />
                 <ui:Button name="confirm-floor" class="button button--primary" />
             </ui:VisualElement>
-            <ui:VisualElement name="position-banner">
-                <ui:Label text="Finding your position" class="strong" />
-                <ui:Label text="Raise the phone and look slowly at walls and signs." class="small" />
-                <ui:Button name="show-tips" text="Show tips" class="button button--small" />
+            <ui:VisualElement name="position-banner" class="sheet-copy">
+                <ui:Label text="Finding your position" class="sheet-title" />
+                <ui:Label text="Raise the phone and look slowly at walls and signs. Guidance resumes when you're found." class="small" />
             </ui:VisualElement>
             <ui:VisualElement name="destination-row" class="row destination-row">
                 <ui:VisualElement name="destination-icon" class="icon-tile icon-tile--destination" />
@@ -47,14 +50,15 @@
             </ui:VisualElement>
             <ui:VisualElement class="row">
                 <ui:Button name="details" text="Details" class="button half-button" />
+                <ui:Button name="show-tips" text="Show tips" class="button half-button" />
                 <ui:Button name="end-route" text="End route" class="button button--danger half-button" />
             </ui:VisualElement>
             <ui:Button name="fix-position" text="Fix position" class="text-button" />
         </ui:VisualElement>
         <ui:VisualElement name="end-confirm" class="overlay">
             <ui:VisualElement class="sheet dialog-sheet">
-                <ui:Label text="End this route?" class="title" />
-                <ui:Label text="You can find it again from search." class="body" />
+                <ui:Label text="End this route?" class="sheet-title" />
+                <ui:Label text="You can find the place again from search." class="small dialog-text" />
                 <ui:Button name="keep-going" text="Keep going" class="button button--primary" />
                 <ui:Button name="end" text="End route" class="button button--danger" />
             </ui:VisualElement>

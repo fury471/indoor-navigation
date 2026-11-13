@@ -51,6 +51,7 @@ namespace IndoorNavigation.UI.Screens
             minimap.ShowLabels = false;
             panels = new NavigationPanels(root, session);
             Find<VisualElement>("instruction-icon").Add(new NavigationIcon("turn"));
+            Find<VisualElement>("warning-icon").Add(new NavigationIcon("warning", NavigationIcon.Warning));
             Find<Button>("steps").clicked += panels.ShowSteps;
             Find<Button>("show-tips").clicked += panels.ShowTips;
             Find<Button>("minimap-button").clicked += Session.Show2DMap;
@@ -75,9 +76,12 @@ namespace IndoorNavigation.UI.Screens
             instructionDetail.text = lost ? "Arrows are hidden until you're found" : Session.AwaitingFloorChange ? "Open the map to confirm the floor" : detail;
             Find<Button>("steps").EnableInClassList("instruction-card--warning", lost);
             SetVisible(Find<Button>("show-tips"), lost);
+            SetVisible(Find<VisualElement>("instruction-icon"), !lost);
+            SetVisible(Find<VisualElement>("warning-icon"), lost);
             hold.EnableInClassList("map-control--on", Session.View.HoldView);
             hold.tooltip = Session.View.HoldView ? "View held. Tap to resume tilt switching" : "Hold this view";
-            destination.text = "To " + Session.Destination.Name;
+            destination.text = "To " + Session.Destination.Name + " · "
+                + Wording.Minutes(RouteProgress.RemainingMetres(Session.Route, Session.NextNodeIndex, Session.Pose));
             // Blueprint: a small heading-up map centred on you.
             minimap.Show(
                 Session.Venue, Session.Route, Session.UserFloor,

@@ -160,7 +160,7 @@
   - Marks 0.29 m and 0.19 m apart were accepted as doors and the map could be saved with them.
   - The empty door row's hint was cut off.
 - Fixed in build 9.
-- Originally planned checks, now for build 9 (`Docs/build-7-guide.md` parts D and E). Checks: screen 1 asks the floor first and "Change floor" works; the hint follows the phone's tilt; after about 10 s raised a reminder appears and nothing switches by itself; "Keep trying" goes back to the map; a door fix from the corridor and from inside a room both place you correctly and refuse a wrong width; Fix position keeps tracking; door names and start rooms are saved with the map; the orange door posts stand on the corners after a fix.
+- Originally planned checks, now for build 9 (`Docs/archive/build-7-guide.md` parts D and E). Checks: screen 1 asks the floor first and "Change floor" works; the hint follows the phone's tilt; after about 10 s raised a reminder appears and nothing switches by itself; "Keep trying" goes back to the map; a door fix from the corridor and from inside a room both place you correctly and refuse a wrong width; Fix position keeps tracking; door names and start rooms are saved with the map; the orange door posts stand on the corners after a fix.
 
 ## Build 9 — fixes from build 8
 
@@ -187,7 +187,7 @@
   - wording: screen 1 lists "at a door, outside it" instead of "in the corridor", and 1b and the recorder say "outside the door (in the corridor, or in the room around it)", so a room inside a room (the VR lab's inner room, where the demo starts) reads right.
 - Layout checked with the HTML replica at 390×694 and 390×848 with five chips, recording and naming: the crosshair stays clear while recording.
 - Source commits: 91184b5 (wording), 1944743 (chips) and the corner anchors on top of them.
-- Result: to be tested (`Docs/build-7-guide.md` parts D and E), with the checks listed under builds 8 and 9.
+- Result: to be tested (`Docs/archive/build-7-guide.md` parts D and E), with the checks listed under builds 8 and 9.
 
 ## Live corner-anchor fix — local source updated 30 Oct 2026
 
@@ -206,7 +206,7 @@
 - A check reports horizontal anchor-to-raycast residual in centimetres, signed height residual, and the rendered foot's 3D distance from the current anchor. The displayed foot is sampled from its actual renderer; its render-frame age is shown and logged because it can predate the click's anchor/raycast sample.
 - Session log event `corner-check` includes map/mode/corner, anchor identity, anchor and observed session positions, signed delta, renderer position/frame age, camera pose, hit type/trackable, mapping state, recording seconds and walked distance. The residual includes aiming and floor-estimation errors; it is not an independent measurement of ARKit drift.
 - Validation: Core, UI, Adapters and App compile with Editor and iOS-player definitions against Unity 6000.3.24f1 dependencies. Both test assemblies compile; 286 Core and three engine-independent adapter tests pass offline. Recorder UXML parses and whitespace checks pass. Extended the renderer regression test to cover session-space sampling under a moved origin, updated positions, replaced identities and hidden/removed posts. Full Unity execution of this test, UI layout/touch behaviour and device sampling remain pending; no IPA produced here.
-- Next device check: follow `Docs/continue-corner-check.md`. Record both corners immediately after entering Continue and after one loop, from the same side of the door. Preserve the session log and screenshots before remarking.
+- Next device check: follow `Docs/archive/continue-corner-check.md`. Record both corners immediately after entering Continue and after one loop, from the same side of the door. Preserve the session log and screenshots before remarking.
 - Follow-up correction is evidence-dependent and not implemented yet: distinguish display/update faults, local alignment error and independently verified venue-data errors. Do not use the reported 25–30 cm as a permanent global offset. Record any later correction and its separate checkpoint validation alongside the diagnostic results.
 
 ## Build 13 — checkpoint pause/test and recording cleanup (31 Oct 2026)
@@ -222,7 +222,7 @@
 
 ### Device export analysed on 31 Oct
 
-- Source: `lab-visit-1/temp/SessionLogs` and `WorldMaps`, supplied by Fury. See `map-analysis-2026-10-31.md` for source lines, method and limitations. Logs demonstrate the checkpoint-pause workflow but have no explicit build/commit field.
+- Source: `lab-visit-1/temp/SessionLogs` and `WorldMaps`, supplied by Fury. See `archive/map-analysis-2026-10-31.md` for source lines, method and limitations. Logs demonstrate the checkpoint-pause workflow but have no explicit build/commit field.
 - Latest session (14:11–14:18 Stockholm): 11 Continue checks across six corners, 3.28–18.74 cm horizontal residual (pooled median 12.55 cm). All hits are PlaneWithinPolygon with Mapped status; display/anchor separation is logged as 0.0000 m. This is not independently surveyed building accuracy.
 - Four same-session relocalisations complete in 4.5, 18.1, 4.2 and 7.1 s. Two Pause/checkpoint-test cycles resume via Continue. No active-recording interruption is logged in this session. Paused corner checks, cold-launch accuracy, floor-3 recovery and backgrounded checkpoint recovery remain unverified.
 - Native archive inspection finds all 20 recorded corner entries across the three map files, with matching saved JSON positions. `test` door widths remain 0.983/0.882/0.935 m across its two saved versions. `area-1` d4 is 0.530 m and needs physical confirmation.
@@ -230,14 +230,14 @@
 
 ### Follow-up paused walk, export updated around 14:47
 
-- Source: `session-20261031-134403.jsonl`. User clarifies that an approximately 20 m walk occurred within the last paused group; an accidental workflow change separates it from the first group. See `map-loop-analysis-2026-10-31.md`.
+- Source: `session-20261031-134403.jsonl`. User clarifies that an approximately 20 m walk occurred within the last paused group; an accidental workflow change separates it from the first group. See `archive/map-loop-analysis-2026-10-31.md`.
 - Two checkpoint groups contain 26 and 56 checks respectively. Final-group residuals are 14.96–23.87 cm across six corners, with per-corner medians 18.38/22.47/16.37/15.36/16.09/17.57 cm. The repeated samples are correlated and include hit/aiming error, not independently surveyed position errors.
 - All 82 paused checks report zero post/anchor separation at log precision and detected-plane hits. Three reloads complete in 12.7, 4.5 and 7.7 s. No intervening recording/save/restart occurs inside the final paused check group; `walked=0.00` is expected while recorder accumulation is paused.
 - Current native map/JSON positions still agree, with six persistent corner IDs in both `test` versions. Map-to-evacuation-plan alignment remains unmeasured. Keep the candidate map and proceed to named, independently measured plan controls; no raw-data correction or runtime change was made by the analysis.
 
 ## Build 14 — floor-1 plan, 3D miniature and exploded view (31 Oct 2026)
 
-- Planned export: `position-014`, tag `export-position-014`; no export/IPA produced by this change. Guide: `build-14-guide.md`.
+- Planned export: `position-014`, tag `export-position-014`; no export/IPA produced by this change. Guide: `archive/build-14-guide.md`.
 - New: the IKDC package for floor 1's demo zone in `StreamingAssets/IKDC` (git-ignored), the plan under the route on screens 5 and B, screen D (3D miniature, floors of the route stacked 10 m apart, orbit/pinch/reset), catalogue search over the package, and floor 2/3 landing places at stairs S1 for testing the exploded view.
 - Validation: Core, UI, Adapters and App compile for Editor and iOS-player definitions against stand-ins for the Unity API. 303 Core tests pass offline; the 3 IKDC package tests pass against the real package files. Expected Unity EditMode total: 313. A smoke run reads the package through the app's reader and drives the session from the VR lab to Toilet 1 (22.6 m) and to the floor 3 landing (36.7 m, three floors in the miniature), including screen D in preview and during the route. Rendering, touch behaviour and frame rate on the iPhone are not verified; the preview images were made with an offline renderer of the same model.
 - Device result: pending. Checks: position in the VR lab; blue dot against the plan at the VR lab door, Toilet 1 door and stairs door `d3`; walls/doors along the route; 3D turn/pinch/reset/back; exploded view for "floor 3"; which side of door `d3` stairs S1 is on.
@@ -288,10 +288,32 @@
   - The AR track through the VR lab door and the toilet lobby opening without touching the frames.
   - The miniature's look against screen D of the blueprint.
 
-## Visitor UI blueprint refinement (5 Nov 2026, local source)
+## Build 18 — visitor screens refined against the blueprint (5 Nov 2026)
+
+- Source commit: c277560. Earlier this entry was headed "Visitor UI blueprint refinement (local source)".
 
 - Implemented: building search/details, local typing suggestions and common-place browsing; map/AR controls and floor browsing; text steps, first-route tip, destination details and recovery tips; last-known-position feedback; revised preview, navigation, miniature and arrival layouts. See `blueprint-refinement.md` for exact coverage and remaining blueprint work.
 - Screen C is registered with the existing map presenter. Floor browsing never changes the user's confirmed floor. Held views still allow an explicit map tap, and unlocking/leaving 3D uses the current phone attitude. A final review also fixed view buttons being captured as miniature orbit gestures.
 - Validation: **343/343 tests passed in Unity 6000.3.24f1**, including 328 Core, 14 adapter tests with the local IKDC package, and one UI integration test. Runtime sources compiled against Unity's actual assemblies. New Core regressions cover floor browsing, view hold/manual map, tilt during gestures/sheets, leaving 3D, study mode, last-known fixes and catalogue navigation.
 - The UI test loads the production UXML/presenters and renders the sample flow at **390 x 844** and **375 x 667**, plus the real IKDC plan at **402 x 874**. It checks control bindings, touch-target heights, screen bounds and clipped map controls. Screenshot review found clipped controls on the short screen; a compact bottom-row layout fixes them. Images and XML are in the ignored `IndoorNavigation/Library/BlueprintReview` folder.
-- Device result: **pending**. These are Unity-rendered screens using placeholder position/attitude, not iPhone camera captures. No IPA or Xcode export was produced. Validate real tilt/lock interaction, keyboard and gestures, AR pin alignment, tracking loss/recovery, confirmed floor changes and arrival on the next device build.
+- Device result (Fury, on the iPhone, reported 13 Nov): **better than build 17, but not yet the blueprint.** The screens still looked different from the designed ones, and some interactions were not user-friendly. The individual problems were not written down. Build 19 answers with an audit of every screen against the blueprint.
+
+## Build 19 — blueprint pass 2: type, lists, icons and sheets (13 Nov 2026)
+
+- Audit of the 16 rendered screen states of build 18 against blueprint pages 2–12 (`blueprint-refinement.md`, "Pass 2").
+- On every screen:
+  - Atkinson Hyperlegible, regular and bold, as the blueprint specifies (`Runtime/UI/Fonts`, SIL Open Font License). Build 18 used Unity's default font, with thin, widely spaced headings.
+  - Lists are one card with hairlines, an icon tile at the left and a chevron at the right edge.
+  - Status is a small pill. Search fields have a magnifier and an accent border.
+  - Sheets reach the bottom edge; the grey band under them is gone.
+  - Steps, details, tips and the floor picker open as a sheet from the bottom. A tap on the dimmed area closes them.
+- Per screen:
+  - V1b has its own empty state. V2 has the back button, and size and version rows ("320 KB", never "0.0 MB").
+  - 5 shows the walking time first, then distance and how the floor changes. Avoid stairs and Steps as text are one card.
+  - 5c shows an icon and a distance per step and marks the current one "Now".
+  - C puts **My floor** inside the top card.
+  - F shows a warning icon and two actions, Show tips and End route. F3 numbers its tips.
+- Walking time assumes 1 m/s and rounds up to whole minutes (`Wording.Minutes`).
+- Validation: Core, UI, Adapters and App compile against stand-ins for the Unity API. 328 Core tests pass offline. An HTML replica of 20 screen states at 390 × 844 and 375 × 667 shows no button off screen or under 43 points. The fonts, icons and real rendering are unverified until Unity runs the UI test.
+- Unity result: pending. Run EditMode **Run All** (expect 343) and review `Library/BlueprintReview`.
+- Device result: pending. Checks: the list in `blueprint-refinement.md`, "Next device check".

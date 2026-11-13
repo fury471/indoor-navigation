@@ -1,8 +1,12 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- 2 · Ask: what do you need?, and 2b · Typing, with suggestions -->
     <Style src="../Tokens.uss" />
     <ui:VisualElement class="screen">
         <ui:VisualElement class="row building-row">
-            <ui:Label name="building" class="chip" />
+            <ui:VisualElement class="row chip chip--place">
+                <ui:VisualElement class="you-dot" />
+                <ui:Label name="building" class="chip-text" />
+            </ui:VisualElement>
             <ui:VisualElement class="spacer" />
             <ui:Button name="change" text="Change" class="text-button" />
         </ui:VisualElement>
@@ -12,14 +16,13 @@
         <ui:ScrollView class="visitor-scroll" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden">
             <ui:VisualElement name="typing">
                 <ui:Label text="Places" class="section-label" />
-                <ui:VisualElement name="typed-places" />
+                <ui:VisualElement name="typed-places" class="list-card" />
             </ui:VisualElement>
             <ui:VisualElement name="discovery">
                 <ui:Label text="Common places" class="section-label" />
                 <ui:VisualElement name="common" class="common-places" />
                 <ui:Label text="Or describe a need" class="section-label" />
-                <ui:Button name="example-print" text="Where can I print?  ›" class="catalogue-card" />
-                <ui:Button name="example-charge" text="I need to charge my phone  ›" class="catalogue-card" />
+                <ui:VisualElement name="examples" class="list-card" />
             </ui:VisualElement>
         </ui:ScrollView>
         <ui:VisualElement class="visitor-footer">

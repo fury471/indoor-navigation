@@ -16,6 +16,8 @@
     --warning-bg: #FFF6E5;
     --warning-text: #7A4A00;
     --warning-border: #F2D19B;
+    /* Atkinson Hyperlegible (Braille Institute, SIL Open Font License 1.1; see Fonts/OFL.txt). */
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Regular.ttf");
 }
 
 /* Every screen instance fills the app; only one is displayed at a time.
@@ -44,8 +46,8 @@
 }
 
 .title {
-    font-size: 28px;
-    -unity-font-style: bold;
+    font-size: 24px;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--text);
     white-space: normal;
     margin: 0 0 8px 0;
@@ -66,7 +68,7 @@
 
 .strong {
     font-size: 18px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--text);
     white-space: normal;
 }
@@ -105,7 +107,7 @@
     background-color: var(--surface);
     color: var(--text);
     font-size: 16px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 
 .button--primary {
@@ -295,7 +297,7 @@
 
 .state-pill {
     font-size: 14px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     padding: 4px 12px;
     border-radius: 12px;
     color: var(--muted);
@@ -326,7 +328,7 @@
 
 .maps-floor-heading {
     font-size: 13px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--muted);
     margin: 10px 4px 4px 4px;
 }
@@ -362,14 +364,14 @@
 .map-card-name {
     flex-grow: 1;
     font-size: 16px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--text);
     -unity-text-align: middle-left;
 }
 
 .map-card-tag {
     font-size: 12px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--accent);
     background-color: var(--accent-soft);
     padding: 2px 8px;
@@ -431,7 +433,7 @@
 .maps-floor-value {
     width: 44px;
     font-size: 20px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     -unity-text-align: middle-center;
     color: var(--text);
 }
@@ -480,7 +482,7 @@
 
 .mapping-badge {
     font-size: 11px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--surface);
     background-color: rgba(20, 23, 31, 0.6);
     padding: 2px 10px;
@@ -569,7 +571,7 @@
     border-radius: 22px;
     border-width: 0;
     font-size: 14px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -642,7 +644,7 @@
 
 .locate-floor {
     font-size: 13px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     color: var(--muted);
     margin: 10px 0 0 4px;
 }
@@ -757,7 +759,7 @@
 
 .locate-floor-chosen {
     color: var(--text);
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 
 .locate-change {
@@ -855,7 +857,7 @@
     background-color: rgba(0, 0, 0, 0);
     color: var(--muted);
     font-size: 15px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 
 .segment--on {
@@ -883,7 +885,7 @@
     background-color: rgba(255, 255, 255, 0.85);
     color: var(--muted);
     font-size: 12px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 
 .miniature-floor--you {
@@ -895,7 +897,7 @@
     width: 160px;
     color: var(--destination);
     font-size: 13px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     -unity-text-align: middle-center;
     white-space: normal;
 }
@@ -985,7 +987,7 @@
     border-color: var(--accent);
     background-color: var(--accent-soft);
     color: var(--accent);
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 
 /* A · destination pin over the camera view (screen-space, constant size). */
@@ -1002,7 +1004,7 @@
     background-color: rgba(20, 23, 31, 0.86);
     color: #FFFFFF;
     font-size: 13px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 
 /* Visitor screens: blueprint v0.2, pages 2-12. Keep the plan open behind floating controls. */
@@ -1021,7 +1023,7 @@
     background-color: rgba(0, 0, 0, 0);
     color: var(--accent);
     font-size: 14px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
 }
 .text-field { flex-shrink: 0; min-height: 52px; }
 .text-field > .unity-text-field__input {
@@ -1033,7 +1035,7 @@
     color: var(--text);
 }
 .text-field > .unity-text-field__input:focus { border-color: var(--accent); }
-.section-label { font-size: 13px; -unity-font-style: bold; color: var(--muted); margin: 20px 0 10px 0; }
+.section-label { font-size: 13px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal; color: var(--muted); margin: 20px 0 10px 0; }
 .visitor-scroll { flex-grow: 1; flex-shrink: 1; min-height: 0; }
 .visitor-scroll .unity-scroll-view__content-container { padding-bottom: 12px; }
 .visitor-scroll > .unity-scroll-view__vertical-scroller { display: none; }
@@ -1086,7 +1088,7 @@
 }
 .instruction-copy { flex-grow: 1; flex-shrink: 1; min-width: 0; }
 .instruction-copy > Label { flex-shrink: 0; white-space: normal; margin: 0 0 2px 0; }
-.instruction-title { font-size: 22px; -unity-font-style: bold; color: var(--text); white-space: normal; }
+.instruction-title { font-size: 22px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal; color: var(--text); white-space: normal; }
 .instruction-card--warning { background-color: var(--warning-bg); border-color: var(--warning-border); }
 .instruction-card--warning Label { color: var(--warning-text); }
 .icon-tile {
@@ -1121,7 +1123,7 @@
     background-color: var(--accent);
     color: #FFFFFF;
     font-size: 11px;
-    -unity-font-style: bold;
+    -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal;
     -unity-text-align: middle-center;
 }
 .map-status {
@@ -1142,9 +1144,9 @@
 .route-sheet > * { flex-shrink: 0; }
 .sheet-handle { align-self: center; width: 36px; height: 4px; margin: 0 0 14px 0; border-radius: 2px; background-color: #D1D6DD; }
 .destination-row { margin: 2px 0 8px 0; }
-.route-summary { font-size: 22px; -unity-font-style: bold; color: var(--text); margin: 0 0 12px 0; }
+.route-summary { font-size: 22px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal; color: var(--text); margin: 0 0 12px 0; }
 .route-option { padding: 12px; min-height: 48px; margin: 0; border-width: 1px; border-color: var(--border); border-radius: 14px; font-size: 16px; color: var(--text); }
-.route-option > .unity-toggle__label { flex-grow: 1; -unity-font-style: bold; }
+.route-option > .unity-toggle__label { flex-grow: 1; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-font-style: normal; }
 .route-option .unity-toggle__checkmark { width: 44px; height: 26px; padding: 4px; border-radius: 13px; border-width: 0; background-image: none; background-color: #D1D6DD; flex-direction: row; align-items: center; justify-content: flex-start; }
 .route-option:checked .unity-toggle__checkmark { background-image: none; background-color: var(--accent); justify-content: flex-end; }
 .toggle-knob { flex-shrink: 0; width: 18px; height: 18px; border-radius: 9px; background-color: #FFFFFF; }
@@ -1167,3 +1169,99 @@
 .minimap { width: 144px; height: 144px; overflow: hidden; }
 .ar-fix { align-self: center; background-color: var(--surface); border-radius: 22px; padding: 8px 16px; }
 .ar-recovery { align-self: center; min-height: 44px; padding: 10px 16px; border-width: 0; border-radius: 22px; background-color: var(--text); color: #FFFFFF; font-size: 14px; }
+
+/* ------------------------------------------------------------------------------------------------
+   Blueprint pass 2 (build 19): type, lists, pills, icons and sheets as drawn on pages 2-12.
+   Bold text uses the bold font file, so no rule relies on a synthesised bold.
+   ------------------------------------------------------------------------------------------------ */
+
+/* Type scale of the specification: 22 instruction, 18-20 sheet title, 16 button, 15 meta, 13 labels. */
+.sheet-title { font-size: 20px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); color: var(--text); white-space: normal; margin: 0 0 4px 0; }
+.list-title { font-size: 16px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); color: var(--text); white-space: normal; }
+.header-label { font-size: 16px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); color: var(--text); }
+.body { font-size: 15px; }
+.footnote { flex-shrink: 0; margin: 4px 4px 8px 4px; }
+.sheet-copy { margin-bottom: 10px; }
+.dialog-text { margin: 0 0 12px 0; font-size: 15px; }
+
+/* Lists: one card, rows divided by hairlines (V1, 2, 2b, 5, 5c, B2, F3). */
+.list-card { flex-shrink: 0; margin: 0 0 12px 0; border-radius: 20px; border-width: 1px; border-color: var(--border); background-color: var(--surface); overflow: hidden; }
+.list-row { flex-direction: row; align-items: center; flex-shrink: 0; min-height: 60px; height: auto; margin: 0; padding: 10px 14px; border-width: 0; border-top-width: 1px; border-color: var(--border); border-radius: 0; background-color: rgba(0, 0, 0, 0); -unity-text-align: middle-left; white-space: normal; }
+.list-row--first { border-top-width: 0; }
+Button.list-row:active { background-color: var(--accent-soft); }
+.list-row--on { background-color: var(--accent-soft); }
+.list-row--plain .list-title { -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Regular.ttf"); }
+.list-copy { flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0; align-items: flex-start; }
+.list-copy > Label { flex-shrink: 0; margin: 1px 0; padding: 0; }
+.list-row > .icon-tile { width: 40px; height: 40px; border-radius: 12px; }
+.list-trailing { flex-shrink: 0; margin-left: 10px; }
+.list-value { flex-shrink: 0; font-size: 14px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); color: var(--text); -unity-text-align: middle-right; }
+.number-tile { flex-shrink: 0; width: 30px; height: 30px; margin: 0 12px 0 0; padding: 0; border-radius: 15px; background-color: var(--accent-soft); color: var(--accent); font-size: 14px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); -unity-text-align: middle-center; }
+
+/* Status pills hug their text (blueprint V1, V2, 5c "Now"). */
+.pill { align-self: flex-start; flex-shrink: 0; margin: 4px 0 0 0; padding: 2px 9px; border-radius: 10px; font-size: 12px; -unity-font-definition: url("Fonts/AtkinsonHyperlegible-Bold.ttf"); color: var(--muted); background-color: var(--ground); }
+.pill--ok { color: var(--accent); background-color: var(--accent-soft); }
+.pill--warning { color: var(--warning-text); background-color: var(--warning-bg); }
+.pill--solid { color: #FFFFFF; background-color: var(--accent); margin: 0 0 3px 0; }
+.state-pill { align-self: flex-start; }
+
+/* Search fields: magnifier at the left, accent border (V1, 2). */
+.text-field--search > .unity-text-field__input { padding-left: 46px; border-width: 2px; border-color: var(--accent); }
+.text-field-icon { position: absolute; left: 14px; top: 14px; }
+.text-field > .unity-text-field__input { font-size: 16px; }
+
+/* Icon tiles. */
+.icon-tile--warning { background-color: #FCE8BF; }
+.icon-tile--quiet { background-color: var(--ground); }
+.icon-tile--solid { background-color: var(--accent); }
+.icon-tile--large { width: 60px; height: 60px; margin: 0 0 16px 0; border-radius: 18px; background-color: var(--surface); border-width: 1px; border-color: var(--border); }
+
+/* V1b: nothing matches. */
+.empty-state { flex-grow: 1; align-items: center; padding-top: 48px; }
+.empty-state > Button { align-self: stretch; }
+.empty-title { -unity-text-align: middle-center; margin-bottom: 10px; }
+.empty-text { -unity-text-align: middle-center; padding: 0 16px; }
+
+/* V2 header: round back button and a label. */
+.header-row { flex-shrink: 0; margin: 0 0 12px 0; }
+.back-button { align-items: center; justify-content: center; padding: 0; font-size: 16px; }
+.back-button--surface { background-color: var(--surface); border-width: 1px; border-color: var(--border); }
+
+/* 2: the building chip with the blue "you" dot. */
+.chip--place { flex-shrink: 1; padding: 8px 12px; border-radius: 20px; }
+.chip-text { flex-shrink: 1; font-size: 13px; color: var(--text); white-space: normal; padding: 0; margin: 0; }
+.you-dot { flex-shrink: 0; width: 8px; height: 8px; margin-right: 8px; border-radius: 4px; background-color: var(--you); }
+
+/* 5: time first, then distance and how the floor changes; options in one card. */
+.summary-row { align-items: flex-end; margin: 0 0 12px 0; }
+.route-summary { font-size: 24px; margin: 0 10px 0 0; padding: 0; }
+.summary-detail { font-size: 14px; margin: 0 0 3px 0; padding: 0; }
+.route-option { flex-shrink: 0; min-height: 44px; margin: 0 0 0 10px; padding: 0; border-width: 0; border-radius: 0; justify-content: center; }
+.route-sheet > .list-card { margin-bottom: 4px; }
+.route-sheet > .warning { align-items: flex-start; padding: 12px; margin-bottom: 10px; }
+.warning-text { font-size: 14px; }
+
+/* S: the first-start tip. */
+.first-tip-option { align-items: center; }
+.first-tip-icon { width: 24px; height: 24px; margin-bottom: 6px; }
+.first-tip-text { -unity-text-align: middle-center; }
+.first-tip-note { margin: 0 0 12px 0; }
+
+/* Sheets reach the bottom edge of the screen; the safe area is inside them, not a grey band under them. */
+.route-screen { padding: 60px 0 0 0; }
+.route-sheet { padding: 10px 20px 42px 20px; }
+.card-button { flex-shrink: 0; margin: 0 0 0 8px; padding: 0 16px; }
+.route-screen > .instruction-card { flex-shrink: 0; }
+
+/* Steps, details, tips and the floor picker open as a sheet from the bottom, within reach of the thumb. */
+.overlay--bottom { justify-content: flex-end; padding: 0; }
+.overlay--bottom > .dialog-sheet { max-height: 82%; padding: 10px 20px 42px 20px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.overlay--bottom > .dialog-sheet > .small { margin: 0 0 12px 0; }
+.dialog-sheet > * { flex-shrink: 0; }
+.dialog-sheet > .dialog-body { flex-shrink: 1; }
+
+/* D: floor names read as labels, not as markers. */
+.miniature-floor { color: var(--text); background-color: rgba(255, 255, 255, 0.92); }
+.miniature-floor--you { color: var(--text); }
+.list-copy > .pill { margin: 4px 0 0 0; padding: 2px 9px; }
+.list-copy > .pill--solid { margin: 0 0 4px 0; }

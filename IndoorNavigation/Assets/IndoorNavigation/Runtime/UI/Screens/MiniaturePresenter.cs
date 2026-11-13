@@ -49,6 +49,7 @@ namespace IndoorNavigation.UI.Screens
             labelLayer = Find<VisualElement>("labels");
             var panels = new NavigationPanels(root, session);
             Find<Button>("steps").clicked += panels.ShowSteps;
+            Find<VisualElement>("instruction-icon").Add(new NavigationIcon("turn"));
             viewport.Insert(0, picture);
             picture.style.position = Position.Absolute;
             picture.style.left = 0;
@@ -88,7 +89,7 @@ namespace IndoorNavigation.UI.Screens
             if (Session.Route == null || Session.Destination == null) return;
 
             destination.text = Session.Destination.Name;
-            Find<Label>("instruction").text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Title : "Route overview";
+            Find<Label>("instruction").text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Title : "Route to " + Session.Destination.Name;
             string via = Session.Route.UsesStairs ? " · stairs" : Session.Route.UsesLift ? " · lift" : "";
             summary.text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Detail
                 : Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Metres(Session.Route.LengthMetres) + via;
