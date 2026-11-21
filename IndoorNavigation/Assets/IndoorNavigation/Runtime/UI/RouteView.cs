@@ -28,18 +28,18 @@ namespace IndoorNavigation.UI
         private const double LabelMinArea = 6.0;
         private const float ConeRadius = 46f;
 
-        // Blueprint tokens (Tokens.uss) and the map views of screens B to D: grey ground, the building's
-        // halls a shade lighter, rooms white, walls as light hairlines (the blueprint draws rooms as white
-        // cards with a light border), doors and stairs lighter still, the route on top.
+        // The building's own room-booking screen style (Fury, 21 Nov 2026): one light ground, rooms and halls
+        // barely apart, walls as clean dark lines of one weight, rooms named by their number. Outside the
+        // recorded zones the same drawing is a step quieter, so the part you can be guided in stays clear.
         private static readonly Color Ground = new Color32(0xEE, 0xF0, 0xF2, 0xFF);
-        private static readonly Color Room = new Color32(0xFF, 0xFF, 0xFF, 0xFF);
-        private static readonly Color Hall = new Color32(0xF7, 0xF8, 0xFA, 0xFF);
-        private static readonly Color RoomQuiet = new Color32(0xF7, 0xF8, 0xFA, 0xFF);
+        private static readonly Color Room = new Color32(0xFB, 0xFB, 0xFC, 0xFF);
+        private static readonly Color Hall = new Color32(0xF4, 0xF5, 0xF7, 0xFF);
+        private static readonly Color RoomQuiet = new Color32(0xF8, 0xF9, 0xFA, 0xFF);
         private static readonly Color HallQuiet = new Color32(0xF2, 0xF3, 0xF5, 0xFF);
-        private static readonly Color WallDemo = new Color32(0xB4, 0xBA, 0xC2, 0xFF);
-        private static readonly Color WallQuiet = new Color32(0xD9, 0xDC, 0xE1, 0xFF);
-        private static readonly Color Detail = new Color32(0xCD, 0xD1, 0xD7, 0xFF);
-        private static readonly Color DetailQuiet = new Color32(0xE3, 0xE5, 0xE8, 0xFF);
+        private static readonly Color WallDemo = new Color32(0x3F, 0x45, 0x4D, 0xFF);
+        private static readonly Color WallQuiet = new Color32(0x8A, 0x90, 0x99, 0xFF);
+        private static readonly Color Detail = new Color32(0x9A, 0xA0, 0xA8, 0xFF);
+        private static readonly Color DetailQuiet = new Color32(0xC4, 0xC8, 0xCE, 0xFF);
         private static readonly Color Accent = new Color32(0x0F, 0x76, 0x6E, 0xFF);
         private static readonly Color Walked = new Color32(0xB8, 0xBE, 0xC6, 0xFF);
         private static readonly Color You = new Color32(0x25, 0x63, 0xEB, 0xFF);
@@ -59,7 +59,6 @@ namespace IndoorNavigation.UI
         private Vector2 pan;
         private float zoom = 1;
         private readonly Dictionary<int, Vector2> pointers = new Dictionary<int, Vector2>();
-        private readonly List<Label> labels = new List<Label>();
         private FloorPlan wallsOf;
         private readonly List<bool> wallInDemo = new List<bool>();
 
@@ -333,7 +332,7 @@ namespace IndoorNavigation.UI
             {
                 bool demo = pass == 1; // quiet walls first, the demo zone's on top
                 painter.strokeColor = demo ? WallDemo : WallQuiet;
-                painter.lineWidth = demo ? Mathf.Clamp(0.1f * scale, 1.5f, 2.5f) : 1f;
+                painter.lineWidth = demo ? Mathf.Clamp(0.09f * scale, 1.25f, 2f) : Mathf.Clamp(0.06f * scale, 1f, 1.5f);
                 for (int i = 0; i < plan.Walls.Count; i++)
                 {
                     if (wallInDemo[i] != demo) continue;
@@ -596,42 +595,178 @@ namespace IndoorNavigation.UI
             painter.ClosePath();
         }
 
-        /// <summary>One label per named room of the demo zone that is big enough to carry its name.</summary>
+        /// <summary>
+        /// The map's labels, laid out as indoor maps in Google Maps and similar products do: amenities (WC, lifts,
+        /// stairs, food) as a round icon badge, rooms as text at their middle; the room number first, the number
+        /// and name once zoomed in far enough; a label shows only when it fits inside its room and does not
+        /// overlap a label placed before it, so more labels appear as you zoom in; text stays upright whichever
+        /// way the map turns. Rooms outside the recorded zones get quieter labels.
+        /// </summary>
+        private sealed class MapLabel
+        {
+            public PlanSpace Space;
+            public VisualElement Root;
+            public Label Text;
+            public string Number;
+            public string Name;
+            public bool Amenity;
+            public double Area;
+        }
+
+        private const float NameFromPixelsPerMetre = 16f;
+        private const float AmenityTextFromPixelsPerMetre = 12f;
+        private const float RoomFontPixels = 11f;
+        private const float AmenityFontPixels = 10f;
+        private const float BadgePixels = 24f;
+        private readonly List<MapLabel> mapLabels = new List<MapLabel>();
+
         private void MakeLabels()
         {
-            foreach (Label label in labels) label.RemoveFromHierarchy();
-            labels.Clear();
+            foreach (MapLabel old in mapLabels) old.Root.RemoveFromHierarchy();
+            mapLabels.Clear();
             FloorPlan plan = Plan;
             if (plan == null) return;
             foreach (PlanSpace space in plan.Spaces)
             {
-                if (space.Name == null || !space.InDemo || Math.Abs(Polygons.SignedArea2(space.Outline)) / 2 < LabelMinArea) continue;
-                var label = new Label(space.Name) { pickingMode = PickingMode.Ignore, userData = space };
-                label.AddToClassList("map-label");
-                labels.Add(label);
-                Add(label);
+                string icon = AmenityIcon(space);
+                string number = space.Label;
+                string name = space.Name;
+                if (number != null && name != null && name.StartsWith(number + " ", StringComparison.Ordinal)) name = name.Substring(number.Length + 1).Trim();
+                if (name == number) name = null;
+                double area = Math.Abs(Polygons.SignedArea2(space.Outline)) / 2;
+                if (icon == null && ((number == null && name == null) || area < LabelMinArea)) continue;
+
+                var item = new MapLabel { Space = space, Number = number, Name = name, Amenity = icon != null, Area = area };
+                if (icon != null)
+                {
+                    item.Root = new VisualElement { pickingMode = PickingMode.Ignore };
+                    item.Root.AddToClassList("map-poi");
+                    var badge = new VisualElement { pickingMode = PickingMode.Ignore };
+                    badge.AddToClassList("map-poi__badge");
+                    var glyph = new NavigationIcon(icon, NavigationIcon.White) { pickingMode = PickingMode.Ignore };
+                    glyph.style.scale = new Scale(new Vector3(0.7f, 0.7f, 1f)); // the 24-unit glyph inside a 24 px disc
+                    badge.Add(glyph);
+                    item.Root.Add(badge);
+                    item.Text = new Label { pickingMode = PickingMode.Ignore };
+                    item.Text.AddToClassList("map-poi__text");
+                    item.Root.Add(item.Text);
+                }
+                else
+                {
+                    item.Text = new Label { pickingMode = PickingMode.Ignore };
+                    item.Text.AddToClassList("map-label");
+                    item.Root = item.Text;
+                }
+
+                if (!space.InDemo) item.Root.AddToClassList("map-label--quiet");
+                item.Root.style.display = DisplayStyle.None;
+                mapLabels.Add(item);
+                Add(item.Root);
             }
+
+            // Who wins a collision: amenities, then rooms in the recorded zones, then the larger room.
+            mapLabels.Sort((a, b) =>
+            {
+                if (a.Amenity != b.Amenity) return a.Amenity ? -1 : 1;
+                if (a.Space.InDemo != b.Space.InDemo) return a.Space.InDemo ? -1 : 1;
+                return b.Area.CompareTo(a.Area);
+            });
+        }
+
+        /// <summary>The icon an amenity is drawn with, or null for an ordinary room.</summary>
+        private static string AmenityIcon(PlanSpace space)
+        {
+            switch (space.Kind)
+            {
+                case PlanSpaceKind.Toilet: return "wc";
+                case PlanSpaceKind.Lift: return "lift";
+                case PlanSpaceKind.Stairs: return "stairs";
+            }
+
+            string id = space.Id ?? "";
+            return id.StartsWith("restaurant", StringComparison.Ordinal) || string.Equals(space.Name, "Restaurant", StringComparison.OrdinalIgnoreCase) ? "food" : null;
+        }
+
+        /// <summary>A label's size on screen, from its longest line (Atkinson Hyperlegible runs wide).</summary>
+        private static Vector2 TextSize(string text, float font)
+        {
+            if (string.IsNullOrEmpty(text)) return Vector2.zero;
+            string[] lines = text.Split('\n');
+            int longest = 0;
+            foreach (string line in lines) longest = Math.Max(longest, line.Length);
+            return new Vector2(longest * font * 0.6f + 6f, lines.Length * font * 1.3f + 2f);
         }
 
         private void PlaceLabels()
         {
             Func<double, double, Vector2> toScreen = null;
-            bool ok = ShowLabels && TryMapping(out toScreen, out float _);
-            foreach (Label label in labels)
+            float scale = 0;
+            bool ok = ShowLabels && TryMapping(out toScreen, out scale);
+            var taken = new List<Rect>();
+            Rect view = contentRect;
+            foreach (MapLabel item in mapLabels)
             {
-                if (!ok)
+                item.Root.style.display = DisplayStyle.None;
+                if (!ok) continue;
+
+                // The room's extent on screen, so a label shows only when it fits inside.
+                float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+                foreach (PlanPoint corner in item.Space.Outline)
                 {
-                    label.style.display = DisplayStyle.None;
-                    continue;
+                    Vector2 c = toScreen(corner.X, corner.Z);
+                    minX = Mathf.Min(minX, c.x); maxX = Mathf.Max(maxX, c.x);
+                    minY = Mathf.Min(minY, c.y); maxY = Mathf.Max(maxY, c.y);
                 }
 
-                var space = (PlanSpace)label.userData;
-                (double x, double z) = Polygons.LabelPoint(space.Outline);
-                Vector2 p = toScreen(x, z);
-                bool inside = p.x > 30 && p.y > 12 && p.x < contentRect.width - 30 && p.y < contentRect.height - 12;
-                label.style.display = inside ? DisplayStyle.Flex : DisplayStyle.None;
-                label.style.left = p.x - 60;
-                label.style.top = p.y - 8;
+                (double lx, double lz) = Polygons.LabelPoint(item.Space.Outline);
+                Vector2 at = toScreen(lx, lz);
+                string text;
+                Rect box;
+                if (item.Amenity)
+                {
+                    string words = item.Name ?? item.Number;
+                    bool generic = words == null || words == "WC" || words == "Lift";
+                    text = !generic && scale >= AmenityTextFromPixelsPerMetre ? words : null;
+                    Vector2 size = TextSize(text, AmenityFontPixels);
+                    float w = Mathf.Max(BadgePixels, size.x), h = BadgePixels + size.y;
+                    box = new Rect(at.x - w / 2, at.y - BadgePixels / 2, w, h);
+                    item.Text.style.display = text == null ? DisplayStyle.None : DisplayStyle.Flex;
+                    item.Root.style.width = w;
+                }
+                else
+                {
+                    var tries = new List<string>(3);
+                    if (item.Number != null && item.Name != null && scale >= NameFromPixelsPerMetre) tries.Add(item.Number + "\n" + item.Name);
+                    tries.Add(item.Number ?? item.Name);
+                    text = null;
+                    box = Rect.zero;
+                    foreach (string t in tries)
+                    {
+                        Vector2 size = TextSize(t, RoomFontPixels);
+                        if (size.x > (maxX - minX) * 0.92f || size.y > (maxY - minY) * 0.92f) continue;
+                        text = t;
+                        box = new Rect(at.x - size.x / 2, at.y - size.y / 2, size.x, size.y);
+                        break;
+                    }
+
+                    if (text == null) continue;
+                    item.Root.style.width = box.width;
+                }
+
+                if (box.xMin < view.xMin + 4 || box.yMin < view.yMin + 4 || box.xMax > view.xMax - 4 || box.yMax > view.yMax - 4) continue;
+                Rect padded = new Rect(box.x - 3, box.y - 2, box.width + 6, box.height + 4);
+                bool clash = false;
+                foreach (Rect other in taken)
+                {
+                    if (other.Overlaps(padded)) { clash = true; break; }
+                }
+
+                if (clash) continue;
+                taken.Add(padded);
+                if (text != null) item.Text.text = text;
+                item.Root.style.left = box.x;
+                item.Root.style.top = box.y;
+                item.Root.style.display = DisplayStyle.Flex;
             }
         }
 

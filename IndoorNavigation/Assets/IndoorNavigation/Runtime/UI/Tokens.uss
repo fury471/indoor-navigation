@@ -953,10 +953,52 @@
 
 .map-label {
     position: absolute;
-    width: 120px;
     font-size: 11px;
-    color: var(--muted);
+    color: #3F454D; /* the walls' colour (RouteView.WallDemo): the screen-plan style */
     -unity-text-align: middle-center;
+    white-space: nowrap;
+    -unity-text-outline-width: 1px; /* a light halo keeps labels readable over walls, as in Google Maps */
+    -unity-text-outline-color: rgba(251, 251, 252, 0.9);
+}
+
+/* Amenities on the map: a round icon badge, its name under it once zoomed in (RouteView.MapLabel). */
+.map-poi {
+    position: absolute;
+    flex-direction: column;
+    align-items: center;
+}
+
+.map-poi__badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    align-items: center;
+    justify-content: center;
+    background-color: #0F766E;
+    border-width: 1.5px;
+    border-color: #FFFFFF;
+}
+
+.map-poi__text {
+    font-size: 10px;
+    -unity-font-style: bold;
+    color: #0F766E;
+    -unity-text-align: upper-center;
+    white-space: nowrap;
+    -unity-text-outline-width: 1px;
+    -unity-text-outline-color: rgba(251, 251, 252, 0.9);
+}
+
+.map-label--quiet {
+    color: var(--muted);
+}
+
+.map-poi.map-label--quiet .map-poi__badge {
+    background-color: #5B6270;
+}
+
+.map-poi.map-label--quiet .map-poi__text {
+    color: #5B6270;
 }
 
 /* 1 · "Where on this floor?" chips (decision record 13): optional, wrap over lines. */

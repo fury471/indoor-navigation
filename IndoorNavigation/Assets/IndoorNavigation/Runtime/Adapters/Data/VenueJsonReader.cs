@@ -79,7 +79,7 @@ namespace IndoorNavigation.Adapters.Data
             var spaces = new List<PlanSpace>();
             foreach (SpaceDto s in dto.spaces ?? Array.Empty<SpaceDto>())
             {
-                spaces.Add(new PlanSpace(s.id ?? "", Empty(s.name), ParseSpaceKind(s.kind), s.inDemo, Points(s.xz, fileName)));
+                spaces.Add(new PlanSpace(s.id ?? "", Empty(s.name), ParseSpaceKind(s.kind), s.inDemo, Points(s.xz, fileName), Empty(s.label)));
             }
 
             var walls = new List<PlanSegment>();
@@ -263,7 +263,7 @@ namespace IndoorNavigation.Adapters.Data
 
     [Serializable] internal sealed class OutlineDto { public double[] xz; }
 
-    [Serializable] internal sealed class SpaceDto { public string id; public string name; public string kind; public bool inDemo; public double[] xz; }
+    [Serializable] internal sealed class SpaceDto { public string id; public string name; public string label; public string kind; public bool inDemo; public double[] xz; }
 
     [Serializable] internal sealed class SegmentDto { public double ax; public double az; public double bx; public double bz; }
 

@@ -14,7 +14,8 @@ using UnityEngine;
 namespace IndoorNavigation.Adapters.Tests
 {
     /// <summary>
-    /// The IKDC package built into the app (floor 1 demo zone, 31 Oct), read as the app reads it.
+    /// The IKDC package built into the app (floor 1 demo zone, 31 Oct; floors 2 and 3 from lab visit 2,
+    /// package 1.5.0), read as the app reads it.
     /// Skipped where the package is absent, as in a fresh clone: building data stays out of git.
     /// </summary>
     public sealed class IkdcPackageTests
@@ -66,7 +67,10 @@ namespace IndoorNavigation.Adapters.Tests
             Route up = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "stairs-3", new RouteOptions());
             Assert.IsNotNull(up);
             Assert.IsTrue(up.UsesStairs);
-            Assert.IsNull(RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "stairs-3", new RouteOptions(true)), "Only stairs S1 leads up (31 Oct).");
+            Route stepFree = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "stairs-3", new RouteOptions(true));
+            Assert.IsNotNull(stepFree, "Step-free, the lifts lead up (package 1.5.0).");
+            Assert.IsTrue(stepFree.UsesLift);
+            Assert.IsFalse(stepFree.UsesStairs);
 
             MiniatureModel model = MiniatureBuilder.Build(venue, up, new PlanPose(1, 42.94, 61.96, 0), 1);
             Assert.AreEqual(3, model.Floors.Count, "The exploded view stacks floors 1, 2 and 3.");
@@ -101,9 +105,9 @@ namespace IndoorNavigation.Adapters.Tests
         }
 
         [Test]
-        public void Plan_LeavesEveryRecordedDoorwayOpen()
+        public void Plan_LeavesEveryRecordedDoorwayOpen([Values(1, 2, 3)] int floor)
         {
-            FloorPlan plan = Load().PlanOf(1);
+            FloorPlan plan = Load().PlanOf(floor);
             foreach (PlanDoor door in plan.Doors)
             {
                 // Walk through the middle of the doorway, 0.6 m each side: no wall may stand in the way.
@@ -141,6 +145,84 @@ namespace IndoorNavigation.Adapters.Tests
             }
         }
 
+        [Test]
+        public void Floors2And3_HaveTheirPlans_WithRoomNumbersAndTheRecordedDoors()
+        {
+            VenuePackage venue = Load();
+            FloorPlan two = venue.PlanOf(2), three = venue.PlanOf(3);
+            Assert.IsNotNull(two);
+            Assert.IsNotNull(three);
+            Assert.IsTrue(two.Spaces.Any(s => s.Label == "211" && s.Name.StartsWith("211 ", StringComparison.Ordinal)), "Room numbers from the floor 2 screen plan.");
+            Assert.AreEqual(4, two.Spaces.Count(s => s.Kind == PlanSpaceKind.Toilet && s.Label == "WC"), "The four WCs the screen plan marks.");
+            Assert.AreEqual(2, venue.FindPlace("restaurant")?.Floor, "The restaurant is on the entrance floor, plan 2 (design.lth.se).");
+            Assert.Greater(two.Walls.Count, 100);
+            Assert.Greater(three.Walls.Count, 100);
+            CollectionAssert.IsSupersetOf(three.Doors.Select(d => d.Id).ToList(), new[] { "lift-wide", "lift-narrow", "room-308", "room-310" });
+            Assert.Greater(two.Zones.Count, 0, "The lift lobby map's zone.");
+            Assert.Greater(three.Zones.Count, 1, "The lift lobby and the printer zone.");
+        }
+
+        [Test]
+        public void Lifts_StackOnAllThreeFloors()
+        {
+            VenuePackage venue = Load();
+            foreach (string lift in new[] { "lift-wide", "lift-narrow" })
+            {
+                GraphNode one = venue.Graph.Node(lift + "-1");
+                PlanDoor door1 = venue.PlanOf(1).Doors.First(d => d.Id == lift);
+                for (int floor = 2; floor <= 3; floor++)
+                {
+                    GraphNode up = venue.Graph.Node(lift + "-" + floor);
+                    Assert.AreEqual(one.X, up.X, 1e-9, lift + " on floor " + floor);
+                    Assert.AreEqual(one.Z, up.Z, 1e-9, lift + " on floor " + floor);
+                    PlanDoor door = venue.PlanOf(floor).Doors.First(d => d.Id == lift);
+                    Assert.AreEqual(door1.Corners.A.X, door.Corners.A.X, 1e-9);
+                    Assert.AreEqual(door1.Corners.B.Z, door.Corners.B.Z, 1e-9);
+                }
+            }
+        }
+
+        [Test]
+        public void Route_FromTheVrLabToRoom310_TakesTheLift_AndIsStepFree()
+        {
+            VenuePackage venue = Load();
+            Route route = RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "n-room-310", new RouteOptions());
+            Assert.IsNotNull(route);
+            Assert.IsTrue(route.UsesLift, "Floor changes go by lift, as Fury noted in the report draft.");
+            Assert.IsNotNull(RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", "n-room-310", new RouteOptions(true)));
+            Assert.AreEqual(3, venue.FloorOf(venue.FindPlace("room-310")));
+        }
+
+        [Test]
+        public void EveryMapsMarkers_AreItsDoorsOnThePlan()
+        {
+            // The positioning fits each world map to these markers; the plan draws the same doors, so the dot,
+            // the drawing and the route agree (lab visit 2 check).
+            VenuePackage venue = Load();
+            var doorOf = new Dictionary<string, string[]>
+            {
+                { "stairs-elevator-zone01", new[] { "lift-wide", "lift-narrow" } },
+                { "stairs-elevator-zone02", new[] { "lift-wide", "lift-narrow" } },
+                { "printer-zone", new[] { "room-308", "room-310" } },
+            };
+            foreach (KeyValuePair<string, string[]> pair in doorOf)
+            {
+                AreaInfo area = venue.Area(pair.Key);
+                Assert.IsNotNull(area, pair.Key);
+                FloorPlan plan = venue.PlanOf(area.Floor);
+                for (int i = 0; i < pair.Value.Length; i++)
+                {
+                    PlanDoor door = plan.Doors.First(d => d.Id == pair.Value[i]);
+                    var left = area.Markers.First(m => m.Id == "d" + (i + 1) + "-left");
+                    var right = area.Markers.First(m => m.Id == "d" + (i + 1) + "-right");
+                    Assert.AreEqual(door.Corners.A.X, left.X, 0.01, pair.Key);
+                    Assert.AreEqual(door.Corners.A.Z, left.Z, 0.01, pair.Key);
+                    Assert.AreEqual(door.Corners.B.X, right.X, 0.01, pair.Key);
+                    Assert.AreEqual(door.Corners.B.Z, right.Z, 0.01, pair.Key);
+                }
+            }
+        }
+
         private static bool IsDoorway(GraphNode node) =>
             node.Kind == NodeKind.Door || node.Kind == NodeKind.Lift || node.Kind == NodeKind.Stairs;
 
@@ -150,7 +232,7 @@ namespace IndoorNavigation.Adapters.Tests
             VenuePackage venue = Load();
             Assert.Contains("toilets-1", Find(venue, "where is the toilet"));
             Assert.AreEqual("stairs-s1", Find(venue, "stairs")[0], "The shorter name is the closer match.");
-            Assert.AreEqual("floor-3-stairs", Find(venue, "floor 3")[0], "A single digit counts.");
+            Assert.AreEqual(3, venue.FindPlace(Find(venue, "floor 3")[0]).Floor, "A single digit counts.");
             Assert.AreEqual("lifts-1", Find(venue, "elevator")[0]);
         }
     }

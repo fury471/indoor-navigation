@@ -88,6 +88,22 @@ namespace IndoorNavigation.UI
                     Path(p, 8, 6, 21, 6); Path(p, 8, 12, 21, 12); Path(p, 8, 18, 21, 18);
                     Path(p, 3, 6, 3.2f, 6); Path(p, 3, 12, 3.2f, 12); Path(p, 3, 18, 3.2f, 18);
                     break;
+                case "wc": // two figures, as on the building's own plan and signs
+                    Circle(p, 8, 5.5f, 1.6f); Path(p, 8, 9, 8, 15); Path(p, 5, 11, 11, 11); Path(p, 8, 15, 6, 20); Path(p, 8, 15, 10, 20);
+                    Circle(p, 16, 5.5f, 1.6f); Path(p, 16, 9, 13, 16, 19, 16, 16, 9); Path(p, 15, 16, 15, 20); Path(p, 17, 16, 17, 20);
+                    break;
+                case "lift": // a car with up and down arrows
+                    Path(p, 5, 3, 19, 3, 19, 21, 5, 21, 5, 3);
+                    Path(p, 9, 10, 12, 6, 15, 10, 9, 10);
+                    Path(p, 9, 14, 12, 18, 15, 14, 9, 14);
+                    break;
+                case "stairs":
+                    Path(p, 3, 20, 8, 20, 8, 15, 13, 15, 13, 10, 18, 10, 18, 5, 21, 5);
+                    break;
+                case "food": // fork and knife
+                    Path(p, 8, 3, 8, 21); Path(p, 5, 3, 5, 8, 8, 10, 11, 8, 11, 3);
+                    Path(p, 16, 21, 16, 3, 19, 6, 19, 13, 16, 13);
+                    break;
                 case "place":
                     Circle(p, 12, 10, 3);
                     Path(p, 12, 21, 6, 13, 5, 10, 7, 5, 12, 3, 17, 5, 19, 10, 18, 13, 12, 21);

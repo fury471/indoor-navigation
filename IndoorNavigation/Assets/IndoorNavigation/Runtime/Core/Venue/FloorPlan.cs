@@ -36,17 +36,21 @@ namespace IndoorNavigation.Core.Venue
     /// <summary>A room, corridor or other space, as a polygon. Spaces outside the demo zone are drawn quieter.</summary>
     public sealed class PlanSpace
     {
-        public PlanSpace(string id, string name, PlanSpaceKind kind, bool inDemo, IReadOnlyList<PlanPoint> outline)
+        public PlanSpace(string id, string name, PlanSpaceKind kind, bool inDemo, IReadOnlyList<PlanPoint> outline, string label = null)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Name = string.IsNullOrEmpty(name) ? null : name;
             Kind = kind;
             InDemo = inDemo;
             Outline = outline ?? throw new ArgumentNullException(nameof(outline));
+            Label = string.IsNullOrEmpty(label) ? null : label;
         }
 
         public string Id { get; }
         public string Name { get; }
+
+        /// <summary>What the map writes in the room: its number when it has one ("211"), otherwise null and the map uses the name.</summary>
+        public string Label { get; }
         public PlanSpaceKind Kind { get; }
         public bool InDemo { get; }
         public IReadOnlyList<PlanPoint> Outline { get; }
