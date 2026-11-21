@@ -421,4 +421,96 @@ namespace IndoorNavigation.UI
             return button;
         }
     }
+
+    /// <summary>
+    /// A point of interest on the 2D map (build 21): one round badge, one size, one colour, with a solid
+    /// white glyph. Solid glyphs on a 24-unit grid with a 14-unit live area hold up at badge size, where
+    /// the thin line icons blurred; the shapes follow the public-information symbols people know from
+    /// signs (ISO 7001: two figures for toilets, up and down arrows for lifts, a stair profile, a fork and
+    /// knife). Amenities are neutral slate, so the teal accent stays the route's alone; the stairs or lift
+    /// the route uses get the teal connection badge instead.
+    /// </summary>
+    public sealed class MapPoiIcon : VisualElement
+    {
+        public const float Size = 22f;
+        public static readonly Color32 Fill = new Color32(0x5B, 0x62, 0x70, 255); // 6.1:1 with the white glyph
+        private readonly string kind;
+
+        public MapPoiIcon(string kind)
+        {
+            this.kind = kind;
+            pickingMode = PickingMode.Ignore;
+            style.width = Size;
+            style.height = Size;
+            generateVisualContent += Draw;
+        }
+
+        private void Draw(MeshGenerationContext context)
+        {
+            Painter2D p = context.painter2D;
+            float s = Size / 24f;
+            Vector2 c = new Vector2(Size / 2, Size / 2);
+            Disc(p, c, Size / 2, NavigationIcon.White);          // the white ring
+            Disc(p, c, Size / 2 - 1.5f, Fill);
+            p.fillColor = NavigationIcon.White;
+            p.strokeColor = NavigationIcon.White;
+            switch (kind)
+            {
+                case "wc":
+                    Disc(p, new Vector2(8.6f, 6.6f) * s, 1.8f * s, NavigationIcon.White);
+                    Shape(p, s, 6.9f, 9.4f, 10.3f, 9.4f, 10.3f, 18.6f, 6.9f, 18.6f);
+                    Disc(p, new Vector2(15.4f, 6.6f) * s, 1.8f * s, NavigationIcon.White);
+                    Shape(p, s, 15.4f, 9.2f, 18.3f, 15.6f, 12.5f, 15.6f);
+                    Shape(p, s, 14.5f, 15.4f, 16.3f, 15.4f, 16.3f, 18.6f, 14.5f, 18.6f);
+                    break;
+                case "lift":
+                    Shape(p, s, 12f, 5f, 16.2f, 10.4f, 7.8f, 10.4f);
+                    Shape(p, s, 7.8f, 13.6f, 16.2f, 13.6f, 12f, 19f);
+                    break;
+                case "stairs":
+                    Shape(p, s, 5f, 19f, 5f, 15.5f, 8.6f, 15.5f, 8.6f, 12f, 12.2f, 12f, 12.2f, 8.5f, 15.8f, 8.5f, 15.8f, 5f, 19f, 5f, 19f, 19f);
+                    break;
+                case "food":
+                    p.lineWidth = 1.5f * s;
+                    p.lineCap = LineCap.Round;
+                    foreach (float x in new[] { 7.3f, 9.5f, 11.7f })
+                    {
+                        p.BeginPath(); p.MoveTo(new Vector2(x, 5f) * s); p.LineTo(new Vector2(x, 9.2f) * s); p.Stroke();
+                    }
+
+                    Shape(p, s, 7.3f, 9.2f, 11.7f, 9.2f, 10.4f, 11.4f, 10.4f, 19f, 8.6f, 19f, 8.6f, 11.4f);
+                    Shape(p, s, 14.6f, 19f, 14.6f, 5f, 17.4f, 7.6f, 17.4f, 12.6f, 16.4f, 12.6f, 16.4f, 19f);
+                    break;
+                default:
+                    Disc(p, c, 3f * s, NavigationIcon.White);
+                    break;
+            }
+        }
+
+        private static void Disc(Painter2D p, Vector2 centre, float radius, Color colour)
+        {
+            p.fillColor = colour;
+            p.BeginPath();
+            for (int i = 0; i < 32; i++)
+            {
+                float a = i * Mathf.PI * 2f / 32f;
+                Vector2 point = centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
+                if (i == 0) p.MoveTo(point); else p.LineTo(point);
+            }
+
+            p.ClosePath();
+            p.Fill();
+        }
+
+        /// <summary>A filled polygon from x, y pairs on the 24-unit grid.</summary>
+        private static void Shape(Painter2D p, float s, params float[] xy)
+        {
+            p.fillColor = NavigationIcon.White;
+            p.BeginPath();
+            p.MoveTo(new Vector2(xy[0], xy[1]) * s);
+            for (int i = 2; i + 1 < xy.Length; i += 2) p.LineTo(new Vector2(xy[i], xy[i + 1]) * s);
+            p.ClosePath();
+            p.Fill();
+        }
+    }
 }

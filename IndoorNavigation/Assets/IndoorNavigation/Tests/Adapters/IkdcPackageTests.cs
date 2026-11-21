@@ -15,7 +15,7 @@ namespace IndoorNavigation.Adapters.Tests
 {
     /// <summary>
     /// The IKDC package built into the app (floor 1 demo zone, 31 Oct; floors 2 and 3 from lab visit 2,
-    /// package 1.5.0), read as the app reads it.
+    /// package 1.6.1), read as the app reads it.
     /// Skipped where the package is absent, as in a fresh clone: building data stays out of git.
     /// </summary>
     public sealed class IkdcPackageTests
@@ -73,7 +73,8 @@ namespace IndoorNavigation.Adapters.Tests
             Assert.IsFalse(stepFree.UsesStairs);
 
             MiniatureModel model = MiniatureBuilder.Build(venue, up, new PlanPose(1, 42.94, 61.96, 0), 1);
-            Assert.AreEqual(3, model.Floors.Count, "The exploded view stacks floors 1, 2 and 3.");
+            CollectionAssert.AreEqual(new[] { 1, 3 }, model.Floors.Select(f => f.Floor).ToList(),
+                "The exploded view stacks the floors walked on; the stairs only pass floor 2 (build 21).");
         }
 
         [Test]
@@ -160,6 +161,54 @@ namespace IndoorNavigation.Adapters.Tests
             CollectionAssert.IsSupersetOf(three.Doors.Select(d => d.Id).ToList(), new[] { "lift-wide", "lift-narrow", "room-308", "room-310" });
             Assert.Greater(two.Zones.Count, 0, "The lift lobby map's zone.");
             Assert.Greater(three.Zones.Count, 1, "The lift lobby and the printer zone.");
+        }
+
+        [Test]
+        public void EveryFloor_HasItsFootprintFirst_AndFloor3HasRooms308And310([Values(1, 2, 3)] int floor)
+        {
+            VenuePackage venue = Load();
+            FloorPlan plan = venue.PlanOf(floor);
+            PlanSpace building = plan.Spaces[0];
+            Assert.AreEqual("building", building.Id, "The footprint is drawn first, under the rooms (package 1.6.0).");
+            Assert.AreEqual(PlanSpaceKind.Other, building.Kind);
+            GraphNode lift = venue.Graph.Node("lift-wide-" + floor);
+            Assert.IsTrue(Polygons.Contains(building.Outline, lift.X - 1.5, lift.Z), "The lift lobby lies inside the footprint.");
+            if (floor == 3)
+            {
+                foreach (string room in new[] { "room-308", "room-310" })
+                {
+                    PlanSpace space = plan.Spaces.FirstOrDefault(s => s.Id == room);
+                    Assert.IsNotNull(space, room);
+                    GraphNode inside = venue.Graph.Node("n-" + room);
+                    Assert.IsTrue(Polygons.Contains(space.Outline, inside.X, inside.Z), room + " holds its approach point.");
+                }
+            }
+        }
+
+        [Test]
+        public void FurysLabels_PutStairsS1InItsSpace_AndRouteToTheNewPlaces()
+        {
+            // Package 1.6.1: Fury's pins from the plan labelling page (21 Nov 2026).
+            VenuePackage venue = Load();
+            for (int floor = 1; floor <= 3; floor++)
+            {
+                GraphNode stairs = venue.Graph.Node("stairs-" + floor);
+                PlanSpace s1 = venue.PlanOf(floor).Spaces.First(s => s.Kind == PlanSpaceKind.Stairs && s.Name == "Stairs S1");
+                Assert.IsTrue(Polygons.Contains(s1.Outline, stairs.X, stairs.Z), "Stairs S1's node lies in its space on floor " + floor);
+            }
+
+            // The west-wing stairs (floors 2 and 3 only): the shortest way from room 216 up to 310; step-free goes by lift.
+            Route up = RoutePlanner.FindRoute(venue.Graph, "n-room-216", "n-room-310", new RouteOptions());
+            Assert.IsTrue(up.UsesStairs && !up.UsesLift, "Stairs when they are shorter (Fury, build 20 test).");
+            Route level = RoutePlanner.FindRoute(venue.Graph, "n-room-216", "n-room-310", new RouteOptions(true));
+            Assert.IsTrue(level.UsesLift && !level.UsesStairs, "Avoid stairs: the lift.");
+
+            foreach (string place in new[] { "dining-hall", "restaurant-reception", "wc-north-2", "wc-west-2", "stairs-west-2", "stairs-west-3" })
+            {
+                Place p = venue.FindPlace(place);
+                Assert.IsNotNull(p, place);
+                Assert.IsNotNull(RoutePlanner.FindRoute(venue.Graph, "n-vr-lab", venue.ApproachNodeOf(p), new RouteOptions(true)), place + " has a step-free route.");
+            }
         }
 
         [Test]

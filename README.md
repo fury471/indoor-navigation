@@ -2,16 +2,16 @@
 
 An iPhone app that guides people indoors, where GPS doesn't reach. A visitor picks a building, says what they need ("I need a charger"), answers a short clarifying question if the request is ambiguous, previews the route on a 2D plan or a 3D miniature, and follows it. With the phone raised they see AR guidance and a small 2D map; with the phone lowered they see the 2D map.
 
-It is the project of the course MAMN41 (UX/XR) at Lund University, built in Unity for iOS. The demo uses three floors of the VR lab building: on floor 1 the VR lab, the toilets, the lift and the open stairs; floor 2 is only passed on the stairs; on floor 3 the printer in the hallway. The work-in-progress seminar is on **5 Nov 2026**, the final seminar on **11 Dec**, and user tests start on **14 Dec**.
+It is the project of the course MAMN41 (UX/XR) at Lund University, built in Unity for iOS. The demo uses three floors of the VR lab building (IKDC): on floor 1 the VR lab, the toilets, the lifts and stairs S1; on floor 2 the rooms, WCs and restaurant marked on its plan; on floor 3 rooms 308 and 310 by the printer. The work-in-progress seminar is on **5 Nov 2026**, the final seminar on **11 Dec**, and user tests start on **14 Dec**.
 
 Owner: Fury (fury471). Licence: MIT.
 
-## Status on 13 Nov 2026
+## Status on 21 Nov 2026
 
 | Part | State |
 |---|---|
 | Walking skeleton: ten visitor screens, the session statechart, route planner, sample two-floor package, developer panel | Done; device-tested 26 Oct |
-| Visitor screens against the October blueprint | Build 18 (first pass) tested on the iPhone: better, not yet the blueprint. Build 19 (second pass: font, lists, icons, bottom sheets) is in the source; Unity UI test and iPhone check pending. See `Docs/blueprint-refinement.md` |
+| Visitor screens against the October blueprint | Build 20, which carries build 19's changes, tested on the iPhone on 21 Nov: the 2D plan style is kept; the route start, 3D view, colours and floor change needed fixing. Build 21 is in the source: the route planned from where you stand, one colour system for the 2D map, a map-style 3D view with map-app gestures (decision 16). Unity tests and iPhone check pending. See `Docs/blueprint-refinement.md` and `Docs/device-tests.md` |
 | Real phone attitude (raise for AR, lower for 2D) | Done; device-tested 26 Oct |
 | Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
 | **Where are you?** when the map is slow: mark the door of the room you're in, or of the corridor door you're at (decision 11); Fix position at any time; route ahead drawn in AR | Build 10 (build 9's fixes from build 8, plus inner-room wording) code done; layout checked at iPhone SE and 16 Pro sizes; device test pending |
@@ -19,9 +19,10 @@ Owner: Fury (fury471). Licence: MIT.
 | Live corner anchors while recording and after restoring a map | Build 11 device report: improved alignment, with about 25–30 cm remaining offset after a loop during active recording/Continue; cause not yet established |
 | Check left / Check right during recording and checkpoint testing | Updated 31 Oct export: final paused group has 56 samples at six corners, 14.96–23.87 cm residuals during a user-reported ~20 m walk. Independent building/plan accuracy remains unverified |
 | Pause → checkpoint test → Continue; recording cleanup | Updated log contains 82 paused checks in two checkpoint groups and reloads completing in 12.7, 4.5 and 7.7 s. No post/anchor separation at log precision. Full Unity execution and the remaining device checklist are pending |
-| Floor plan and miniature of the real building | Evacuation-derived floor-1 plan and miniature in local IKDC package 1.4.0; see build 17 in `Docs/device-tests.md`. Full plans for the other floors remain open |
+| Floor plan and miniature of the real building | Plans of floors 1–3 in local IKDC package 1.6.1. Floor 1 is from the evacuation drawing (build 17). Floor 2 is from the building's room-booking screen, and floor 3 from its evacuation plan, tidied with Fury's labels. Lifts, stairs S1 and the west-wing stairs (floors 2–3) link the floors. See builds 20–21 in `Docs/device-tests.md` and `Docs/lab-visit-2.md` |
+| Floor changes after a lift or the stairs | Build 21: the barometer notices the new floor and confirms it; screen E ("I'm on floor N") stays as the fallback (decision 16). Device test pending |
 | AR minimap and low-phone recovery | Tappable heading-up minimap and lost-position tips implemented. The uncertainty-based prompt and thresholds in decision 9 still need the low-phone walk |
-| Venue service, natural-language search with an LLM, floors 2 and 3, study set-up | After the seminar |
+| Venue service, natural-language search with an LLM, study set-up | Open |
 
 `Docs/device-tests.md` has every device test, and `Docs/lab-visit-1.md` what we learnt in the lab.
 
@@ -62,6 +63,10 @@ No local Mac is required: Unity exports an Xcode project on Windows, GitHub Acti
    .\Tools\Package-Xcode.ps1 -ExportDirectory E:\IndoorNavigationBuilds\position-010\Xcode -ZipPath E:\IndoorNavigationBuilds\position-010\xcode-export.zip
    ```
    It checks the export, refuses to overwrite a ZIP and prints its SHA-256.
+   From build 21, first check that the export's `Info.plist` asks for Motion & Fitness, or the app stops when the barometer starts:
+   ```powershell
+   Select-String -LiteralPath E:\IndoorNavigationBuilds\position-010\Xcode\Info.plist -Pattern NSMotionUsageDescription -Context 0,1
+   ```
 3. GitHub → Releases → new release with a new tag (`export-position-010`) on the commit you pushed, attach `xcode-export.zip`.
 4. GitHub → Actions → **iOS unsigned build** → Run workflow with `export_tag` = that tag and `build_runner` = `macos-15` (Apple Silicon). If changing from a queued Intel run, cancel the old run and start a new workflow run after pushing the workflow update. Re-running the old run retains its old workflow definition. Intel remains available through `macos-15-intel`.
 5. Download the `IndoorNavigation-unsigned.ipa` artifact (kept 3 days) and install it with Sideloadly over the old app, so the maps and logs on the phone stay.
@@ -112,9 +117,10 @@ Where to look:
 | `Docs/spatial-alignment-and-acceptance.md` | Proposed partial-WorldMap qualification and the common coordinate relationship between evacuation-derived geometry, the 2D plan and the 3D miniature |
 | `Docs/world-map-guide.md` | How to record, test, continue and delete world maps (builds 4–6) |
 | `Docs/lab-visit-1.md` | What happened in the lab on 29 Oct, the numbers, and what changed because of it |
+| `Docs/lab-visit-2.md` | Lab visit 2 (21 Nov): the floor 2 and 3 maps, how their plans were made and aligned, and package 1.5.0 |
 | `Docs/archive/localisation-experiment.md` | The localisation method and how it is measured |
 | `Docs/device-tests.md` | Every device test, newest last |
-| `Docs/decisions/` | Decision records 1–11 (context, decision, consequences, sources) |
+| `Docs/decisions/` | Decision records 1–16 (context, decision, consequences, sources) |
 | `Tools/scan-to-plan/README.md` | The scan converter, its checks and its limits |
 
 The architecture document, the UI blueprint (38 boards) and the reference log live outside the repo; ask Fury for access. Where they and the repo disagree about the code, the repo wins.
@@ -140,7 +146,7 @@ The architecture document, the UI blueprint (38 boards) and the reference log li
 Short list; the architecture document has the full plan.
 
 1. Run the Continue corner-check comparison (`Docs/archive/continue-corner-check.md`): establish baseline/revisit residuals, then select and validate a correction for the remaining build-11 offset. Earlier build-10 checks in `Docs/archive/build-7-guide.md` part D remain relevant where not yet verified.
-2. Lab visit 2, floor by floor: a map per floor with every start door marked and named; automatic start, door fix and drift measured (part E).
-3. The plan from the evacuation-plan photos, fitted onto each floor's door corners; the route graph between the named doors; the catalogue; package 1.1.0.
-4. Validate the refined visitor screens on the iPhone (`Docs/blueprint-refinement.md`); measure the uncertainty-based "raise the phone" prompt (decision 9) and floor height along the ramp.
-5. After the seminar: the venue service, LLM search, the measured localisation test (world map versus door fix), the study.
+2. Build 21 in Unity and on the iPhone (checklist in `Docs/device-tests.md`): the route start, the floor change by lift and by stairs, the 3D gestures, the 2D colours.
+3. The rest of the plan labels (other stairs, the remaining WCs) in the labelling page, then package 1.6.x. Measure the floor-to-floor height (the barometer assumes 4 m).
+4. Measure the uncertainty-based "raise the phone" prompt (decision 9) and floor height along the ramp.
+5. The venue service, LLM search (RQ2), step wording with landmarks, the measured localisation test (world map versus door fix), the study (tests from 14 Dec), report draft 2.

@@ -329,4 +329,39 @@
 - Map labels laid out as indoor maps in Google Maps and similar products: WCs, lifts, stairs and the restaurant as a round icon badge (new icons in `NavigationIcon`: wc, lift, stairs, food), named ones with their name under the badge once zoomed in; rooms as text at their middle, the number first and number with name once zoomed in; a label shows only when it fits inside its room and does not overlap one placed before it (amenities first, then rooms in the recorded zones, then larger rooms), so more labels appear as you zoom in; labels stay upright and have a light halo (`.map-label`, `.map-poi` in `Tokens.uss`). Preview: `floor-plans\floors-2-3\map-labels-preview.png`.
 - Tests: `IkdcPackageTests` updated (a step-free way up now exists, by lift) and extended: the plans of floors 2 and 3, the lifts stacked on all floors, VR lab → 310 by lift, every new map's markers equal to its doors on the plan, doorways open on all three floors.
 - Checks before Unity (script `floor-plans\floors-2-3\tools\check_pkg.py`): the app's validator rules pass; the markers of all 7 maps equal their plan doors; the lift doors and nodes are identical on all floors; no route edge on floors 1–3 crosses a wall. VR lab → 310: 79 m walked, by the wide lift.
-- Unity result: pending. Device result: pending. On the phone, check: the floor 2 and 3 maps relocalise and the dot lands at the lifts; a route from the VR lab to 310 goes by lift and continues on floor 3 after the ride; the map's new look.
+- Build: export folder `final-001\Xcode` (Fury, 21 Nov). Release tag, ZIP SHA-256 and source commit not recorded here.
+- Unity result: all tests passed after the package on the PC was refreshed. Device result (21 Nov, iPhone 16 Pro): the 2D plan style works. Problems, all addressed in build 21:
+  1. The route did not start where Fury had just relocalised: it began about 1 m from the dot (and a fix during the preview left the route planned from the old position).
+  2. The 3D miniature looked busy and its one-finger orbit was unfriendly (a vertical swipe tilted near and far edges, a sideways swipe spun the model).
+  3. The other-floor route's dashes were dense; floor 3's plan had many short stray lines; the plan's fills looked patchy (some white, some grey).
+  4. After riding the lift to floor 3 the app stayed on floor 1.
+  5. Stairs should be used when shorter; Fury offered to mark which stairs and WCs are open.
+
+## Build 21 — route from where you stand, floor changes by barometer, one colour system, map-style 3D view (21 Nov 2026)
+
+Why each change was made, with sources: decision record 16.
+
+- **Route start.** The route is planned from where you are when the preview opens, again after a new fix or a walk of more than 2 m while previewing, and again when you tap Start. Of the visible nodes near you it starts at the one that makes the whole way shortest. On the map the route line starts at your dot; only through a wall is the link a dotted hint.
+- **Progress.** Nodes you walk past within 3 m of the route count as reached, so a cut corner no longer stalls the progress. Stairs and lifts count as reached within 3 m (in front of the lift doors), and a ride from floor 1 to 3 waits for floor 3, not for floor 2's node on the way.
+- **Floor changes.** The barometer (Core Motion's relative altitude, `Plugins/iOS/IndoorNavigationAltimeter.mm`, `IosAltimeter`) notices when the height settles a whole floor away (about 4 m). At a lift or stairs, arriving on the route's next floor confirms it without a tap and the floor's maps are tried at once (lift lobby first). A stop on a floor in between does not. Elsewhere, the app switches to the floor and finds the position there. Without a barometer, or if Motion & Fitness is declined, screen E works as before. The first start asks for Motion & Fitness (`NSMotionUsageDescription`, added by `ConfigureMotionUsage.cs`).
+- **2D map colours.** Three fills, one meaning each: outside the building, inside it (halls), rooms; walls dark in the recorded zones and grey elsewhere, all at 3:1 or more. Amenity icons are solid white glyphs on one slate badge (`MapPoiIcon`). The route on another floor is evenly spaced dots.
+- **Package 1.6.0.** Every floor has its building footprint as its first space (`id: building`). Floor 3's walls are tidied (210 → 147: joined across the plan's symbols, loose short bits dropped, the outline joined) and rooms 308 and 310 are drawn. Checks (`tools\check21.py`): validator rules pass, markers equal plan doors on all 7 maps, lifts stack. Routes still take the lift to floors 2 and 3: stairs S1 is the only stair mapped and is 5–7.5 m longer for those rooms.
+- **Package 1.6.1: Fury's first labels** (`tools\apply_labels.py`, checks `tools\check211.py`):
+  - Floor 3: the 33 flagged lines removed, 2 drawn walls added (the lift car's sides). Floor 2: 3 drawn walls added.
+  - Stairs S1 moved onto Fury's pins, inside its space, on floors 1–3, and reached from the lift lobby. Routes to floors 2 and 3 still take the lift, which stays a little shorter.
+  - New places on floor 2, each with a step-free route: Dining hall, Restaurant reception, WC west wing and WC north.
+  - The west-wing stairs (always open, floors 2 and 3 only) link Fury's pins on both floors. On floor 3 the node is 0.45 m from the pin, off the short wall it sat on. Routes now take them when shorter: room 216 → 310 is 38.8 by these stairs against 63.4 by lift (planner cost, metres plus 5 per floor). With Avoid stairs on, the lift.
+  - Floor 1's lifts and WCs, and floor 2's lifts, were already in the app; the pins confirm they are open.
+  - Not labelled yet: the other stairs and the remaining WCs.
+- **3D view.** Each floor is its 2D plan laid flat on a slab cut to the building's footprint, in the 2D colours; only the floors you walk on are shown. It opens north up from 55° above. One finger moves it, pinch zooms, a two-finger twist turns it, a two-finger swipe up or down tilts it (25°–85°); Reset view returns to the start.
+- **Labelling page** (claude.ai artifact "IKDC plan labels"): pins for stairs, WCs, lifts, printers and other things with status and comment; flags for stray lines; missing walls. The labels feed package 1.6.x.
+- Tests: 339 core EditMode tests pass offline (mono + Roslyn), including new ones for the barometer, the multi-floor lift ride, a cut corner, replanning after a fix and `FloorChangeDetector`. `IkdcPackageTests`: the exploded view of a stairs route 1→3 shows floors 1 and 3; every floor has its footprint; floor 3 has rooms 308 and 310.
+- Build: export folder `E:\IndoorNavigationBuilds\final-002\Xcode`, release tag `export-final-002` (the project's naming). Before packaging, check that the exported `Info.plist` holds `NSMotionUsageDescription`: without it the app stops when the barometer starts. ZIP SHA-256, workflow run and IPA: pending.
+- Unity result: pending. Device result: pending. On the phone, check:
+  1. Motion & Fitness is asked for once.
+  2. A route starts at the dot, also after Fix position in the preview.
+  3. Ride the lift from floor 1 to 3: screen E shows "Take the lift to floor 3" in front of the doors, and on arrival the floor switches by itself and the lobby map relocalises.
+  4. Walk the stairs: the floor confirms at the top.
+  5. The 3D view's gestures.
+  6. The 2D colours, icons and the dotted route on another floor.
+

@@ -19,6 +19,7 @@ namespace IndoorNavigation.Core.Tests
         private FakePosition position;
         private FakeSearch search;
         private FakeAttitude attitude;
+        private FakeAltimeter altimeter;
         private StudySettings study;
         private AppSession session;
 
@@ -32,12 +33,13 @@ namespace IndoorNavigation.Core.Tests
             position = new FakePosition();
             search = new FakeSearch();
             attitude = new FakeAttitude();
+            altimeter = new FakeAltimeter();
             study = new StudySettings();
             session = NewSession(null);
         }
 
         private AppSession NewSession(string rememberedVenueId) => new AppSession(
-            new FakeDirectory(venue), repository, position, search, attitude, log, clock, study, rememberedVenueId);
+            new FakeDirectory(venue), repository, position, search, attitude, log, clock, study, rememberedVenueId, altimeter);
 
         /// <summary>The fakes answer at once, so every request has finished when it returns.</summary>
         private static void Run(Task task)
@@ -419,6 +421,140 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual("A", session.Screen);
             Assert.IsFalse(session.View.Interacting);
             Assert.IsFalse(session.View.HoldView);
+        }
+
+        // ------------------------------------------------------------------
+        // Build 21: the route starts where you are; floor changes after a lift or the stairs
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void ANewFixWhilePreviewing_PlansTheRouteFromThere()
+        {
+            GoToPreview("workshop");
+            var before = session.Route;
+            Assert.AreEqual("j-workshop", before.Start.Id);
+
+            // "Fix position" by the printer: the route is planned again from there (build 20: it kept
+            // starting where the old position was).
+            position.SetFound(new PlanPose(1, 6.0, 4.0, 0));
+            Assert.AreNotSame(before, session.Route, "A new fix plans the route again.");
+            Assert.AreNotEqual("j-workshop", session.Route.Start.Id);
+
+            // A step does not; walking away while previewing does.
+            var afterFix = session.Route;
+            position.MoveTo(new PlanPose(1, 6.3, 4.5, 0));
+            Assert.AreSame(afterFix, session.Route);
+            position.MoveTo(new PlanPose(1, 11.9, 24.0, 0));
+            Assert.AreNotSame(afterFix, session.Route);
+        }
+
+        [Test]
+        public void ACutCorner_StillMovesTheProgressOn()
+        {
+            GoToPreview("cable-drawer");
+            session.SetAvoidStairs(true);
+            session.StartRoute();
+            WalkRoute();
+            Assert.IsTrue(session.AwaitingFloorChange);
+            session.ConfirmFloor(2);
+            position.SetFound(new PlanPose(2, 11.9, 32.0, 180));
+            int atLift = session.NextNodeIndex;
+            Assert.AreEqual("lift-2", session.Route.Nodes[atLift].Id);
+
+            // Three metres past the lift, never within the arrival radius of its node.
+            position.MoveTo(new PlanPose(2, 11.9, 29.0, 180));
+            Assert.AreEqual(atLift + 1, session.NextNodeIndex, "The node walked past counts as reached.");
+        }
+
+        [Test]
+        public void TheBarometer_ConfirmsTheFloor_AfterTheStairs()
+        {
+            GoToPreview("cable-drawer");
+            altimeter.Hold(0, 5);
+            session.StartRoute();
+            WalkRoute();
+            Assert.IsTrue(session.AwaitingFloorChange);
+            Assert.AreEqual(2, session.NextFloor);
+
+            altimeter.Ride(0, 4.1, 12);
+            Assert.IsTrue(session.AwaitingFloorChange, "Not while still climbing.");
+            altimeter.Hold(4.1, 4);
+            Assert.IsFalse(session.AwaitingFloorChange, "Arrived: the floor is confirmed without a tap.");
+            Assert.AreEqual(2, session.UserFloor);
+            Assert.AreEqual(2, position.LocatingFloor, "The new floor's maps are tried.");
+            Assert.AreEqual("1", session.Screen);
+        }
+
+        [Test]
+        public void ALiftRideOverTwoFloors_WaitsForTheLastFloor_NotAStopInBetween()
+        {
+            venue = ThreeFloors();
+            session = new AppSession(new FakeDirectory(venue), new FakeRepository(venue), position, search, attitude, log, clock, study, null, altimeter);
+            Run(session.StartAsync());
+            Run(session.DownloadAsync("three-floors"));
+            position.SetFound(new PlanPose(1, 0, 0, 0));
+            altimeter.Hold(0, 5);
+            session.PickNamedPlace("top");
+            session.StartRoute();
+
+            // In front of the lift doors, 2 m from the car's node: the lift counts as reached.
+            position.MoveTo(new PlanPose(1, 10, 0, 90));
+            Assert.IsTrue(session.AwaitingFloorChange);
+            Assert.AreEqual(3, session.NextFloor, "The ride goes to floor 3, not to floor 2's node on the way.");
+            Assert.AreEqual(NodeKind.Lift, session.Route.Nodes[session.NextNodeIndex - 1].Kind, "Screen E names the lift.");
+
+            altimeter.Ride(0, 4, 8);
+            altimeter.Hold(4, 5); // someone pressed 2
+            Assert.IsTrue(session.AwaitingFloorChange, "A stop on floor 2 is not the arrival.");
+            altimeter.Ride(4, 8, 8);
+            altimeter.Hold(8, 4);
+            Assert.IsFalse(session.AwaitingFloorChange);
+            Assert.AreEqual(3, session.UserFloor);
+            Assert.AreEqual(3, position.LocatingFloor);
+        }
+
+        [Test]
+        public void WithoutABarometer_TheUserConfirmsTheFloor()
+        {
+            altimeter.Available = false;
+            GoToPreview("cable-drawer");
+            session.StartRoute();
+            WalkRoute();
+            Assert.IsFalse(session.DetectsFloorChanges);
+            session.ConfirmFloor(2);
+            Assert.AreEqual(2, session.UserFloor);
+        }
+
+        /// <summary>Three floors and one lift: start on floor 1, "top" on floor 3.</summary>
+        private static VenuePackage ThreeFloors()
+        {
+            var manifest = new VenueManifest(
+                "three-floors", "Three floors", "0.1.0", "1.0.0",
+                new[] { new FloorInfo(1, "Floor 1"), new FloorInfo(2, "Floor 2"), new FloorInfo(3, "Floor 3") },
+                new[] { new AreaInfo("a1", 1, "Floor 1"), new AreaInfo("a2", 2, "Floor 2"), new AreaInfo("a3", 3, "Floor 3") },
+                "a1",
+                new[] { new PackageFile("catalogue.json", 1, "x"), new PackageFile("graph.json", 1, "x") });
+            var places = new[] { new Place("top", PlaceKind.Space, "Top room", "room", floor: 3, approachNodeId: "n-top") };
+            var nodes = new[]
+            {
+                new GraphNode("n-start", NodeKind.Junction, 1, 0, 0),
+                new GraphNode("a-lift-1", NodeKind.Junction, 1, 8, 0),
+                new GraphNode("lift-1", NodeKind.Lift, 1, 12, 0),
+                new GraphNode("lift-2", NodeKind.Lift, 2, 12, 0),
+                new GraphNode("lift-3", NodeKind.Lift, 3, 12, 0),
+                new GraphNode("a-lift-3", NodeKind.Junction, 3, 8, 0),
+                new GraphNode("n-top", NodeKind.Door, 3, 0, 0),
+            };
+            var edges = new[]
+            {
+                new GraphEdge("n-start", "a-lift-1", EdgeKind.Corridor, true),
+                new GraphEdge("a-lift-1", "lift-1", EdgeKind.Corridor, true),
+                new GraphEdge("lift-1", "lift-2", EdgeKind.Lift, true),
+                new GraphEdge("lift-2", "lift-3", EdgeKind.Lift, true),
+                new GraphEdge("lift-3", "a-lift-3", EdgeKind.Corridor, true),
+                new GraphEdge("a-lift-3", "n-top", EdgeKind.Corridor, true),
+            };
+            return new VenuePackage(manifest, places, new RouteGraph(nodes, edges));
         }
     }
 }

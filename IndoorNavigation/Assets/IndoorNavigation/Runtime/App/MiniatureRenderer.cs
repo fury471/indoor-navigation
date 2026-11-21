@@ -20,31 +20,38 @@ namespace IndoorNavigation.App
 
         private static readonly Vector3 Place = new Vector3(0f, -500f, 0f);
         private const float FieldOfView = 35f;
-        private const float StartYaw = -25f;
-        private const float StartPitch = 50f;
-        private const float StartPitchStacked = 35f;
-        private const float MinPitch = 12f;
-        private const float MaxPitch = 88f;
+
+        // Build 21 camera (Fury: the old one-finger orbit was unfriendly). The view starts north up, as the
+        // 2D map, from 55° above: an elevated third-person view, which in a study of 3D maps for wayfinding
+        // in buildings lowered workload and was preferred (Burigat, Chittaro and Sioni 2017, IEEE THMS, camera
+        // at -60°). Gestures are the map apps' (Google Maps SDK "Controls and gestures"): one finger pans,
+        // pinch zooms, a two-finger twist turns and a two-finger vertical swipe tilts, within limits so
+        // the floors never turn edge-on or upside down. Reset view goes back to the start.
+        private const float StartPitch = 55f;
+        private const float MinPitch = 25f;
+        private const float MaxPitch = 85f;
+        private const float TiltPerPixel = 0.3f;
         private const float MinZoom = 0.25f;
 
-        // The blueprint's palette (spec board v0.2, screen D): grey ground, light grey slabs, white rooms,
-        // the building's halls a shade off white, low white walls whose light grey tops read as the 2D map's
-        // hairlines, teal route, blue you, orange destination.
+        // The 2D map's colour system (RouteView, build 21), so the two views read as one: outside the
+        // building the ground, the building's slab in the halls' tone with a darker edge for depth, rooms
+        // white, walls as the 2D map's dark (recorded zones) and grey lines, the route teal on white.
         private static readonly Color Background = new Color32(0xEE, 0xF0, 0xF2, 0xFF);
 
         private static readonly Dictionary<MiniaturePart, Color> Colours = new Dictionary<MiniaturePart, Color>
         {
-            { MiniaturePart.Slab, new Color32(0xF1, 0xF2, 0xF4, 0xFF) },
-            { MiniaturePart.SlabEdge, new Color32(0xD5, 0xD9, 0xDE, 0xFF) },
-            { MiniaturePart.Space, new Color32(0xFA, 0xFA, 0xFB, 0xFF) },
+            { MiniaturePart.Slab, new Color32(0xF6, 0xF7, 0xF9, 0xFF) },
+            { MiniaturePart.SlabEdge, new Color32(0xC9, 0xCD, 0xD3, 0xFF) },
+            { MiniaturePart.Space, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
             { MiniaturePart.DemoSpace, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
-            { MiniaturePart.Corridor, new Color32(0xF8, 0xF9, 0xFA, 0xFF) },
-            { MiniaturePart.Lift, new Color32(0xE3, 0xF1, 0xEF, 0xFF) },
-            { MiniaturePart.Stairs, new Color32(0xE3, 0xF1, 0xEF, 0xFF) },
+            { MiniaturePart.Corridor, new Color32(0xF6, 0xF7, 0xF9, 0xFF) },
+            { MiniaturePart.Lift, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
+            { MiniaturePart.Stairs, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
             { MiniaturePart.WallSideLight, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
             { MiniaturePart.WallSideDark, new Color32(0xE4, 0xE7, 0xEB, 0xFF) },
-            { MiniaturePart.WallTop, new Color32(0xB4, 0xBA, 0xC2, 0xFF) },
-            { MiniaturePart.WallQuiet, new Color32(0xE6, 0xE8, 0xEB, 0xFF) },
+            { MiniaturePart.WallTop, new Color32(0x3F, 0x45, 0x4D, 0xFF) },
+            { MiniaturePart.WallQuiet, new Color32(0x86, 0x8C, 0x95, 0xFF) },
+            { MiniaturePart.RouteCasing, new Color32(0xFF, 0xFF, 0xFF, 0xFF) },
             { MiniaturePart.Route, new Color32(0x0F, 0x76, 0x6E, 0xFF) },
             { MiniaturePart.You, new Color32(0x25, 0x63, 0xEB, 0xFF) },
             { MiniaturePart.Destination, new Color32(0xD9, 0x48, 0x0F, 0xFF) },
@@ -60,10 +67,11 @@ namespace IndoorNavigation.App
         private RenderTexture texture;
         private Vector3 target = Place;
         private float radius = 10f;
-        private float yaw = StartYaw;
+        private float yaw;
+        private float startYaw;
         private float pitch = StartPitch;
-        private float startPitch = StartPitch;
-        private int floorsShown;
+        private Vector3 focus = Place; // where the model was framed; pans move the target from here
+        private Vector3 minBound = Place, maxBound = Place;
         private float zoom = 1f;
         private float maxZoom = 2.5f;
 
@@ -136,28 +144,68 @@ namespace IndoorNavigation.App
 
             if (model.Parts.Count > 0)
             {
-                // Framed on the route; zooming out goes far enough to see everything drawn.
-                target = Place + new Vector3((float)model.FocusX, (float)model.FocusY, (float)model.FocusZ);
+                // Framed on the route; zooming out goes far enough to see everything drawn. A rebuild while
+                // the user walks keeps their pan, turn and tilt; a new route frames afresh.
+                Vector3 framed = Place + new Vector3((float)model.FocusX, (float)model.FocusY, (float)model.FocusZ);
+                bool newFrame = (framed - focus).sqrMagnitude > 25f || Mathf.Abs((float)model.NorthDegrees - startYaw) > 0.5f;
+                Vector3 panned = target - focus;
+                focus = framed;
+                minBound = Place + new Vector3((float)model.MinX, (float)model.MinY, (float)model.MinZ);
+                maxBound = Place + new Vector3((float)model.MaxX, (float)model.MaxY, (float)model.MaxZ);
                 radius = Mathf.Max(5f, (float)model.FocusRadius);
                 maxZoom = Mathf.Max(2.5f, 1.2f * (float)model.Radius / radius);
-                zoom = Mathf.Clamp(zoom, MinZoom, maxZoom);
+                startYaw = (float)model.NorthDegrees;
+                if (newFrame)
+                {
+                    yaw = startYaw;
+                    pitch = StartPitch;
+                    zoom = 1f;
+                    target = focus;
+                }
+                else
+                {
+                    target = Clamp(focus + panned);
+                }
 
-                // Stacked floors read better from lower down, where the gaps between them show.
-                startPitch = model.Floors.Count > 1 ? StartPitchStacked : StartPitch;
-                if (model.Floors.Count != floorsShown) pitch = startPitch;
-                floorsShown = model.Floors.Count;
+                zoom = Mathf.Clamp(zoom, MinZoom, maxZoom);
             }
 
             PlaceCamera();
         }
 
-        public void Orbit(float yawDegrees, float pitchDegrees)
+        public float BearingDegrees => Mathf.DeltaAngle(startYaw, yaw);
+
+        public void Pan(Vector2 pixels, Vector2 viewport)
         {
-            // The model follows the finger: dragging right turns its near side to the right.
-            yaw -= yawDegrees;
-            pitch = Mathf.Clamp(pitch + pitchDegrees, MinPitch, MaxPitch);
+            if (view == null || viewport.y < 1f) return;
+            // Metres per pixel at the target's depth; up and down the screen the floor is foreshortened by the tilt.
+            float distance = (view.transform.position - target).magnitude;
+            float perPixel = 2f * distance * Mathf.Tan(FieldOfView * 0.5f * Mathf.Deg2Rad) / viewport.y;
+            Quaternion turn = Quaternion.Euler(0f, yaw, 0f);
+            Vector3 right = turn * Vector3.right, ahead = turn * Vector3.forward;
+            float sin = Mathf.Max(0.3f, Mathf.Sin(pitch * Mathf.Deg2Rad));
+            // The model follows the finger: drag right and it moves right, drag down and it comes down.
+            target = Clamp(target - (right * pixels.x * perPixel) + (ahead * pixels.y * perPixel / sin));
             PlaceCamera();
         }
+
+        public void Rotate(float degrees)
+        {
+            // A clockwise twist turns the model clockwise on screen, so the camera turns the other way.
+            yaw -= degrees;
+            PlaceCamera();
+        }
+
+        public void Tilt(float pixels)
+        {
+            // Swipe up to look more from the side, down to look more from above (Google Maps' tilt).
+            pitch = Mathf.Clamp(pitch + (pixels * TiltPerPixel), MinPitch, MaxPitch);
+            PlaceCamera();
+        }
+
+        /// <summary>Keeps the point looked at over the model, so a pan never loses it off screen.</summary>
+        private Vector3 Clamp(Vector3 p) =>
+            new Vector3(Mathf.Clamp(p.x, minBound.x, maxBound.x), Mathf.Clamp(p.y, minBound.y, maxBound.y), Mathf.Clamp(p.z, minBound.z, maxBound.z));
 
         public void Zoom(float factor)
         {
@@ -168,9 +216,10 @@ namespace IndoorNavigation.App
 
         public void ResetView()
         {
-            yaw = StartYaw;
-            pitch = startPitch;
+            yaw = startYaw;
+            pitch = StartPitch;
             zoom = 1f;
+            target = focus;
             PlaceCamera();
         }
 

@@ -11,14 +11,25 @@ namespace IndoorNavigation.UI.Screens
 {
     /// <summary>
     /// D · 3D miniature (blueprint screen D): the floors the route uses, stacked apart, with the
-    /// route and you on them. One finger turns the model, two fingers pinch to zoom (the mouse
-    /// wheel in the Editor). "2D" and "Back to route" return to the screen it was opened from.
+    /// route and you on them. Build 21 gestures, as in map apps (Google Maps SDK, "Controls and
+    /// gestures") and as on the 2D map: one finger moves the model, pinch zooms, a two-finger twist
+    /// turns it and a two-finger swipe up or down tilts it (the mouse wheel zooms in the Editor). A
+    /// two-finger gesture is read as a tilt or as a pinch and twist from its first movement, so a pinch
+    /// does not tilt by accident. "2D" and "Back to route" return to the screen it was opened from.
     /// The model is rebuilt only when the route, the floor or your position changes, never per frame.
     /// </summary>
     public sealed class MiniaturePresenter : ScreenPresenter
     {
-        private const float YawPerPoint = 0.35f;
-        private const float PitchPerPoint = 0.25f;
+        /// <summary>A two-finger gesture is decided after this much movement (points).</summary>
+        private const float DecideAfterPoints = 10f;
+
+        /// <summary>A twist turns the model only once it has turned this far, so a pinch stays straight.</summary>
+        private const float TwistFromDegrees = 8f;
+
+        private enum TwoFingers { Undecided, PinchAndTwist, Tilt }
+        private TwoFingers twoFingers;
+        private float twistSoFar, tiltSoFar, pinchSoFar;
+        private bool twisting;
         private const double RebuildMetres = 0.5;
         private const int MaxPictureSide = 2048;
         private const float DestinationLabelWidth = 160f;
@@ -70,7 +81,7 @@ namespace IndoorNavigation.UI.Screens
             viewport.RegisterCallback<PointerMoveEvent>(OnPointerMove);
             viewport.RegisterCallback<PointerUpEvent>(e => Release(e.pointerId));
             viewport.RegisterCallback<PointerCancelEvent>(e => Release(e.pointerId));
-            viewport.RegisterCallback<PointerCaptureOutEvent>(e => pointers.Remove(e.pointerId));
+            viewport.RegisterCallback<PointerCaptureOutEvent>(e => { pointers.Remove(e.pointerId); ResetTwoFingers(); });
             viewport.RegisterCallback<WheelEvent>(e =>
             {
                 view?.Zoom(Mathf.Pow(1.1f, Mathf.Clamp(e.delta.y, -10f, 10f) / 3f));
@@ -152,6 +163,7 @@ namespace IndoorNavigation.UI.Screens
                 if (target is Button) return;
             pointers[e.pointerId] = e.position;
             viewport.CapturePointer(e.pointerId);
+            ResetTwoFingers();
             e.StopPropagation();
         }
 
@@ -159,21 +171,47 @@ namespace IndoorNavigation.UI.Screens
         {
             if (!pointers.TryGetValue(e.pointerId, out Vector2 before)) return;
             Vector2 now = e.position;
-
             if (pointers.Count == 1)
             {
-                Vector2 delta = now - before;
-                view?.Orbit(delta.x * YawPerPoint, delta.y * PitchPerPoint);
+                view?.Pan(now - before, viewport.contentRect.size);
             }
             else if (pointers.Count >= 2)
             {
-                // Pinch: the change in distance to the other finger.
-                foreach (KeyValuePair<int, Vector2> other in pointers)
+                Vector2 other = default;
+                foreach (KeyValuePair<int, Vector2> entry in pointers)
                 {
-                    if (other.Key == e.pointerId) continue;
-                    float was = Vector2.Distance(before, other.Value), isNow = Vector2.Distance(now, other.Value);
-                    if (was > 4f && isNow > 4f) view?.Zoom(was / isNow);
+                    if (entry.Key == e.pointerId) continue;
+                    other = entry.Value;
                     break;
+                }
+
+                Vector2 was = before - other, isNow = now - other;
+                if (was.magnitude > 4f && isNow.magnitude > 4f)
+                {
+                    float scale = isNow.magnitude / was.magnitude;
+                    float twist = Vector2.SignedAngle(was, isNow); // UI y runs down, so positive is clockwise on screen
+                    float lift = (now.y - before.y) / 2f;            // the middle between the fingers moves half as far
+                    if (twoFingers == TwoFingers.Undecided)
+                    {
+                        pinchSoFar += Mathf.Abs(Mathf.Log(scale)) * 100f;
+                        twistSoFar += twist;
+                        tiltSoFar += lift;
+                        bool sideBySide = Mathf.Abs(isNow.x) > Mathf.Abs(isNow.y);
+                        if (sideBySide && Mathf.Abs(tiltSoFar) > DecideAfterPoints && pinchSoFar < 6f && Mathf.Abs(twistSoFar) < 6f) twoFingers = TwoFingers.Tilt;
+                        else if (pinchSoFar > 6f || Mathf.Abs(twistSoFar) > 6f) twoFingers = TwoFingers.PinchAndTwist;
+                    }
+
+                    if (twoFingers == TwoFingers.Tilt)
+                    {
+                        view?.Tilt(lift);
+                    }
+                    else if (twoFingers == TwoFingers.PinchAndTwist)
+                    {
+                        view?.Zoom(1f / scale);
+                        twistSoFar += twist;
+                        if (!twisting && Mathf.Abs(twistSoFar) > TwistFromDegrees) twisting = true;
+                        if (twisting) view?.Rotate(twist);
+                    }
                 }
             }
 
@@ -186,6 +224,14 @@ namespace IndoorNavigation.UI.Screens
         {
             pointers.Remove(pointerId);
             if (viewport.HasPointerCapture(pointerId)) viewport.ReleasePointer(pointerId);
+            ResetTwoFingers();
+        }
+
+        private void ResetTwoFingers()
+        {
+            twoFingers = TwoFingers.Undecided;
+            twistSoFar = tiltSoFar = pinchSoFar = 0f;
+            twisting = false;
         }
 
         /// <summary>A label for each floor, and one over the destination.</summary>

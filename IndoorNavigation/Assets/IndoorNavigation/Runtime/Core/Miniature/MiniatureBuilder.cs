@@ -23,6 +23,9 @@ namespace IndoorNavigation.Core.Miniature
 
         /// <summary>Walls outside the demo zone: low and in one light grey, so they set the scene without clutter.</summary>
         WallQuiet,
+
+        /// <summary>The white band under the route, as the 2D map's casing (build 21).</summary>
+        RouteCasing,
         Route,
         You,
         Destination,
@@ -110,6 +113,9 @@ namespace IndoorNavigation.Core.Miniature
         public double FocusZ { get; internal set; }
         public double FocusRadius { get; internal set; }
 
+        /// <summary>Where north points on the user's floor plan, degrees clockwise from up (the 2D map turns by it).</summary>
+        public double NorthDegrees { get; internal set; }
+
         public MeshPart Part(MiniaturePart part)
         {
             if (!Parts.TryGetValue(part, out MeshPart mesh))
@@ -135,46 +141,53 @@ namespace IndoorNavigation.Core.Miniature
     /// <summary>
     /// Builds the miniature of screen D from the same floor plans and route the 2D map draws
     /// (decision record 8: one geometry, two views). Floors are stacked apart (an exploded view),
-    /// so a route that changes floor can be followed up the stairs. Walls are low (1.2 m, the
-    /// miniature style) and have dark cut tops; there are no ceilings. A floor without a plan is a
-    /// plain slab around its route nodes, marked as not mapped yet.
+    /// so a route that changes floor can be followed up the stairs.
+    /// <para>Build 21 (Fury: "simple, neat and unified"): each floor is its 2D plan laid flat on a slab
+    /// cut to the building's footprint, in the 2D map's colours, with walls as flat lines rather than
+    /// low boxes; the route has the 2D map's white casing. Only the floors the route walks on, and
+    /// yours, are shown: a floor the lift or stairs only pass through is left out, as floors that do not
+    /// matter are hidden in third-person indoor maps (Burigat, Chittaro and Sioni 2017, IEEE THMS).
+    /// Stacked floors stay together in one view, which helps people relate the floors (Li and Giudice
+    /// 2013, MapInteract). A floor without a plan is a plain slab around its route nodes.</para>
     /// </summary>
     public static class MiniatureBuilder
     {
-        public const double WallHeight = 0.6;
+        public const double WallHeight = 0.6;   // the height the camera frames above a floor
         public const double WallThickness = 0.12;
-        public const double FloorGap = 10.0;
-        public const double SlabDepth = 0.4;
-        public const double RouteWidth = 0.7;
+        public const double FloorGap = 12.0;
+        public const double SlabDepth = 0.5;
+        public const double RouteWidth = 0.8;
+        public const double CasingWidth = 1.3;
         public const double RouteLift = 0.25;
         public const double MarkerRadius = 0.7;
 
-        // The style's light comes from (-0.6, 0.75, 0.3): wall faces turned towards it are lighter.
-        private const double LightX = -0.6, LightZ = 0.3;
+        /// <summary>Flat walls lie this far above the floor, rooms a little lower, so nothing flickers.</summary>
+        public const double WallLift = 0.08;
 
         public static MiniatureModel Build(VenuePackage venue, Route route, PlanPose? you, int userFloor, int? destinationFloor = null)
         {
             var model = new MiniatureModel();
             if (venue == null) return model;
 
+            // Your floor, the floors the route walks on and the destination's; not the ones it only rides past.
             var floors = new SortedSet<int> { userFloor };
-            foreach (FloorPlan plan in venue.Plans)
-            {
-                if (plan.Floor == userFloor || (route != null && RouteVisits(route, plan.Floor))) floors.Add(plan.Floor);
-            }
-
             if (route != null)
             {
-                foreach (GraphNode node in route.Nodes) floors.Add(node.Floor);
+                for (int i = 0; i < route.Nodes.Count; i++)
+                {
+                    GraphNode node = route.Nodes[i];
+                    bool walked = i == 0 || i == route.Nodes.Count - 1
+                        || route.Nodes[i - 1].Floor == node.Floor || route.Nodes[i + 1].Floor == node.Floor;
+                    if (walked) floors.Add(node.Floor);
+                }
             }
 
             if (destinationFloor.HasValue) floors.Add(destinationFloor.Value);
 
-            int lowest = int.MaxValue;
-            foreach (int floor in floors) lowest = Math.Min(lowest, floor);
+            int level = 0;
             foreach (int floor in floors)
             {
-                double y = (floor - lowest) * FloorGap;
+                double y = level++ * FloorGap;
                 model.Floors.Add((floor, y));
                 FloorPlan plan = venue.PlanOf(floor);
                 if (plan != null) AddPlan(model, plan, y);
@@ -198,6 +211,7 @@ namespace IndoorNavigation.Core.Miniature
             }
 
             SetFocus(model, route, you);
+            model.NorthDegrees = venue.PlanOf(userFloor)?.NorthDegrees ?? 0;
             return model;
         }
 
@@ -263,16 +277,6 @@ namespace IndoorNavigation.Core.Miniature
             model.FocusRadius = Math.Min(model.Radius, Math.Max(MinFocusRadius, r));
         }
 
-        private static bool RouteVisits(Route route, int floor)
-        {
-            foreach (GraphNode node in route.Nodes)
-            {
-                if (node.Floor == floor) return true;
-            }
-
-            return false;
-        }
-
         private static bool TryElevation(MiniatureModel model, int floor, out double y)
         {
             foreach ((int f, double e) in model.Floors)
@@ -290,30 +294,75 @@ namespace IndoorNavigation.Core.Miniature
 
         private static void AddPlan(MiniatureModel model, FloorPlan plan, double y)
         {
-            AddSlab(model, plan.View, y);
+            // The slab is the building's footprint when the plan has one (package 1.6.0), else its view.
+            PlanSpace footprint = null;
+            foreach (PlanSpace space in plan.Spaces)
+            {
+                if (space.Id == "building" && space.Outline.Count >= 3) { footprint = space; break; }
+            }
+
+            if (footprint != null) AddFootprintSlab(model, footprint.Outline, y);
+            else AddSlab(model, plan.View, y);
 
             foreach (PlanSpace space in plan.Spaces)
             {
+                if (space == footprint) continue;
                 MiniaturePart part = PartOf(space);
                 MeshPart mesh = model.Part(part);
                 List<int> triangles = Polygons.Triangulate(space.Outline);
                 if (triangles.Count == 0) continue;
-                double top = y + (part == MiniaturePart.Space ? 0.02 : 0.04);
+                double top = y + (part == MiniaturePart.Corridor ? 0.02 : 0.04);
                 int start = mesh.VertexCount;
                 foreach (PlanPoint p in space.Outline) mesh.Vertex(p.X, top, -p.Z);
                 for (int i = 0; i < triangles.Count; i += 3) mesh.Triangle(start + triangles[i], start + triangles[i + 1], start + triangles[i + 2]);
             }
 
+            // Walls as the 2D map draws them: flat lines, dark in the recorded zones and grey elsewhere.
             foreach (PlanSegment wall in plan.Walls)
             {
-                if (InDemo(plan, wall)) AddWall(model, wall, y);
-                else AddQuietWall(model, wall, y);
+                bool demo = InDemo(plan, wall);
+                FlatLine(model.Part(demo ? MiniaturePart.WallTop : MiniaturePart.WallQuiet), wall, y + WallLift, demo ? 0.18 : 0.12);
             }
 
-            // Glass: a low pale wall, so the way looks barred but the view open. Stairs: their treads
-            // as thin strips on the floor. Doors stay openings in the walls.
-            foreach (PlanSegment glass in plan.GlassWalls) AddQuietWall(model, glass, y);
-            foreach (PlanSegment line in plan.StairLines) AddQuietWall(model, line, y, StairLineHeight);
+            foreach (PlanSegment glass in plan.GlassWalls) FlatLine(model.Part(MiniaturePart.WallQuiet), glass, y + WallLift, 0.12);
+            foreach (PlanSegment line in plan.StairLines) FlatLine(model.Part(MiniaturePart.SlabEdge), line, y + WallLift - 0.02, 0.06);
+        }
+
+        /// <summary>A wall or line lying flat on the floor, a little longer at each end so corners close.</summary>
+        private static void FlatLine(MeshPart mesh, PlanSegment line, double y, double width)
+        {
+            double ax = line.A.X, az = -line.A.Z, bx = line.B.X, bz = -line.B.Z;
+            double len = Math.Sqrt(((bx - ax) * (bx - ax)) + ((bz - az) * (bz - az)));
+            if (len < 1e-6) return;
+            double ux = (bx - ax) / len * width / 2, uz = (bz - az) / len * width / 2;
+            double nx = -uz, nz = ux;
+            mesh.Quad(
+                mesh.Vertex(ax - ux + nx, y, az - uz + nz),
+                mesh.Vertex(bx + ux + nx, y, bz + uz + nz),
+                mesh.Vertex(bx + ux - nx, y, bz + uz - nz),
+                mesh.Vertex(ax - ux - nx, y, az - uz - nz));
+        }
+
+        /// <summary>A slab cut to the building's outline: its top in the halls' tone, its sides a shade darker.</summary>
+        private static void AddFootprintSlab(MiniatureModel model, IReadOnlyList<PlanPoint> outline, double y)
+        {
+            MeshPart top = model.Part(MiniaturePart.Slab);
+            MeshPart edge = model.Part(MiniaturePart.SlabEdge);
+            List<int> triangles = Polygons.Triangulate(outline);
+            int start = top.VertexCount;
+            foreach (PlanPoint p in outline)
+            {
+                top.Vertex(p.X, y, -p.Z);
+                model.Grow(p.X, y - SlabDepth, -p.Z);
+                model.Grow(p.X, y + WallHeight, -p.Z);
+            }
+
+            for (int i = 0; i < triangles.Count; i += 3) top.Triangle(start + triangles[i], start + triangles[i + 1], start + triangles[i + 2]);
+            for (int i = 0; i < outline.Count; i++)
+            {
+                PlanPoint a = outline[i], b = outline[(i + 1) % outline.Count];
+                Side(edge, a.X, -a.Z, b.X, -b.Z, y - SlabDepth, y);
+            }
         }
 
         public const double StairLineHeight = 0.06;
@@ -328,7 +377,7 @@ namespace IndoorNavigation.Core.Miniature
                 case PlanSpaceKind.Room:
                 case PlanSpaceKind.Toilet:
                     return space.InDemo ? MiniaturePart.DemoSpace : MiniaturePart.Space;
-                default: return space.InDemo ? MiniaturePart.Corridor : MiniaturePart.Space;
+                default: return MiniaturePart.Corridor;
             }
         }
 
@@ -382,84 +431,49 @@ namespace IndoorNavigation.Core.Miniature
             return false;
         }
 
-        /// <summary>A low wall outside the demo zone, every face in one colour.</summary>
-        private static void AddQuietWall(MiniatureModel model, PlanSegment wall, double y, double height = QuietWallHeight)
-        {
-            double ax = wall.A.X, az = -wall.A.Z, bx = wall.B.X, bz = -wall.B.Z;
-            double len = Math.Sqrt(((bx - ax) * (bx - ax)) + ((bz - az) * (bz - az)));
-            if (len < 1e-6) return;
-            double nx = -(bz - az) / len * WallThickness / 2, nz = (bx - ax) / len * WallThickness / 2;
-            double[] cx = { ax + nx, bx + nx, bx - nx, ax - nx };
-            double[] cz = { az + nz, bz + nz, bz - nz, az - nz };
-            MeshPart mesh = model.Part(MiniaturePart.WallQuiet);
-            double y1 = y + height;
-            mesh.Quad(mesh.Vertex(cx[0], y1, cz[0]), mesh.Vertex(cx[1], y1, cz[1]), mesh.Vertex(cx[2], y1, cz[2]), mesh.Vertex(cx[3], y1, cz[3]));
-            for (int i = 0; i < 4; i++) Side(mesh, cx[i], cz[i], cx[(i + 1) % 4], cz[(i + 1) % 4], y, y1);
-        }
-
-        /// <summary>A wall as a box along the segment: light or dark sides by how they face the light, a darker top.</summary>
-        private static void AddWall(MiniatureModel model, PlanSegment wall, double y)
-        {
-            double ax = wall.A.X, az = -wall.A.Z, bx = wall.B.X, bz = -wall.B.Z;
-            double len = Math.Sqrt(((bx - ax) * (bx - ax)) + ((bz - az) * (bz - az)));
-            if (len < 1e-6) return;
-            double ux = (bx - ax) / len, uz = (bz - az) / len;
-            double nx = -uz * WallThickness / 2, nz = ux * WallThickness / 2;
-            double y0 = y, y1 = y + WallHeight;
-
-            // corners: a+n, b+n, b-n, a-n
-            double[] cx = { ax + nx, bx + nx, bx - nx, ax - nx };
-            double[] cz = { az + nz, bz + nz, bz - nz, az - nz };
-            MeshPart top = model.Part(MiniaturePart.WallTop);
-            top.Quad(top.Vertex(cx[0], y1, cz[0]), top.Vertex(cx[1], y1, cz[1]), top.Vertex(cx[2], y1, cz[2]), top.Vertex(cx[3], y1, cz[3]));
-
-            for (int i = 0; i < 4; i++)
-            {
-                int j = (i + 1) % 4;
-                // the outward normal of the side from corner i to corner j
-                double ex = cx[j] - cx[i], ez = cz[j] - cz[i];
-                double ox = ez, oz = -ex;
-                double mx = (cx[i] + cx[j]) / 2 - ((ax + bx) / 2), mz = (cz[i] + cz[j]) / 2 - ((az + bz) / 2);
-                if ((ox * mx) + (oz * mz) < 0)
-                {
-                    ox = -ox;
-                    oz = -oz;
-                }
-
-                bool lit = (ox * LightX) + (oz * LightZ) > 0;
-                Side(model.Part(lit ? MiniaturePart.WallSideLight : MiniaturePart.WallSideDark), cx[i], cz[i], cx[j], cz[j], y0, y1);
-            }
-        }
-
-        /// <summary>The route as a flat band on each floor, and a vertical band where it changes floor.</summary>
+        /// <summary>
+        /// The route as a flat band on each floor over a white casing, and a vertical band where it changes
+        /// floor: from the last node on one shown floor to the next node on another, so a ride past a
+        /// hidden floor is one straight climb.
+        /// </summary>
         private static void AddRoute(MiniatureModel model, Route route, List<(int Floor, double Elevation)> floors)
         {
             MeshPart mesh = model.Part(MiniaturePart.Route);
-            for (int i = 0; i + 1 < route.Nodes.Count; i++)
+            MeshPart casing = model.Part(MiniaturePart.RouteCasing);
+            int last = -1; // the last node drawn, on a shown floor
+            for (int i = 0; i < route.Nodes.Count; i++)
             {
-                GraphNode a = route.Nodes[i], b = route.Nodes[i + 1];
-                if (!TryElevation(model, a.Floor, out double ya) || !TryElevation(model, b.Floor, out double yb)) continue;
-                if (a.Floor == b.Floor)
+                GraphNode b = route.Nodes[i];
+                if (!TryElevation(model, b.Floor, out double yb)) continue;
+                if (last >= 0)
                 {
-                    Band(mesh, a.X, -a.Z, b.X, -b.Z, ya + RouteLift);
+                    GraphNode a = route.Nodes[last];
+                    TryElevation(model, a.Floor, out double ya);
+                    if (a.Floor == b.Floor)
+                    {
+                        Band(casing, a.X, -a.Z, b.X, -b.Z, ya + RouteLift - 0.03, CasingWidth);
+                        Band(mesh, a.X, -a.Z, b.X, -b.Z, ya + RouteLift, RouteWidth);
+                    }
+                    else
+                    {
+                        double y0 = Math.Min(ya, yb) + RouteLift, y1 = Math.Max(ya, yb) + RouteLift, h = RouteWidth / 2;
+                        // two crossed vertical bands, so the climb shows from every side
+                        Side(mesh, a.X - h, -a.Z, a.X + h, -a.Z, y0, y1);
+                        Side(mesh, a.X, -a.Z - h, a.X, -a.Z + h, y0, y1);
+                    }
                 }
-                else
-                {
-                    double y0 = Math.Min(ya, yb) + RouteLift, y1 = Math.Max(ya, yb) + RouteLift, h = RouteWidth / 2;
-                    // two crossed vertical bands, so the climb shows from every side
-                    Side(mesh, a.X - h, -a.Z, a.X + h, -a.Z, y0, y1);
-                    Side(mesh, a.X, -a.Z - h, a.X, -a.Z + h, y0, y1);
-                }
+
+                last = i;
             }
         }
 
-        private static void Band(MeshPart mesh, double ax, double az, double bx, double bz, double y)
+        private static void Band(MeshPart mesh, double ax, double az, double bx, double bz, double y, double width)
         {
             double len = Math.Sqrt(((bx - ax) * (bx - ax)) + ((bz - az) * (bz - az)));
             if (len < 1e-6) return;
-            double nx = -(bz - az) / len * RouteWidth / 2, nz = (bx - ax) / len * RouteWidth / 2;
+            double nx = -(bz - az) / len * width / 2, nz = (bx - ax) / len * width / 2;
             // a little past each end, so the bends close
-            double ex = (bx - ax) / len * RouteWidth / 2, ez = (bz - az) / len * RouteWidth / 2;
+            double ex = (bx - ax) / len * width / 2, ez = (bz - az) / len * width / 2;
             mesh.Quad(
                 mesh.Vertex(ax - ex + nx, y, az - ez + nz),
                 mesh.Vertex(bx + ex + nx, y, bz + ez + nz),

@@ -958,7 +958,7 @@
     -unity-text-align: middle-center;
     white-space: nowrap;
     -unity-text-outline-width: 1px; /* a light halo keeps labels readable over walls, as in Google Maps */
-    -unity-text-outline-color: rgba(251, 251, 252, 0.9);
+    -unity-text-outline-color: rgba(255, 255, 255, 0.9);
 }
 
 /* Amenities on the map: a round icon badge, its name under it once zoomed in (RouteView.MapLabel). */
@@ -982,11 +982,11 @@
 .map-poi__text {
     font-size: 10px;
     -unity-font-style: bold;
-    color: #0F766E;
+    color: #5B6270; /* the badge's slate (build 21): teal is the route's alone */
     -unity-text-align: upper-center;
     white-space: nowrap;
     -unity-text-outline-width: 1px;
-    -unity-text-outline-color: rgba(251, 251, 252, 0.9);
+    -unity-text-outline-color: rgba(255, 255, 255, 0.9);
 }
 
 .map-label--quiet {

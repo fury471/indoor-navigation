@@ -22,6 +22,21 @@ namespace IndoorNavigation.Core.Session
         /// <summary>A route node counts as reached within this distance.</summary>
         public const double ArrivalRadiusMetres = 1.5;
 
+        /// <summary>
+        /// Stairs and lifts count as reached within this distance: in front of the lift doors or at the
+        /// foot of the stairs, before tracking can be lost in the lift car (build 20 test).
+        /// </summary>
+        public const double FloorLinkRadiusMetres = 3.0;
+
+        /// <summary>Within this distance of the route line, nodes the user walked past count as reached, so cut corners do not stall the progress.</summary>
+        public const double OnRouteMetres = 3.0;
+
+        /// <summary>While previewing, the route is planned again when the user has moved this far from where it was planned.</summary>
+        public const double ReplanMetres = 2.0;
+
+        /// <summary>A new fix this far from the route while navigating plans the route again from there.</summary>
+        public const double RerouteMetres = 5.0;
+
         /// <summary>The position is logged at most this often, for counting wrong turns afterwards.</summary>
         public const double PoseLogIntervalSeconds = 1.0;
 
@@ -41,7 +56,13 @@ namespace IndoorNavigation.Core.Session
         private int lastLocateSecond = -1;
         private PlanPose? lastFound;
         private readonly IDeviceAttitude attitude;
+        private readonly IAltimeter altimeter;
+        private readonly FloorChangeDetector floorChange = new FloorChangeDetector();
+        private int floorChangeBase; // the floor the barometer counts from
+        private PlanPose? plannedFrom;
+        private bool replanWhenFound;
 
+        /// <param name="altimeter">The barometer, or null: floor changes are then confirmed by the user alone (screen E).</param>
         public AppSession(
             IVenueDirectory directory,
             IVenueRepository repository,
@@ -51,7 +72,8 @@ namespace IndoorNavigation.Core.Session
             ISessionLog log,
             IClock clock,
             StudySettings study,
-            string rememberedVenueId = null)
+            string rememberedVenueId = null,
+            IAltimeter altimeter = null)
         {
             this.directory = directory ?? throw new ArgumentNullException(nameof(directory));
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
@@ -71,7 +93,12 @@ namespace IndoorNavigation.Core.Session
             position.PoseChanged += OnPoseChanged;
             attitude.PitchChanged += OnPitchChanged;
             tilt.PoseChanged += OnTiltPoseChanged;
+            this.altimeter = altimeter;
+            if (altimeter != null) altimeter.AltitudeChanged += OnAltitudeChanged;
         }
+
+        /// <summary>True when the barometer can notice a floor change, so screen E can say it will.</summary>
+        public bool DetectsFloorChanges => altimeter?.Available ?? false;
 
         /// <summary>Raised after anything a screen shows has changed. Presenters re-read the properties.</summary>
         public event Action Changed;
@@ -356,6 +383,7 @@ namespace IndoorNavigation.Core.Session
             AreaInfo start = Venue.Area(Venue.StartAreaId);
             UserFloor = start?.Floor ?? UserFloor;
             View.ShowFloor(UserFloor);
+            RebaseFloorChange();
             guide.Stop();
             IReadOnlyList<FloorInfo> floors = Floors;
             if (floors.Count == 1)
@@ -404,6 +432,7 @@ namespace IndoorNavigation.Core.Session
             }
 
             guide.Stop();
+            bool afterFloorChange = RelocatingAfterFloorChange;
             Relocating = false;
             RelocatingAfterFloorChange = false;
             ChoosingFloor = false;
@@ -411,7 +440,22 @@ namespace IndoorNavigation.Core.Session
             {
                 UserFloor = pose.Floor;
                 View.ShowFloor(UserFloor);
+                RebaseFloorChange();
             }
+
+            // The route starts where the user was just found (build 20: a fix in the preview left the
+            // route starting where the old position was).
+            if (Destination != null && (State == SessionState.Previewing || replanWhenFound))
+            {
+                Replan(replanWhenFound ? "found on another floor" : "new fix");
+            }
+            else if (State == SessionState.Navigating && !AwaitingFloorChange && !afterFloorChange && Route != null)
+            {
+                RouteSnap snap = RouteProgress.Snap(Route, NextNodeIndex, pose);
+                if (!snap.OnRoute || snap.OffRouteMetres > RerouteMetres) Replan("new fix away from the route");
+            }
+
+            replanWhenFound = false;
         }
 
         // ------------------------------------------------------------------
@@ -426,6 +470,7 @@ namespace IndoorNavigation.Core.Session
             HintedArea = null;
             UserFloor = floor;
             View.ShowFloor(floor);
+            RebaseFloorChange();
             Log("locate", "floor " + floor.ToString(CultureInfo.InvariantCulture) + " chosen");
             position.StartLocatingOnFloor(floor);
             StartGuide();
@@ -812,14 +857,15 @@ namespace IndoorNavigation.Core.Session
         }
 
         /// <summary>
-        /// Where the route starts: the nearest node the user can see on the plan (no wall between), so
-        /// the route does not begin in the room behind a wall. Falls back to the nearest node.
+        /// Where the route starts: of the nodes nearest the user that they can see on the plan (no wall
+        /// between), the one that makes the whole way shortest, counting the steps to reach it. So the
+        /// route neither begins in the room behind a wall nor first walks back to a node behind the user
+        /// (build 20). Falls back to the nearest visible node, then the nearest node.
         /// </summary>
-        private GraphNode StartNode()
+        private GraphNode StartNode(string to)
         {
             FloorPlan plan = Venue.PlanOf(UserFloor);
             GraphNode nearest = Venue.Graph.NearestNode(UserFloor, Pose.X, Pose.Z);
-            if (plan == null) return nearest;
             var nodes = new List<GraphNode>();
             foreach (GraphNode node in Venue.Graph.Nodes)
             {
@@ -827,12 +873,39 @@ namespace IndoorNavigation.Core.Session
             }
 
             nodes.Sort((a, b) => Pose.DistanceTo(a.Floor, a.X, a.Z).CompareTo(Pose.DistanceTo(b.Floor, b.X, b.Z)));
+            var options = new RouteOptions(AvoidStairs);
+            GraphNode best = null, firstVisible = null;
+            double bestCost = double.MaxValue;
             for (int i = 0; i < nodes.Count && i < 8; i++)
             {
-                if (LineOfSight.Clear(plan, Pose.X, Pose.Z, nodes[i].X, nodes[i].Z)) return nodes[i];
+                GraphNode node = nodes[i];
+                double reach = Pose.DistanceTo(node.Floor, node.X, node.Z);
+                if (reach >= bestCost) break; // farther than the best whole way: no later node can win
+                if (plan != null && !LineOfSight.Clear(plan, Pose.X, Pose.Z, node.X, node.Z)) continue;
+                if (firstVisible == null) firstVisible = node;
+                Route way = to == null ? null : RoutePlanner.FindRoute(Venue.Graph, node.Id, to, options);
+                if (way == null) continue;
+                double cost = reach + Cost(way);
+                if (cost < bestCost)
+                {
+                    bestCost = cost;
+                    best = node;
+                }
             }
 
-            return nearest;
+            return best ?? firstVisible ?? nearest;
+        }
+
+        /// <summary>What the planner minimises: metres walked, plus <see cref="RoutePlanner.FloorChangeCost"/> per floor.</summary>
+        private static double Cost(Route route)
+        {
+            double cost = route.LengthMetres;
+            for (int i = 0; i + 1 < route.Nodes.Count; i++)
+            {
+                cost += RoutePlanner.FloorChangeCost * Math.Abs(route.Nodes[i + 1].Floor - route.Nodes[i].Floor);
+            }
+
+            return cost;
         }
 
         /// <summary>5: Back. Returns to the suggestions if there are any, otherwise to the request.</summary>
@@ -841,13 +914,25 @@ namespace IndoorNavigation.Core.Session
 
         private void PlanRoute()
         {
-            GraphNode from = StartNode();
             string to = Venue.ApproachNodeOf(Destination);
-            Route = from == null ? null : RoutePlanner.FindRoute(Venue.Graph, from.Id, to, new RouteOptions(AvoidStairs));
+            GraphNode from = StartNode(to);
+            Route = from == null || to == null ? null : RoutePlanner.FindRoute(Venue.Graph, from.Id, to, new RouteOptions(AvoidStairs));
+            plannedFrom = Pose;
             Log("route", Route == null
                 ? "none"
                 : string.Format(CultureInfo.InvariantCulture, "{0} nodes, {1:F0} m, stairs {2}, lift {3}",
                     Route.Nodes.Count, Route.LengthMetres, Route.UsesStairs, Route.UsesLift));
+        }
+
+        /// <summary>Plans the route again from where the user is; while navigating, the progress starts over on it.</summary>
+        private void Replan(string why)
+        {
+            Log("route", "planned again: " + why);
+            PlanRoute();
+            if (State != SessionState.Navigating) return;
+            AwaitingFloorChange = false;
+            NextNodeIndex = Route == null ? 0 : Route.Nodes.Count > 1 ? 1 : 0;
+            if (Route != null) AdvanceAlongRoute(Pose);
         }
 
         // ------------------------------------------------------------------
@@ -862,6 +947,14 @@ namespace IndoorNavigation.Core.Session
                 return;
             }
 
+            // From where the user stands now, not where they stood when the preview opened.
+            if (PositionState == PositionState.Found) PlanRoute();
+            if (Route == null)
+            {
+                NotifyChanged();
+                return;
+            }
+
             NextNodeIndex = Route.Nodes.Count > 1 ? 1 : 0;
             AwaitingFloorChange = false;
             View.ShowFloor(UserFloor);
@@ -872,7 +965,9 @@ namespace IndoorNavigation.Core.Session
         }
 
         /// <summary>E: "I'm on floor N". Then the position is found again on that floor (screen 1).</summary>
-        public void ConfirmFloor(int floor)
+        public void ConfirmFloor(int floor) => ConfirmFloor(floor, "confirmed");
+
+        private void ConfirmFloor(int floor, string how)
         {
             if (State != SessionState.Navigating || !AwaitingFloorChange || floor != NextFloor)
             {
@@ -882,7 +977,8 @@ namespace IndoorNavigation.Core.Session
             AwaitingFloorChange = false;
             UserFloor = floor;
             View.ShowFloor(floor);
-            Log("floor", "confirmed " + floor.ToString(CultureInfo.InvariantCulture));
+            RebaseFloorChange();
+            Log("floor", how + " " + floor.ToString(CultureInfo.InvariantCulture));
 
             // Each floor is located on its own: its world map is tried, or the user marks a door
             // there, such as the lift's (decision record 11).
@@ -920,6 +1016,7 @@ namespace IndoorNavigation.Core.Session
             Answer = null;
             RequestText = null;
             AwaitingFloorChange = false;
+            plannedFrom = null;
             NotifyChanged();
         }
 
@@ -931,13 +1028,18 @@ namespace IndoorNavigation.Core.Session
             {
                 AdvanceAlongRoute(pose);
             }
+            else if (State == SessionState.Previewing && Destination != null && PositionState == PositionState.Found && plannedFrom.HasValue
+                && plannedFrom.Value.DistanceTo(pose.Floor, pose.X, pose.Z) > ReplanMetres)
+            {
+                Replan("moved while previewing");
+            }
 
             NotifyChanged();
         }
 
         /// <summary>
-        /// Moves the progress forward through every route node the user has reached. At a floor
-        /// link it stops and waits for the user to confirm the new floor; at the last node it arrives.
+        /// Moves the progress forward through every route node the user has reached or walked past.
+        /// At a floor link it stops and waits for the new floor (screen E); at the last node it arrives.
         /// </summary>
         private void AdvanceAlongRoute(PlanPose pose)
         {
@@ -946,10 +1048,22 @@ namespace IndoorNavigation.Core.Session
                 return;
             }
 
+            // Nodes behind the user's place on the route count as passed, so a corner cut more than the
+            // arrival radius away does not stall the progress (the snap never crosses a floor link).
+            RouteSnap snap = RouteProgress.Snap(Route, NextNodeIndex, pose);
+            if (snap.OnRoute && snap.OffRouteMetres <= OnRouteMetres)
+            {
+                while (NextNodeIndex < snap.NextIndex && NextNodeIndex < Route.Nodes.Count - 1)
+                {
+                    if (PassNode()) return;
+                }
+            }
+
             while (NextNodeIndex < Route.Nodes.Count)
             {
                 GraphNode next = Route.Nodes[NextNodeIndex];
-                if (pose.DistanceTo(next.Floor, next.X, next.Z) > ArrivalRadiusMetres)
+                double radius = IsFloorLink(NextNodeIndex) ? FloorLinkRadiusMetres : ArrivalRadiusMetres;
+                if (pose.DistanceTo(next.Floor, next.X, next.Z) > radius)
                 {
                     return;
                 }
@@ -961,15 +1075,106 @@ namespace IndoorNavigation.Core.Session
                     return;
                 }
 
-                NextNodeIndex++;
-                if (Route.Nodes[NextNodeIndex].Floor != next.Floor)
+                if (PassNode()) return;
+            }
+        }
+
+        /// <summary>True when the route leaves the node's floor right after it (stairs or a lift).</summary>
+        private bool IsFloorLink(int index) =>
+            index + 1 < Route.Nodes.Count && Route.Nodes[index + 1].Floor != Route.Nodes[index].Floor;
+
+        /// <summary>
+        /// Moves past the next node. After a floor link the progress goes on to where the ride or the
+        /// stairs end (a lift from floor 1 to 3 passes floor 2's node), and waits there for the user to
+        /// arrive (screen E). True when it now waits.
+        /// </summary>
+        private bool PassNode()
+        {
+            GraphNode passed = Route.Nodes[NextNodeIndex];
+            NextNodeIndex++;
+            if (Route.Nodes[NextNodeIndex].Floor == passed.Floor) return false;
+            while (NextNodeIndex + 1 < Route.Nodes.Count && IsFloorLink(NextNodeIndex)) NextNodeIndex++;
+            AwaitingFloorChange = true;
+            Log("floor", "at " + passed.Kind.ToString().ToLowerInvariant() + " to floor "
+                + Route.Nodes[NextNodeIndex].Floor.ToString(CultureInfo.InvariantCulture));
+            return true;
+        }
+
+        // ------------------------------------------------------------------
+        // Floor changes noticed by the barometer (build 21)
+        // ------------------------------------------------------------------
+
+        /// <summary>The floor is known now: the barometer counts floor changes from here.</summary>
+        private void RebaseFloorChange()
+        {
+            floorChange.Rebase();
+            floorChangeBase = UserFloor;
+        }
+
+        private void OnAltitudeChanged(double metres, double seconds)
+        {
+            int? moved = floorChange.Update(metres, seconds);
+            if (!moved.HasValue || Venue == null) return;
+            int floor = floorChangeBase + moved.Value;
+            Log("floor", string.Format(CultureInfo.InvariantCulture, "barometer settled {0:+0;-0;0} floor(s) from floor {1}", moved.Value, floorChangeBase));
+            if (floor == UserFloor || !FloorExists(floor)) return;
+
+            if (State == SessionState.Navigating && Route != null)
+            {
+                if (AwaitingFloorChange)
                 {
+                    // At the lift or stairs: arriving on the floor the route goes on from confirms it;
+                    // a stop on a floor in between (a lift halting at 2 on the way to 3) does not.
+                    if (floor == NextFloor) ConfirmFloor(floor, "barometer: on floor");
+                    return;
+                }
+
+                // Not at a floor link yet (tracking lost on the way, or a corner cut): if the route
+                // changes to that floor further on, jump to it.
+                for (int i = Math.Max(0, NextNodeIndex - 1); i + 1 < Route.Nodes.Count; i++)
+                {
+                    if (!IsFloorLink(i)) continue;
+                    int end = i + 1;
+                    while (end + 1 < Route.Nodes.Count && IsFloorLink(end)) end++;
+                    if (Route.Nodes[end].Floor != floor) break; // the route's next floor change goes elsewhere
+                    NextNodeIndex = end;
                     AwaitingFloorChange = true;
-                    Log("floor", "at " + next.Kind.ToString().ToLowerInvariant() + " to floor "
-                        + Route.Nodes[NextNodeIndex].Floor.ToString(CultureInfo.InvariantCulture));
+                    ConfirmFloor(floor, "barometer: on floor (ahead of the route)");
                     return;
                 }
             }
+
+            // Anywhere else in the building: show that floor and find the position there; a route is
+            // planned again once the position is found.
+            if (State == SessionState.ChoosingBuilding || State == SessionState.GettingData || State == SessionState.Locating) return;
+            SwitchFloor(floor);
+        }
+
+        private bool FloorExists(int floor)
+        {
+            foreach (FloorInfo info in Floors)
+            {
+                if (info.Number == floor) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>The user is on another floor than the app thought: show it and find the position there.</summary>
+        private void SwitchFloor(int floor)
+        {
+            AwaitingFloorChange = false;
+            UserFloor = floor;
+            View.ShowFloor(floor);
+            RebaseFloorChange();
+            Log("floor", "barometer: now on floor " + floor.ToString(CultureInfo.InvariantCulture));
+            replanWhenFound = Destination != null && (State == SessionState.Previewing || State == SessionState.Navigating);
+            position.StartLocatingOnFloor(floor);
+            Relocating = true;
+            ChoosingFloor = false;
+            RelocatingAfterFloorChange = false;
+            StartGuide();
+            NotifyChanged();
         }
 
         // ------------------------------------------------------------------

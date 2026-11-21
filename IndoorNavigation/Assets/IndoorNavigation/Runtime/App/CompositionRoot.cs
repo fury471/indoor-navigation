@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using IndoorNavigation.Adapters;
 using IndoorNavigation.Adapters.AR;
 using IndoorNavigation.Adapters.Data;
+using IndoorNavigation.Adapters.Device;
 using IndoorNavigation.Adapters.Placeholders;
 using IndoorNavigation.Core.Ports;
 using IndoorNavigation.Core.Positioning;
@@ -159,14 +160,22 @@ namespace IndoorNavigation.App
                 attitude = placeholderAttitude;
             }
 
+            // The barometer notices a floor change after a lift ride or the stairs (build 21). Only a phone has one.
+            IosAltimeter altimeter = onPhone ? gameObject.AddComponent<IosAltimeter>() : null;
+
             // 2. The core, with the ports plugged in.
             var study = new StudySettings { ParticipantCode = config.participantCode, Condition = config.condition };
             string rememberedVenue = config.rememberBuilding ? PlayerPrefs.GetString(LastVenueKey, "") : "";
             session = new AppSession(
                 placeholderDirectory, placeholderRepository, position, placeholderSearch,
-                attitude, log, clock, study, rememberedVenue);
+                attitude, log, clock, study, rememberedVenue, altimeter);
             session.Changed += OnSessionChanged;
             if (realPosition != null) realPosition.Diagnostic += session.LogExternal;
+            if (altimeter != null)
+            {
+                altimeter.Diagnostic += detail => session.LogExternal("barometer", detail);
+                altimeter.Begin();
+            }
             if (recorder != null) recorder.Diagnostic += session.LogExternal;
 
             // 3. The screens: one presenter per screen code (screen index in the blueprint).

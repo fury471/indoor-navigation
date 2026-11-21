@@ -28,18 +28,20 @@ namespace IndoorNavigation.UI
         private const double LabelMinArea = 6.0;
         private const float ConeRadius = 46f;
 
-        // The building's own room-booking screen style (Fury, 21 Nov 2026): one light ground, rooms and halls
-        // barely apart, walls as clean dark lines of one weight, rooms named by their number. Outside the
-        // recorded zones the same drawing is a step quieter, so the part you can be guided in stays clear.
+        // Build 21 colour system (Fury: "follow principles instead of assigning colour arbitrarily").
+        // Three fills, one meaning each, an even step apart in lightness (CIELAB L* 94.7, 97.2, 100):
+        // outside the building (the blueprint's ground token), inside it (halls and corridors), and rooms
+        // (the blueprint's surface token). The recorded zones differ only in their walls, never in fill, so
+        // the plan no longer looks patchy. Every wall keeps at least 3:1 against the fills beside it (WCAG
+        // 2.2, 1.4.11 Non-text Contrast); door swings and stair treads are details and stay lighter. The
+        // accent (teal) is kept for the route.
         private static readonly Color Ground = new Color32(0xEE, 0xF0, 0xF2, 0xFF);
-        private static readonly Color Room = new Color32(0xFB, 0xFB, 0xFC, 0xFF);
-        private static readonly Color Hall = new Color32(0xF4, 0xF5, 0xF7, 0xFF);
-        private static readonly Color RoomQuiet = new Color32(0xF8, 0xF9, 0xFA, 0xFF);
-        private static readonly Color HallQuiet = new Color32(0xF2, 0xF3, 0xF5, 0xFF);
-        private static readonly Color WallDemo = new Color32(0x3F, 0x45, 0x4D, 0xFF);
-        private static readonly Color WallQuiet = new Color32(0x8A, 0x90, 0x99, 0xFF);
-        private static readonly Color Detail = new Color32(0x9A, 0xA0, 0xA8, 0xFF);
-        private static readonly Color DetailQuiet = new Color32(0xC4, 0xC8, 0xCE, 0xFF);
+        private static readonly Color Room = new Color32(0xFF, 0xFF, 0xFF, 0xFF);
+        private static readonly Color Hall = new Color32(0xF6, 0xF7, 0xF9, 0xFF);
+        private static readonly Color WallDemo = new Color32(0x3F, 0x45, 0x4D, 0xFF);   // 9.0:1 on halls
+        private static readonly Color WallQuiet = new Color32(0x86, 0x8C, 0x95, 0xFF);  // 3.2:1 on halls
+        private static readonly Color Detail = new Color32(0xA3, 0xA9, 0xB1, 0xFF);
+        private static readonly Color DetailQuiet = new Color32(0xC9, 0xCD, 0xD3, 0xFF);
         private static readonly Color Accent = new Color32(0x0F, 0x76, 0x6E, 0xFF);
         private static readonly Color Walked = new Color32(0xB8, 0xBE, 0xC6, 0xFF);
         private static readonly Color You = new Color32(0x25, 0x63, 0xEB, 0xFF);
@@ -391,11 +393,14 @@ namespace IndoorNavigation.UI
             bool navigating = nextNode > 0 && nextNode < route.Nodes.Count && snap.OnRoute;
             PlanPose? at = snap.OnRoute ? new PlanPose(floor, snap.X, snap.Z, 0) : (PlanPose?)null;
             int ahead = snap.OnRoute ? snap.NextIndex : 0;
+            bool leadIn = snap.OnRoute && snap.OffRouteMetres > 0.05 && !uncertain
+                && LineOfSight.Clear(Plan, here.Value.X, here.Value.Z, snap.X, snap.Z);
+            PlanPose? from = leadIn ? here : null;
 
             painter.strokeColor = Color.white;
             painter.lineWidth = 9f;
             if (navigating) RoutePath(painter, toScreen, 0, ahead - 1, null, at);
-            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null);
+            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null, from);
             painter.lineWidth = 5f;
             if (navigating)
             {
@@ -404,11 +409,13 @@ namespace IndoorNavigation.UI
             }
 
             painter.strokeColor = uncertain ? new Color32(0xB3, 0xD7, 0xD4, 255) : Accent;
-            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null);
+            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null, from);
 
-            // Off the line by more than a step: a dotted link from the dot to the route, as walking
-            // directions draw it, instead of a solid line through whatever lies between.
-            if (snap.OnRoute && snap.OffRouteMetres > 0.8) Dotted(painter, toScreen(here.Value.X, here.Value.Z), toScreen(snap.X, snap.Z));
+            // Build 21: the route starts at the dot. Off the line, the way to it is part of the route when
+            // nothing stands between (as map apps join you to the route); through a wall it stays a dotted
+            // hint, never a solid line through the wall.
+            if (snap.OnRoute && snap.OffRouteMetres > 0.8 && !leadIn)
+                Dotted(painter, toScreen(here.Value.X, here.Value.Z), toScreen(snap.X, snap.Z));
 
             // Floor connection badge where the route leaves this floor (blueprint legend).
             for (int i = 0; i + 1 < route.Nodes.Count; i++)
@@ -420,12 +427,13 @@ namespace IndoorNavigation.UI
             if (route.End.Floor == floor) Pin(painter, toScreen(route.End.X, route.End.Z));
         }
 
+        /// <summary>A hint through a wall: small route-coloured dots, spaced as the other-floor dots.</summary>
         private static void Dotted(Painter2D painter, Vector2 from, Vector2 to)
         {
             float length = (to - from).magnitude;
             if (length < 1f) return;
             Vector2 step = (to - from) / length;
-            for (float d = 4f; d < length - 2f; d += 8f) Dot(painter, from + step * d, 2f, Walked, 0f);
+            for (float d = 6f; d < length - 3f; d += 9f) Dot(painter, from + step * d, 2f, Accent, 1f);
         }
 
         /// <summary>Where the walked part ends: you, when you are on this floor.</summary>
@@ -435,9 +443,10 @@ namespace IndoorNavigation.UI
         /// Strokes the route's nodes <paramref name="from"/> to <paramref name="to"/> that lie on this
         /// floor, optionally starting at <paramref name="start"/> and ending at <paramref name="end"/>.
         /// </summary>
-        private void RoutePath(Painter2D painter, Func<double, double, Vector2> toScreen, int from, int to, PlanPose? start, PlanPose? end)
+        private void RoutePath(Painter2D painter, Func<double, double, Vector2> toScreen, int from, int to, PlanPose? start, PlanPose? end, PlanPose? leadIn = null)
         {
             var points = new List<Vector2>();
+            if (leadIn.HasValue) points.Add(toScreen(leadIn.Value.X, leadIn.Value.Z));
             if (start.HasValue) points.Add(toScreen(start.Value.X, start.Value.Z));
             for (int i = Math.Max(0, from); i <= to && i < route.Nodes.Count; i++)
             {
@@ -461,34 +470,38 @@ namespace IndoorNavigation.UI
             if (points.Count < 2) return;
             if (otherFloor)
             {
-                float travelled = 0;
+                // The route on a floor you are not on: evenly spaced round dots (build 20 test: the dashes
+                // were dense, because round caps filled their gaps). Dots read as "not here yet", as map apps
+                // draw walking legs; their size and spacing follow the line width, as Mapbox sizes dash
+                // patterns in line widths, and a dot sits on every bend so the route's shape stays clear.
+                // Drawn on the white casing pass as a ring, on the colour pass as the dot.
+                bool casing = painter.lineWidth > 6f;
+                float radius = casing ? OtherFloorDot / 2 + 1.5f : OtherFloorDot / 2;
+                Color colour = painter.strokeColor;
                 for (int i = 1; i < points.Count; i++)
                 {
-                    Vector2 delta = points[i] - points[i - 1];
-                    float length = delta.magnitude;
-                    for (float d = 0; d < length;)
-                    {
-                        float phase = travelled % 14f;
-                        float part = Mathf.Min(length - d, (phase < 9f ? 9f : 14f) - phase);
-                        if (part < 0.001f) part = Mathf.Min(0.001f, length - d);
-                        if (phase < 9f) Line(painter, points[i - 1] + delta * (d / length), points[i - 1] + delta * ((d + part) / length));
-                        d += part; travelled += part;
-                    }
+                    Vector2 a = points[i - 1], b = points[i];
+                    float length = (b - a).magnitude;
+                    int n = Mathf.Max(1, Mathf.RoundToInt(length / OtherFloorSpacing));
+                    for (int k = i == 1 ? 0 : 1; k <= n; k++) Dot(painter, Vector2.Lerp(a, b, (float)k / n), radius, colour, 0f);
                 }
+
                 return;
             }
+
             painter.BeginPath();
             painter.MoveTo(points[0]);
             for (int i = 1; i < points.Count; i++) painter.LineTo(points[i]);
             painter.Stroke();
         }
 
-        private static Color ColourOf(PlanSpace space)
-        {
-            bool hall = space.Kind == PlanSpaceKind.Corridor || space.Kind == PlanSpaceKind.Other;
-            if (!space.InDemo) return hall ? HallQuiet : RoomQuiet;
-            return hall ? Hall : Room;
-        }
+        /// <summary>The other-floor route: dot diameter (a little over the 5 px line) and centre spacing (2.2 dots).</summary>
+        private const float OtherFloorDot = 6f;
+        private const float OtherFloorSpacing = 13f;
+
+        /// <summary>Rooms (and WCs, lifts, stairs) are white; the building's footprint and its halls one step darker.</summary>
+        private static Color ColourOf(PlanSpace space) =>
+            space.Kind == PlanSpaceKind.Corridor || space.Kind == PlanSpaceKind.Other ? Hall : Room;
 
         /// <summary>A wall counts as the demo zone's when its middle lies inside a demo zone (or within 1 m of one).</summary>
         private void ClassifyWalls(FloorPlan plan)
@@ -617,7 +630,7 @@ namespace IndoorNavigation.UI
         private const float AmenityTextFromPixelsPerMetre = 12f;
         private const float RoomFontPixels = 11f;
         private const float AmenityFontPixels = 10f;
-        private const float BadgePixels = 24f;
+        private const float BadgePixels = MapPoiIcon.Size;
         private readonly List<MapLabel> mapLabels = new List<MapLabel>();
 
         private void MakeLabels()
@@ -641,12 +654,7 @@ namespace IndoorNavigation.UI
                 {
                     item.Root = new VisualElement { pickingMode = PickingMode.Ignore };
                     item.Root.AddToClassList("map-poi");
-                    var badge = new VisualElement { pickingMode = PickingMode.Ignore };
-                    badge.AddToClassList("map-poi__badge");
-                    var glyph = new NavigationIcon(icon, NavigationIcon.White) { pickingMode = PickingMode.Ignore };
-                    glyph.style.scale = new Scale(new Vector3(0.7f, 0.7f, 1f)); // the 24-unit glyph inside a 24 px disc
-                    badge.Add(glyph);
-                    item.Root.Add(badge);
+                    item.Root.Add(new MapPoiIcon(icon));
                     item.Text = new Label { pickingMode = PickingMode.Ignore };
                     item.Text.AddToClassList("map-poi__text");
                     item.Root.Add(item.Text);
@@ -658,7 +666,7 @@ namespace IndoorNavigation.UI
                     item.Root = item.Text;
                 }
 
-                if (!space.InDemo) item.Root.AddToClassList("map-label--quiet");
+                if (!space.InDemo && icon == null) item.Root.AddToClassList("map-label--quiet");
                 item.Root.style.display = DisplayStyle.None;
                 mapLabels.Add(item);
                 Add(item.Root);

@@ -224,4 +224,33 @@ namespace IndoorNavigation.Core.Tests
 
         public void Report(double pitchDegrees) => PitchChanged?.Invoke(pitchDegrees);
     }
+
+    internal sealed class FakeAltimeter : IAltimeter
+    {
+        public event Action<double, double> AltitudeChanged;
+
+        public bool Available { get; set; } = true;
+
+        public double Seconds { get; private set; }
+
+        /// <summary>Holds <paramref name="metres"/> for <paramref name="forSeconds"/>, one reading a second, as Core Motion does.</summary>
+        public void Hold(double metres, double forSeconds)
+        {
+            for (double t = 0; t < forSeconds; t += 1)
+            {
+                Seconds += 1;
+                AltitudeChanged?.Invoke(metres, Seconds);
+            }
+        }
+
+        /// <summary>Moves from <paramref name="from"/> to <paramref name="to"/> over <paramref name="seconds"/>, as a lift ride or a flight of stairs.</summary>
+        public void Ride(double from, double to, double seconds)
+        {
+            for (double t = 1; t <= seconds; t += 1)
+            {
+                Seconds += 1;
+                AltitudeChanged?.Invoke(from + ((to - from) * t / seconds), Seconds);
+            }
+        }
+    }
 }

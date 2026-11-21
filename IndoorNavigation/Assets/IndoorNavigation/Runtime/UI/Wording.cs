@@ -53,7 +53,7 @@ namespace IndoorNavigation.UI
                 string title = link.Kind == NodeKind.Lift
                     ? "Take the lift to floor " + session.NextFloor.ToString(CultureInfo.InvariantCulture)
                     : "Take the stairs " + direction + " to floor " + session.NextFloor.ToString(CultureInfo.InvariantCulture);
-                return (title, "Confirm the floor when you get there");
+                return (title, session.DetectsFloorChanges ? "The app notices when you arrive" : "Confirm the floor when you get there");
             }
 
             if (session.PositionState != PositionState.Found)

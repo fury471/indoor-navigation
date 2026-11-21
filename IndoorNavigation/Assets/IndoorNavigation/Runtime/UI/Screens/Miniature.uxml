@@ -14,7 +14,7 @@
                 <ui:Button name="show-2d" text="2D" class="segment" />
                 <ui:Button name="show-3d" text="3D" class="segment segment--on" />
             </ui:VisualElement>
-            <ui:Label name="hint" text="Drag to rotate · pinch to zoom" class="miniature-hint" picking-mode="Ignore" />
+            <ui:Label name="hint" text="Drag to move · pinch to zoom · twist to turn · two fingers up or down to tilt" class="miniature-hint" picking-mode="Ignore" />
         </ui:VisualElement>
         <ui:VisualElement class="sheet route-sheet">
             <ui:VisualElement class="sheet-handle" />
