@@ -61,6 +61,10 @@ namespace IndoorNavigation.Adapters.AR
         private ARAnchorManager anchorManager;
         private AlignmentRecord mapRecord;
         private bool useAnchorAlignment;
+        private readonly Dictionary<string, ArMark> anchorPoseBuffer = new Dictionary<string, ArMark>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ArMark> lastFittedAnchors = new Dictionary<string, ArMark>(StringComparer.Ordinal);
+        private readonly List<ARRaycastHit> doorFixHits = new List<ARRaycastHit>();
+        private int loadFailuresInRotation;
 
         private int floor;
         private PlanAlignment alignment;
@@ -75,6 +79,10 @@ namespace IndoorNavigation.Adapters.AR
         private int attempts;
         private int checkPoints;
         private string lastTracking;
+        private bool hasTrackingSample;
+        private TrackingState lastTrackingState;
+        private NotTrackingReason lastNotTrackingReason;
+        private ARSessionState lastArSessionState;
         private float trackingChangedAt;
         private float lastProgressLog;
 
@@ -107,29 +115,50 @@ namespace IndoorNavigation.Adapters.AR
 
         private Dictionary<string, ArMark> ReadAnchorPoses()
         {
-            var poses = new Dictionary<string, ArMark>(StringComparer.Ordinal);
-            if (anchorManager == null || origin.TrackablesParent == null) return poses;
+            anchorPoseBuffer.Clear();
+            if (anchorManager == null || origin.TrackablesParent == null) return anchorPoseBuffer;
             foreach (ARAnchor anchor in anchorManager.trackables)
             {
                 if (anchor == null || anchor.trackingState != TrackingState.Tracking) continue;
                 string id = anchor.trackableId.ToString();
                 Vector3 p = origin.TrackablesParent.InverseTransformPoint(anchor.transform.position);
-                poses[id] = new ArMark(id, p.x, p.y, p.z);
+                anchorPoseBuffer[id] = new ArMark(id, p.x, p.y, p.z);
             }
-            return poses;
+            return anchorPoseBuffer;
         }
 
         private void RefreshAnchorAlignment()
         {
             if (!useAnchorAlignment || !inMapFrame || mapRecord == null) return;
-            List<ArMark> live = mapRecord.ResolveMarks(ReadAnchorPoses());
+            Dictionary<string, ArMark> poses = ReadAnchorPoses();
+            if (!AnchorsMoved(poses)) return;
+            List<ArMark> live = mapRecord.ResolveMarks(poses);
             // Do not change the fit's marker set when a corner temporarily loses tracking.
             if (live.Count != mapRecord.markers.Length) return;
             IReadOnlyList<MarkerInfo> fallback = mapRecord.RecordedPlanMarkers();
             // Without a published plan, the saved coordinates define a stable plan frame.
             if (fallback.Count < PlanAlignment.MinimumMarkers) fallback = DoorList.RecordingFrame(mapRecord.ToArMarks());
             PlanAlignment updated = MarkerPairing.TryFit(areas(CurrentArea)?.Markers, fallback, live, out _);
-            if (updated != null) alignment = updated;
+            if (updated != null)
+            {
+                alignment = updated;
+                lastFittedAnchors.Clear();
+                foreach (KeyValuePair<string, ArMark> kv in poses) lastFittedAnchors[kv.Key] = kv.Value;
+            }
+        }
+
+        private bool AnchorsMoved(Dictionary<string, ArMark> current)
+        {
+            if (lastFittedAnchors.Count != current.Count) return true;
+            const double epsilon2 = 1e-8; // 0.1 mm
+            foreach (KeyValuePair<string, ArMark> kv in current)
+            {
+                if (!lastFittedAnchors.TryGetValue(kv.Key, out ArMark prev)) return true;
+                double dx = kv.Value.X - prev.X, dy = kv.Value.Y - prev.Y, dz = kv.Value.Z - prev.Z;
+                if ((dx * dx) + (dy * dy) + (dz * dz) > epsilon2) return true;
+            }
+
+            return false;
         }
 
         /// <summary>True while the area's map is waiting for the AR session before it is applied.</summary>
@@ -237,6 +266,8 @@ namespace IndoorNavigation.Adapters.AR
             pendingAlignment = null;
             mapRecord = null;
             useAnchorAlignment = false;
+            lastFittedAnchors.Clear();
+            loadFailuresInRotation = 0;
             waitingForRelocalisation = false;
             inMapFrame = false;
             attempts = 0;
@@ -312,6 +343,7 @@ namespace IndoorNavigation.Adapters.AR
             inMapFrame = true;
             mapRecord = store.ReadAlignment(areaId, checked((int)store.TryReadInfo(areaId).Value.Bytes));
             useAnchorAlignment = true;
+            lastFittedAnchors.Clear();
             alignment = fitted ?? RecordingFrameFit(store.ReadMarks(areaId));
             if (alignment == null)
             {
@@ -539,6 +571,10 @@ namespace IndoorNavigation.Adapters.AR
             {
                 Status = $"{CurrentArea}: map failed: {e.Message}; start at a door";
                 Report("position", "map failed: " + e.Message);
+                if (rotation != null && rotation.Count > 1 && ++loadFailuresInRotation < rotation.Count)
+                {
+                    TryNextMap(rotation.Next(), "after a load error");
+                }
             }
         }
 
@@ -624,11 +660,13 @@ namespace IndoorNavigation.Adapters.AR
             // No reset here: LoadMap applies the next map and resets once. A reset without a map in
             // between would restart tracking twice per switch.
             useAnchorAlignment = false;
+            lastFittedAnchors.Clear();
             mapRecord = null;
             waitingForRelocalisation = false;
             CurrentArea = next;
             pendingAlignment = null;
             loadPending = next != null;
+            if (next == null) return;
             Status = $"{next}: loading the world map ({why})";
             Report("position", "trying world map " + next + " (" + why + "), " + rotation.Describe());
         }
@@ -682,15 +720,17 @@ namespace IndoorNavigation.Adapters.AR
                 return false;
             }
 
-            var hits = new List<ARRaycastHit>();
+            doorFixHits.Clear();
             var middle = new Vector2(Screen.width / 2f, Screen.height / 2f);
-            if (!raycasts.Raycast(middle, hits, TrackableType.PlaneWithinPolygon | TrackableType.PlaneEstimated) || hits.Count == 0)
+            bool hit = raycasts.Raycast(middle, doorFixHits, TrackableType.PlaneWithinPolygon) && doorFixHits.Count > 0;
+            if (!hit) hit = raycasts.Raycast(middle, doorFixHits, TrackableType.PlaneEstimated) && doorFixHits.Count > 0;
+            if (!hit)
             {
                 FixMessage = "No floor found under the circle yet. Move the phone slowly over the floor by the door, then mark.";
                 return false;
             }
 
-            Vector3 world = hits[0].pose.position; // hits are sorted nearest first
+            Vector3 world = doorFixHits[0].pose.position; // hits are sorted nearest first
             if (cameraTransform.position.y - world.y < MinimumDropToFloorMetres)
             {
                 FixMessage = "That looks higher than the floor. Aim at the corner where the door frame meets the floor.";
@@ -738,6 +778,15 @@ namespace IndoorNavigation.Adapters.AR
         /// </summary>
         private void ReportTrackingChanges()
         {
+            TrackingState tracking = Session.trackingState;
+            NotTrackingReason reason = Session.notTrackingReason;
+            ARSessionState arState = ARSession.state;
+            if (hasTrackingSample && tracking == lastTrackingState && reason == lastNotTrackingReason && arState == lastArSessionState) return;
+            hasTrackingSample = true;
+            lastTrackingState = tracking;
+            lastNotTrackingReason = reason;
+            lastArSessionState = arState;
+
             string now = TrackingText();
             if (now == lastTracking) return;
             float t = Time.realtimeSinceStartup;

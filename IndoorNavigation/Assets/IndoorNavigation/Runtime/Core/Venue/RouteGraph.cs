@@ -99,7 +99,7 @@ namespace IndoorNavigation.Core.Venue
         public GraphNode NearestNode(int floor, double x, double z)
         {
             GraphNode best = null;
-            double bestDistance = double.MaxValue;
+            double bestDistance2 = double.MaxValue;
             foreach (GraphNode node in nodes.Values)
             {
                 if (node.Floor != floor)
@@ -107,11 +107,13 @@ namespace IndoorNavigation.Core.Venue
                     continue;
                 }
 
-                double distance = PlanDistance(node.X, node.Z, x, z);
-                if (distance < bestDistance)
+                double dx = node.X - x;
+                double dz = node.Z - z;
+                double distance2 = (dx * dx) + (dz * dz);
+                if (distance2 < bestDistance2)
                 {
                     best = node;
-                    bestDistance = distance;
+                    bestDistance2 = distance2;
                 }
             }
 

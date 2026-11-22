@@ -11,6 +11,10 @@ namespace IndoorNavigation.UI.Screens
         private readonly Label building;
         private readonly TextField request;
         private readonly Button search;
+        private readonly VisualElement discovery;
+        private readonly VisualElement typingSection;
+        private readonly VisualElement typedPlaces;
+        private readonly VisualElement common;
         private VenuePackage renderedVenue;
         private string lastSessionRequest;
 
@@ -20,6 +24,10 @@ namespace IndoorNavigation.UI.Screens
             request = Find<TextField>("request");
             SearchField.Decorate(request, "A place, or what you need");
             search = Find<Button>("search");
+            discovery = Find<VisualElement>("discovery");
+            typingSection = Find<VisualElement>("typing");
+            typedPlaces = Find<VisualElement>("typed-places");
+            common = Find<VisualElement>("common");
             Find<Button>("change").clicked += () => RunAsync(Session.ChangeBuildingAsync());
             search.clicked += () => RunAsync(Session.AskAsync(request.value));
             Find<Button>("browse").clicked += () => Session.BrowsePlaces();
@@ -53,11 +61,11 @@ namespace IndoorNavigation.UI.Screens
             }
             if (renderedVenue == Session.Venue) return;
             renderedVenue = Session.Venue;
-            var common = Find<VisualElement>("common");
             common.Clear();
             foreach (string term in new[] { "Toilet", "Printer", "Charger", "Kitchen", "Exit" })
             {
-                var chip = new Button(() => Session.BrowsePlaces(term)) { text = term };
+                string chipTerm = term;
+                var chip = new Button(() => Session.BrowsePlaces(chipTerm)) { text = chipTerm };
                 chip.AddToClassList("common-chip");
                 common.Add(chip);
             }
@@ -68,14 +76,14 @@ namespace IndoorNavigation.UI.Screens
         {
             bool typing = !string.IsNullOrWhiteSpace(request.value);
             search.SetEnabled(typing);
-            SetVisible(Find<VisualElement>("discovery"), !typing);
-            var places = Find<VisualElement>("typed-places");
-            places.Clear();
+            SetVisible(discovery, !typing);
+            typedPlaces.Clear();
             var matches = Session.NamedPlaces(request.value);
-            SetVisible(Find<VisualElement>("typing"), matches.Count > 0);
+            SetVisible(typingSection, matches.Count > 0);
             foreach (Place place in matches)
             {
-                ListRows.Row(places, ListRows.Tile("place"), place.Name, Wording.Where(Session.Venue, place), () => Session.PickNamedPlace(place.Id));
+                string placeId = place.Id;
+                ListRows.Row(typedPlaces, ListRows.Tile("place"), place.Name, Wording.Where(Session.Venue, place), () => Session.PickNamedPlace(placeId));
             }
         }
     }

@@ -83,7 +83,10 @@ namespace IndoorNavigation.App
         private AppSession session;
         private AreaMapStore mapStore;
         private WorldMapPositionSource realPositionSource;
+        private IosAltimeter altimeterSource;
+        private Action<string> altimeterDiagnostic;
         private ArRouteOverlay overlay;
+        private readonly List<DoorInfo> visibleDoors = new List<DoorInfo>();
         private bool showDoorsInAr;
         private float nextOverlayAt;
 
@@ -162,6 +165,7 @@ namespace IndoorNavigation.App
 
             // The barometer notices a floor change after a lift ride or the stairs (build 21). Only a phone has one.
             IosAltimeter altimeter = onPhone ? gameObject.AddComponent<IosAltimeter>() : null;
+            altimeterSource = altimeter;
 
             // 2. The core, with the ports plugged in.
             var study = new StudySettings { ParticipantCode = config.participantCode, Condition = config.condition };
@@ -173,7 +177,8 @@ namespace IndoorNavigation.App
             if (realPosition != null) realPosition.Diagnostic += session.LogExternal;
             if (altimeter != null)
             {
-                altimeter.Diagnostic += detail => session.LogExternal("barometer", detail);
+                altimeterDiagnostic = detail => session.LogExternal("barometer", detail);
+                altimeter.Diagnostic += altimeterDiagnostic;
                 altimeter.Begin();
             }
             if (recorder != null) recorder.Diagnostic += session.LogExternal;
@@ -288,13 +293,13 @@ namespace IndoorNavigation.App
             {
                 // Only the doors in the frame the position is in now: before the package places every
                 // recording on one plan, each recording has its own.
-                var doors = new List<DoorInfo>();
+                visibleDoors.Clear();
                 foreach (DoorInfo door in realPositionSource.Doors)
                 {
-                    if (door.AreaId == realPositionSource.CurrentArea) doors.Add(door);
+                    if (door.AreaId == realPositionSource.CurrentArea) visibleDoors.Add(door);
                 }
 
-                overlay.ShowDoors(alignment, doors);
+                overlay.ShowDoors(alignment, visibleDoors);
             }
             else
             {
@@ -310,7 +315,14 @@ namespace IndoorNavigation.App
 
         private void OnDestroy()
         {
-            if (session != null) session.Changed -= OnSessionChanged;
+            if (session != null)
+            {
+                session.Changed -= OnSessionChanged;
+                if (realPositionSource != null) realPositionSource.Diagnostic -= session.LogExternal;
+                if (mapRecorder != null) mapRecorder.Diagnostic -= session.LogExternal;
+                if (altimeterSource != null && altimeterDiagnostic != null) altimeterSource.Diagnostic -= altimeterDiagnostic;
+                session.Dispose();
+            }
         }
 
         /// <summary>Two small platform jobs that follow the session: the camera and the remembered building.</summary>

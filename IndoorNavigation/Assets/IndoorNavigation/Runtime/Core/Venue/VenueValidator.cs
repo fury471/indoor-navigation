@@ -88,6 +88,7 @@ namespace IndoorNavigation.Core.Venue
 
         private static void CheckPlaces(VenuePackage package, List<string> problems)
         {
+            var visited = new HashSet<string>();
             foreach (Place place in package.Places)
             {
                 if (place.ParentId != null && package.FindPlace(place.ParentId) == null)
@@ -95,6 +96,20 @@ namespace IndoorNavigation.Core.Venue
                     problems.Add($"Place '{place.Id}' has a parent '{place.ParentId}' that does not exist.");
                     continue;
                 }
+
+                visited.Clear();
+                bool cyclic = false;
+                for (Place current = place; current != null; current = package.ParentOf(current))
+                {
+                    if (!visited.Add(current.Id))
+                    {
+                        problems.Add($"Place '{place.Id}' has a cyclic parent chain.");
+                        cyclic = true;
+                        break;
+                    }
+                }
+
+                if (cyclic) continue;
 
                 string approach = package.ApproachNodeOf(place);
                 if (approach == null)

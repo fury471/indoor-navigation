@@ -36,6 +36,7 @@ namespace IndoorNavigation.UI.Screens
         private const float LabelHeight = 20f;
 
         private readonly IMiniatureView view;
+        private readonly Label instruction;
         private readonly Label destination;
         private readonly Label summary;
         private readonly VisualElement viewport;
@@ -43,6 +44,7 @@ namespace IndoorNavigation.UI.Screens
         private readonly Image picture = new Image { pickingMode = PickingMode.Ignore, scaleMode = ScaleMode.StretchToFill };
         private readonly Dictionary<int, Vector2> pointers = new Dictionary<int, Vector2>();
         private readonly List<(Label Label, double X, double Y, double Z, bool Centred)> labels = new List<(Label, double, double, double, bool)>();
+        private readonly List<Rect> placedLabels = new List<Rect>();
 
         private MiniatureModel model;
         private object builtVenue;
@@ -54,6 +56,7 @@ namespace IndoorNavigation.UI.Screens
         public MiniaturePresenter(VisualElement root, AppSession session, IMiniatureView miniatureView) : base(root, session)
         {
             view = miniatureView;
+            instruction = Find<Label>("instruction");
             destination = Find<Label>("destination");
             summary = Find<Label>("summary");
             viewport = Find<VisualElement>("viewport");
@@ -100,7 +103,7 @@ namespace IndoorNavigation.UI.Screens
             if (Session.Route == null || Session.Destination == null) return;
 
             destination.text = Session.Destination.Name;
-            Find<Label>("instruction").text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Title : "Route to " + Session.Destination.Name;
+            instruction.text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Title : "Route to " + Session.Destination.Name;
             string via = Session.Route.UsesStairs ? " · stairs" : Session.Route.UsesLift ? " · lift" : "";
             summary.text = Session.State == SessionState.Navigating ? Wording.Instruction(Session).Detail
                 : Wording.Where(Session.Venue, Session.Destination) + " · " + Wording.Metres(Session.Route.LengthMetres) + via;
@@ -135,6 +138,12 @@ namespace IndoorNavigation.UI.Screens
             bool now = Session.Screen == ScreenCodes.Miniature3D && Root.style.display.value != DisplayStyle.None;
             if (now == shown) return;
             shown = now;
+            if (!now)
+            {
+                pointers.Clear();
+                ResetTwoFingers();
+            }
+
             view?.SetActive(now);
             if (now) Resize();
         }
@@ -191,10 +200,12 @@ namespace IndoorNavigation.UI.Screens
                     float scale = isNow.magnitude / was.magnitude;
                     float twist = Vector2.SignedAngle(was, isNow); // UI y runs down, so positive is clockwise on screen
                     float lift = (now.y - before.y) / 2f;            // the middle between the fingers moves half as far
+                    bool countedTwist = false;
                     if (twoFingers == TwoFingers.Undecided)
                     {
                         pinchSoFar += Mathf.Abs(Mathf.Log(scale)) * 100f;
                         twistSoFar += twist;
+                        countedTwist = true;
                         tiltSoFar += lift;
                         bool sideBySide = Mathf.Abs(isNow.x) > Mathf.Abs(isNow.y);
                         if (sideBySide && Mathf.Abs(tiltSoFar) > DecideAfterPoints && pinchSoFar < 6f && Mathf.Abs(twistSoFar) < 6f) twoFingers = TwoFingers.Tilt;
@@ -208,7 +219,7 @@ namespace IndoorNavigation.UI.Screens
                     else if (twoFingers == TwoFingers.PinchAndTwist)
                     {
                         view?.Zoom(1f / scale);
-                        twistSoFar += twist;
+                        if (!countedTwist) twistSoFar += twist;
                         if (!twisting && Mathf.Abs(twistSoFar) > TwistFromDegrees) twisting = true;
                         if (twisting) view?.Rotate(twist);
                     }
@@ -267,7 +278,7 @@ namespace IndoorNavigation.UI.Screens
             picture.MarkDirtyRepaint();
             Rect area = viewport.contentRect;
             // Labels never cover each other: a label that would overlap one already placed moves down.
-            var placed = new List<Rect>();
+            placedLabels.Clear();
             foreach (var entry in labels)
             {
                 Vector2 p = default;
@@ -280,10 +291,10 @@ namespace IndoorNavigation.UI.Screens
                 width = Mathf.Min(width, Mathf.Max(1, area.width - 16));
                 float x = p.x * area.width, y = p.y * area.height;
                 var box = new Rect(entry.Centred ? x - (width / 2) : x - 4, y - 22, width, LabelHeight);
-                for (int tries = 0; tries < 8 && Overlaps(box, placed); tries++) box.y += LabelHeight + 2;
+                for (int tries = 0; tries < 8 && Overlaps(box, placedLabels); tries++) box.y += LabelHeight + 2;
                 box.x = Mathf.Clamp(box.x, 8, Mathf.Max(8, area.width - width - 8));
                 box.y = Mathf.Clamp(box.y, 8, Mathf.Max(8, area.height - LabelHeight - 8));
-                placed.Add(box);
+                placedLabels.Add(box);
                 entry.Label.style.maxWidth = Mathf.Max(1, area.width - 16);
                 entry.Label.style.left = box.x;
                 entry.Label.style.top = box.y;

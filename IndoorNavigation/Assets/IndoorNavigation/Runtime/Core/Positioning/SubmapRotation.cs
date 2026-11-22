@@ -165,14 +165,16 @@ namespace IndoorNavigation.Core.Positioning
             }
 
             if (coveredCells == null || coveredCells.Count == 0) return null;
-            double best = double.MaxValue;
+            double best2 = double.MaxValue;
             foreach ((int i, int j) in coveredCells)
             {
                 double cx = (i + 0.5) * MapCoverage.CellMetres, cz = (j + 0.5) * MapCoverage.CellMetres;
                 double dx = cameraX - cx, dz = cameraZ - cz;
-                best = Math.Min(best, Math.Sqrt((dx * dx) + (dz * dz)));
+                double d2 = (dx * dx) + (dz * dz);
+                if (d2 < best2) best2 = d2;
             }
 
+            double best = Math.Sqrt(best2);
             return best <= MaxMetresFromCoverage
                 ? null
                 : string.Format(CultureInfo.InvariantCulture, "camera {0:F1} m from anything the map covers", best);

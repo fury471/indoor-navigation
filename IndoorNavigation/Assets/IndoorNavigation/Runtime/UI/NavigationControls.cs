@@ -277,6 +277,7 @@ namespace IndoorNavigation.UI
 
         private void ShowFloors()
         {
+            if (session.Venue == null) return;
             var body = panels.Open("Choose floor", "Looking at another floor does not move you.");
             VisualElement card = ListRows.Card(body);
             for (int i = session.Venue.Manifest.Floors.Count - 1; i >= 0; i--)
@@ -356,6 +357,7 @@ namespace IndoorNavigation.UI
 
         public void Close()
         {
+            if (!opened) return;
             opened = false;
             ScreenPresenter.SetVisible(overlay, false);
             session.SetViewInteraction(false);
@@ -372,12 +374,16 @@ namespace IndoorNavigation.UI
             for (int i = 1; i <= count; i++)
             {
                 GraphNode from = session.Route.Nodes[i - 1], to = session.Route.Nodes[i];
-                bool floorChange = from.Floor != to.Floor;
+                int floorsMoved = Math.Abs(to.Floor - from.Floor);
+                bool floorChange = floorsMoved > 0;
                 double dx = to.X - from.X, dz = to.Z - from.Z;
                 string icon = floorChange || to.Kind == NodeKind.Stairs ? "steps" : i == count ? "place" : to.Kind == NodeKind.Door ? "straight" : "turn";
+                string value = floorChange
+                    ? (floorsMoved == 1 ? "1 floor" : floorsMoved.ToString(System.Globalization.CultureInfo.InvariantCulture) + " floors")
+                    : Wording.Metres(Math.Sqrt((dx * dx) + (dz * dz)));
                 VisualElement row = ListRows.Info(card, ListRows.Tile(icon), Wording.RouteStep(session, i),
                     floorChange ? "Confirm the floor in the app when you get there" : Wording.Floor(to.Floor),
-                    ListRows.Value(floorChange ? "1 floor" : Wording.Metres(Math.Sqrt((dx * dx) + (dz * dz)))));
+                    ListRows.Value(value));
                 if (i != current) continue;
                 row.AddToClassList("list-row--on");
                 ListRows.Pill(ListRows.Copy(row), "Now", "pill--solid").SendToBack();

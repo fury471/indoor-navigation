@@ -525,6 +525,65 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual(2, session.UserFloor);
         }
 
+        [Test]
+        public void ALiftRideOverTwoFloors_BeforeReachingTheLiftNode_IgnoresIntermediateStop()
+        {
+            venue = ThreeFloors();
+            session = new AppSession(new FakeDirectory(venue), new FakeRepository(venue), position, search, attitude, log, clock, study, null, altimeter);
+            Run(session.StartAsync());
+            Run(session.DownloadAsync("three-floors"));
+            position.SetFound(new PlanPose(1, 0, 0, 0));
+            altimeter.Hold(0, 5);
+            session.PickNamedPlace("top");
+            session.StartRoute();
+
+            // Tracking lost before reaching the lift doors, so AwaitingFloorChange is still false.
+            position.SetLost();
+            Assert.IsFalse(session.AwaitingFloorChange);
+
+            // Lift halts at floor 2 on the way to floor 3: must not switch to floor 2.
+            altimeter.Ride(0, 4, 8);
+            altimeter.Hold(4, 5);
+            Assert.AreEqual(1, session.UserFloor, "Intermediate floor stop must be ignored.");
+            Assert.IsFalse(session.Relocating);
+
+            // Lift continues to floor 3: jumps ahead and confirms floor 3.
+            altimeter.Ride(4, 8, 8);
+            altimeter.Hold(8, 4);
+            Assert.AreEqual(3, session.UserFloor);
+            Assert.AreEqual(3, position.LocatingFloor);
+            Assert.IsTrue(session.Relocating);
+        }
+
+        [Test]
+        public void SetViewInteraction_SameValue_DoesNotNotifyAgain()
+        {
+            GoToPreview("workshop");
+            int changes = 0;
+            session.Changed += () => changes++;
+
+            session.SetViewInteraction(true);
+            session.SetViewInteraction(true);
+            session.SetViewInteraction(false);
+            session.SetViewInteraction(false);
+
+            Assert.AreEqual(2, changes);
+        }
+
+        [Test]
+        public void Dispose_UnsubscribesFromPorts()
+        {
+            GoToPreview("workshop");
+            int changes = 0;
+            session.Changed += () => changes++;
+
+            session.Dispose();
+            position.MoveTo(new PlanPose(1, 20, 20, 0));
+            altimeter.Hold(0, 5);
+
+            Assert.AreEqual(0, changes);
+        }
+
         /// <summary>Three floors and one lift: start on floor 1, "top" on floor 3.</summary>
         private static VenuePackage ThreeFloors()
         {

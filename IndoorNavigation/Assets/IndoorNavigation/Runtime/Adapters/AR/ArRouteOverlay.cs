@@ -33,9 +33,17 @@ namespace IndoorNavigation.Adapters.AR
         private Material trackMaterial;
         private Material pinMaterial;
         private Material doorMaterial;
+        private Material plainSource;
+        private bool ownsPlainSource;
         private Mesh trackMesh;
+        private Mesh pinMesh;
         private GameObject track;
         private GameObject pin;
+        private readonly List<Vector3> sessionPoints = new List<Vector3>();
+        private readonly List<Vector3> roundedPoints = new List<Vector3>();
+        private readonly List<Vector3> lastTrackPoints = new List<Vector3>();
+        private float lastMetresToDestination = float.NaN;
+        private bool lastReachesDestination;
         private readonly List<Vector3> vertices = new List<Vector3>();
         private readonly List<Vector2> uvs = new List<Vector2>();
         private readonly List<Color> colours = new List<Color>();
@@ -59,14 +67,13 @@ namespace IndoorNavigation.Adapters.AR
                 }
 
                 source = new Material(shader);
+                ownsPlainSource = true;
             }
 
             doorMaterial = Tinted(source, DoorColour);
             pinMaterial = Tinted(source, DestinationColour);
             plainSource = source;
         }
-
-        private Material plainSource;
 
         /// <summary>
         /// The parent that holds session coordinates: the XR Origin's trackables. XROrigin creates it in
@@ -109,9 +116,19 @@ namespace IndoorNavigation.Adapters.AR
             float y = (float)alignment.FloorHeight + AboveFloorMetres;
             if (planPoints != null && planPoints.Count >= 2)
             {
-                var session = new List<Vector3>(planPoints.Count);
-                foreach ((double X, double Z) p in planPoints) session.Add(ToSession(alignment, p, y));
-                BuildTrack(Rounded(session, CornerRadiusMetres), (float)metresToDestination, reachesDestination);
+                sessionPoints.Clear();
+                for (int i = 0; i < planPoints.Count; i++) sessionPoints.Add(ToSession(alignment, planPoints[i], y));
+                float metres = (float)metresToDestination;
+                if (TrackChanged(sessionPoints, metres, reachesDestination))
+                {
+                    RoundInto(sessionPoints, CornerRadiusMetres, roundedPoints);
+                    BuildTrack(roundedPoints, metres, reachesDestination);
+                    lastTrackPoints.Clear();
+                    lastTrackPoints.AddRange(sessionPoints);
+                    lastMetresToDestination = metres;
+                    lastReachesDestination = reachesDestination;
+                }
+
                 SetActive(track, true);
             }
             else
@@ -137,14 +154,32 @@ namespace IndoorNavigation.Adapters.AR
             SetActive(pin, false);
         }
 
+        private bool TrackChanged(List<Vector3> points, float metresToDestination, bool reachesDestination)
+        {
+            if (track == null || lastReachesDestination != reachesDestination || lastTrackPoints.Count != points.Count) return true;
+            if (float.IsNaN(lastMetresToDestination) || Mathf.Abs(lastMetresToDestination - metresToDestination) > 0.005f) return true;
+            for (int i = 0; i < points.Count; i++)
+            {
+                if ((lastTrackPoints[i] - points[i]).sqrMagnitude > 0.000025f) return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Rounds every corner with a quadratic curve through the corner, at most
         /// <paramref name="radius"/> from it and at most half of each leg, so turns read as smooth bends.
         /// </summary>
-        private static List<Vector3> Rounded(List<Vector3> points, float radius)
+        private static void RoundInto(List<Vector3> points, float radius, List<Vector3> result)
         {
-            if (points.Count < 3) return points;
-            var result = new List<Vector3> { points[0] };
+            result.Clear();
+            if (points.Count < 3)
+            {
+                result.AddRange(points);
+                return;
+            }
+
+            result.Add(points[0]);
             for (int i = 1; i < points.Count - 1; i++)
             {
                 Vector3 a = points[i - 1], c = points[i], b = points[i + 1];
@@ -166,7 +201,6 @@ namespace IndoorNavigation.Adapters.AR
             }
 
             result.Add(points[points.Count - 1]);
-            return result;
         }
 
         /// <summary>A strip of quads along the points: uv.x across (0 to 1), uv.y the metres left to the destination.</summary>
@@ -277,11 +311,31 @@ namespace IndoorNavigation.Adapters.AR
             mesh.SetVertices(points);
             mesh.SetTriangles(indices, 0);
             mesh.RecalculateBounds();
+            pinMesh = mesh;
             root.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer meshRenderer = root.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = pinMaterial;
             meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return root;
+        }
+
+        private void OnDestroy()
+        {
+            if (trackMesh != null) Destroy(trackMesh);
+            if (pinMesh != null) Destroy(pinMesh);
+            if (trackMaterial != null) Destroy(trackMaterial);
+            if (pinMaterial != null) Destroy(pinMaterial);
+            if (doorMaterial != null) Destroy(doorMaterial);
+            if (ownsPlainSource && plainSource != null) Destroy(plainSource);
+            if (track != null) Destroy(track);
+            if (pin != null) Destroy(pin);
+            foreach (LineRenderer post in doorPosts)
+            {
+                if (post != null) Destroy(post.gameObject);
+            }
+
+            doorPosts.Clear();
+            cornerPosts.Clear();
         }
 
         /// <summary>

@@ -28,8 +28,10 @@ namespace IndoorNavigation.UI
         /// <summary>"Lab 2 · Floor 2": the room a place is in, and its floor.</summary>
         public static string Where(VenuePackage venue, Place place)
         {
+            if (venue == null || place == null) return "";
             Place space = place;
-            while (space != null && space.Kind != PlaceKind.Space)
+            int limit = venue.Places.Count + 1;
+            while (space != null && space.Kind != PlaceKind.Space && limit-- > 0)
             {
                 space = venue.ParentOf(space);
             }

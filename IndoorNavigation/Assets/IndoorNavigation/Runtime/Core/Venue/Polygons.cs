@@ -127,6 +127,7 @@ namespace IndoorNavigation.Core.Venue
         /// </summary>
         public static (double X, double Z) LabelPoint(IReadOnlyList<PlanPoint> p)
         {
+            if (p == null || p.Count == 0) return (0, 0);
             double a2 = SignedArea2(p), cx = 0, cz = 0;
             for (int i = 0, j = p.Count - 1; i < p.Count; j = i++)
             {

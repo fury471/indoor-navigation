@@ -15,6 +15,16 @@ namespace IndoorNavigation.UI.Screens
     {
         private readonly Label instruction;
         private readonly Label instructionDetail;
+        private readonly Button stepsButton;
+        private readonly VisualElement instructionIcon;
+        private readonly VisualElement warningIcon;
+        private readonly VisualElement otherFloorCard;
+        private readonly Label floorShown;
+        private readonly Label floorNotice;
+        private readonly VisualElement destinationRow;
+        private readonly Button detailsButton;
+        private readonly Button showTipsButton;
+        private readonly Label mapStatus;
         private readonly VisualElement positionBanner;
         private readonly VisualElement floorCard;
         private readonly Label floorQuestion;
@@ -27,11 +37,22 @@ namespace IndoorNavigation.UI.Screens
         private readonly CompassIcon compass = new CompassIcon();
         private readonly MapControls controls;
         private readonly NavigationPanels panels;
+        private bool endConfirmOpen;
 
         public NavigateMapPresenter(VisualElement root, AppSession session) : base(root, session)
         {
             instruction = Find<Label>("instruction");
             instructionDetail = Find<Label>("instruction-detail");
+            stepsButton = Find<Button>("steps");
+            instructionIcon = Find<VisualElement>("instruction-icon");
+            warningIcon = Find<VisualElement>("warning-icon");
+            otherFloorCard = Find<VisualElement>("other-floor");
+            floorShown = Find<Label>("floor-shown");
+            floorNotice = Find<Label>("floor-notice");
+            destinationRow = Find<VisualElement>("destination-row");
+            detailsButton = Find<Button>("details");
+            showTipsButton = Find<Button>("show-tips");
+            mapStatus = Find<Label>("map-status");
             positionBanner = Find<VisualElement>("position-banner");
             floorCard = Find<VisualElement>("floor-card");
             floorQuestion = Find<Label>("floor-question");
@@ -43,13 +64,13 @@ namespace IndoorNavigation.UI.Screens
             map.EnableInteraction(Session.SetViewInteraction);
             panels = new NavigationPanels(root, session);
             controls = new MapControls(root, session, panels, map.Recentre);
-            Find<VisualElement>("instruction-icon").Add(new NavigationIcon("turn"));
-            Find<VisualElement>("warning-icon").Add(new NavigationIcon("warning", NavigationIcon.Warning));
+            instructionIcon.Add(new NavigationIcon("turn"));
+            warningIcon.Add(new NavigationIcon("warning", NavigationIcon.Warning));
             Find<VisualElement>("floors-icon").Add(new NavigationIcon("floors", NavigationIcon.Muted));
             Find<VisualElement>("destination-icon").Add(new PinIcon());
-            Find<Button>("steps").clicked += panels.ShowSteps;
-            Find<Button>("details").clicked += panels.ShowDetails;
-            Find<Button>("show-tips").clicked += panels.ShowTips;
+            stepsButton.clicked += panels.ShowSteps;
+            detailsButton.clicked += panels.ShowDetails;
+            showTipsButton.clicked += panels.ShowTips;
             Find<Button>("my-floor").clicked += () => { map.Recentre(); Session.Show2DMap(); };
             Find<Button>("show-3d").clicked += () => Session.ShowMiniature(true);
             orientation = Find<Button>("orientation");
@@ -58,14 +79,23 @@ namespace IndoorNavigation.UI.Screens
 
             confirmFloor.clicked += () => Session.ConfirmFloor(Session.NextFloor);
             Find<Button>("fix-position").clicked += Session.FixPosition;
-            Find<Button>("end-route").clicked += () => { Session.SetViewInteraction(true); SetVisible(endConfirm, true); };
-            Find<Button>("keep-going").clicked += () => { SetVisible(endConfirm, false); Session.SetViewInteraction(false); };
+            Find<Button>("end-route").clicked += () => { endConfirmOpen = true; Session.SetViewInteraction(true); SetVisible(endConfirm, true); };
+            Find<Button>("keep-going").clicked += () => { endConfirmOpen = false; SetVisible(endConfirm, false); Session.SetViewInteraction(false); };
             Find<Button>("end").clicked += () =>
             {
+                endConfirmOpen = false;
                 SetVisible(endConfirm, false);
                 Session.EndRoute();
             };
             SetVisible(endConfirm, false);
+            Session.Changed += () =>
+            {
+                if (endConfirmOpen && (Session.Relocating || Session.State != SessionState.Navigating))
+                {
+                    endConfirmOpen = false;
+                    SetVisible(endConfirm, false);
+                }
+            };
         }
 
         public override void Render()
@@ -82,18 +112,17 @@ namespace IndoorNavigation.UI.Screens
             // so "My floor" sits where the eye already is (blueprint C).
             instruction.text = lost ? "Position uncertain" : title;
             instructionDetail.text = lost ? "Turn instructions are paused" : detail;
-            Find<Button>("steps").EnableInClassList("instruction-card--warning", lost);
-            SetVisible(Find<Button>("steps"), !otherFloor);
-            SetVisible(Find<VisualElement>("instruction-icon"), !lost);
-            SetVisible(Find<VisualElement>("warning-icon"), lost);
-            SetVisible(Find<VisualElement>("other-floor"), otherFloor);
-            Find<Label>("floor-shown").text = "Viewing " + Wording.Floor(Session.View.FloorShown).ToLowerInvariant();
-            Find<Label>("floor-notice").text = "You're on " + Wording.Floor(Session.UserFloor).ToLowerInvariant();
-            SetVisible(Find<VisualElement>("destination-row"), !lost && !Session.AwaitingFloorChange);
+            stepsButton.EnableInClassList("instruction-card--warning", lost);
+            SetVisible(stepsButton, !otherFloor);
+            SetVisible(instructionIcon, !lost);
+            SetVisible(warningIcon, lost);
+            SetVisible(otherFloorCard, otherFloor);
+            floorShown.text = "Viewing " + Wording.Floor(Session.View.FloorShown).ToLowerInvariant();
+            floorNotice.text = "You're on " + Wording.Floor(Session.UserFloor).ToLowerInvariant();
+            SetVisible(destinationRow, !lost && !Session.AwaitingFloorChange);
             // Blueprint F: while the position is uncertain the sheet offers two actions, tips and End route.
-            SetVisible(Find<Button>("details"), !lost);
-            SetVisible(Find<Button>("show-tips"), lost);
-            var mapStatus = Find<Label>("map-status");
+            SetVisible(detailsButton, !lost);
+            SetVisible(showTipsButton, lost);
             mapStatus.text = lost ? (Session.LastKnownPose.HasValue && Session.LastKnownPose.Value.Floor == Session.View.FloorShown ? "Last known position" : "Last position: another floor")
                 : Session.View.HoldView ? "View locked" : "";
             SetVisible(mapStatus, mapStatus.text.Length > 0);

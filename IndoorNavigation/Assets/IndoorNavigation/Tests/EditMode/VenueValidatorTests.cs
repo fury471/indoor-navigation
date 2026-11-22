@@ -110,5 +110,20 @@ namespace IndoorNavigation.Core.Tests
 
             StringAssert.Contains("does not link two floors", VenueValidator.Validate(venue)[0]);
         }
+
+        [Test]
+        public void CyclicPlaceParents_AreReportedWithoutHanging()
+        {
+            var places = new[]
+            {
+                new Place("a", PlaceKind.Space, "A", floor: 0, parentId: "b"),
+                new Place("b", PlaceKind.Space, "B", floor: 0, parentId: "a"),
+            };
+            var venue = new VenuePackage(SampleVenue.Manifest(), places, SampleVenue.Graph());
+
+            Assert.That(VenueValidator.Validate(venue), Has.Some.Contains("cyclic parent chain"));
+            Assert.IsNull(venue.ApproachNodeOf(places[0]));
+            Assert.AreEqual(0, venue.FloorOf(places[0]));
+        }
     }
 }

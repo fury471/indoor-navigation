@@ -17,7 +17,7 @@ namespace IndoorNavigation.Core.Session
     /// screen shows has changed. Screens call its public methods (requests) and read its
     /// properties; they never open each other (decision record 2).
     /// </summary>
-    public sealed class AppSession
+    public sealed class AppSession : IDisposable
     {
         /// <summary>A route node counts as reached within this distance.</summary>
         public const double ArrivalRadiusMetres = 1.5;
@@ -95,6 +95,19 @@ namespace IndoorNavigation.Core.Session
             tilt.PoseChanged += OnTiltPoseChanged;
             this.altimeter = altimeter;
             if (altimeter != null) altimeter.AltitudeChanged += OnAltitudeChanged;
+        }
+
+        public void Dispose()
+        {
+            machine.StateChanged -= OnStateChanged;
+            position.StateChanged -= OnPositionStateChanged;
+            position.PoseChanged -= OnPoseChanged;
+            attitude.PitchChanged -= OnPitchChanged;
+            tilt.PoseChanged -= OnTiltPoseChanged;
+            if (altimeter != null) altimeter.AltitudeChanged -= OnAltitudeChanged;
+            downloadCancel?.Cancel();
+            downloadCancel?.Dispose();
+            downloadCancel = null;
         }
 
         /// <summary>True when the barometer can notice a floor change, so screen E can say it will.</summary>
@@ -851,21 +864,23 @@ namespace IndoorNavigation.Core.Session
         /// <summary>Keep a sheet or map gesture on screen while the phone moves.</summary>
         public void SetViewInteraction(bool interacting)
         {
+            if (View.Interacting == interacting) return;
             View.SetInteracting(interacting);
             if (!interacting) View.SetPose(tilt.Pose);
             NotifyChanged();
         }
 
         /// <summary>
-        /// Where the route starts: of the nodes nearest the user that they can see on the plan (no wall
-        /// between), the one that makes the whole way shortest, counting the steps to reach it. So the
-        /// route neither begins in the room behind a wall nor first walks back to a node behind the user
-        /// (build 20). Falls back to the nearest visible node, then the nearest node.
+        /// Plans the route from where the user stands: of the nodes nearest the user that they can see
+        /// on the plan (no wall between), picks the one that makes the whole way shortest, counting the
+        /// steps to reach it. So the route neither begins in the room behind a wall nor first walks back
+        /// to a node behind the user (build 20). Falls back to the nearest visible node, then the nearest node.
         /// </summary>
-        private GraphNode StartNode(string to)
+        private Route FindBestRoute(string to)
         {
+            if (to == null) return null;
             FloorPlan plan = Venue.PlanOf(UserFloor);
-            GraphNode nearest = Venue.Graph.NearestNode(UserFloor, Pose.X, Pose.Z);
+            var options = new RouteOptions(AvoidStairs);
             var nodes = new List<GraphNode>();
             foreach (GraphNode node in Venue.Graph.Nodes)
             {
@@ -873,8 +888,8 @@ namespace IndoorNavigation.Core.Session
             }
 
             nodes.Sort((a, b) => Pose.DistanceTo(a.Floor, a.X, a.Z).CompareTo(Pose.DistanceTo(b.Floor, b.X, b.Z)));
-            var options = new RouteOptions(AvoidStairs);
-            GraphNode best = null, firstVisible = null;
+            Route bestRoute = null;
+            GraphNode firstVisible = null;
             double bestCost = double.MaxValue;
             for (int i = 0; i < nodes.Count && i < 8; i++)
             {
@@ -883,17 +898,19 @@ namespace IndoorNavigation.Core.Session
                 if (reach >= bestCost) break; // farther than the best whole way: no later node can win
                 if (plan != null && !LineOfSight.Clear(plan, Pose.X, Pose.Z, node.X, node.Z)) continue;
                 if (firstVisible == null) firstVisible = node;
-                Route way = to == null ? null : RoutePlanner.FindRoute(Venue.Graph, node.Id, to, options);
+                Route way = RoutePlanner.FindRoute(Venue.Graph, node.Id, to, options);
                 if (way == null) continue;
                 double cost = reach + Cost(way);
                 if (cost < bestCost)
                 {
                     bestCost = cost;
-                    best = node;
+                    bestRoute = way;
                 }
             }
 
-            return best ?? firstVisible ?? nearest;
+            if (bestRoute != null) return bestRoute;
+            GraphNode fallback = firstVisible ?? Venue.Graph.NearestNode(UserFloor, Pose.X, Pose.Z);
+            return fallback == null ? null : RoutePlanner.FindRoute(Venue.Graph, fallback.Id, to, options);
         }
 
         /// <summary>What the planner minimises: metres walked, plus <see cref="RoutePlanner.FloorChangeCost"/> per floor.</summary>
@@ -915,8 +932,7 @@ namespace IndoorNavigation.Core.Session
         private void PlanRoute()
         {
             string to = Venue.ApproachNodeOf(Destination);
-            GraphNode from = StartNode(to);
-            Route = from == null || to == null ? null : RoutePlanner.FindRoute(Venue.Graph, from.Id, to, new RouteOptions(AvoidStairs));
+            Route = FindBestRoute(to);
             plannedFrom = Pose;
             Log("route", Route == null
                 ? "none"
@@ -1130,17 +1146,27 @@ namespace IndoorNavigation.Core.Session
                 }
 
                 // Not at a floor link yet (tracking lost on the way, or a corner cut): if the route
-                // changes to that floor further on, jump to it.
+                // changes to that floor further on, jump to it. A stop on a floor passed along that
+                // link (e.g. a lift halting at 2 on the way to 3) is ignored, just like when awaiting.
                 for (int i = Math.Max(0, NextNodeIndex - 1); i + 1 < Route.Nodes.Count; i++)
                 {
                     if (!IsFloorLink(i)) continue;
                     int end = i + 1;
                     while (end + 1 < Route.Nodes.Count && IsFloorLink(end)) end++;
-                    if (Route.Nodes[end].Floor != floor) break; // the route's next floor change goes elsewhere
-                    NextNodeIndex = end;
-                    AwaitingFloorChange = true;
-                    ConfirmFloor(floor, "barometer: on floor (ahead of the route)");
-                    return;
+                    if (Route.Nodes[end].Floor == floor)
+                    {
+                        NextNodeIndex = end;
+                        AwaitingFloorChange = true;
+                        ConfirmFloor(floor, "barometer: on floor (ahead of the route)");
+                        return;
+                    }
+
+                    for (int pass = i + 1; pass < end; pass++)
+                    {
+                        if (Route.Nodes[pass].Floor == floor) return;
+                    }
+
+                    break; // the route's next floor change goes elsewhere
                 }
             }
 

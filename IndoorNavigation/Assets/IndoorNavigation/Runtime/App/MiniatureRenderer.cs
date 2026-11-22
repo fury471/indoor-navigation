@@ -74,6 +74,9 @@ namespace IndoorNavigation.App
         private Vector3 minBound = Place, maxBound = Place;
         private float zoom = 1f;
         private float maxZoom = 2.5f;
+        private bool hasFrame;
+        private bool active;
+        private bool dirty;
 
         /// <param name="unlit">The route material (URP > Unlit); copied once per colour.</param>
         public void Init(Material unlit)
@@ -105,12 +108,16 @@ namespace IndoorNavigation.App
 
         public Texture Picture => texture;
 
-        public void SetActive(bool active)
+        public void SetActive(bool on)
         {
             if (view == null) return;
-            if (active) HideFromOtherCameras();
-            view.enabled = active && texture != null;
-            modelRoot.gameObject.SetActive(active);
+            active = on;
+            if (on)
+            {
+                HideFromOtherCameras();
+                dirty = true;
+            }
+            modelRoot.gameObject.SetActive(on);
         }
 
         public void SetSize(int width, int height)
@@ -128,8 +135,8 @@ namespace IndoorNavigation.App
             texture = new RenderTexture(width, height, 24) { name = "Miniature", antiAliasing = 4 };
             view.targetTexture = texture;
             view.aspect = (float)width / height;
-            view.enabled = modelRoot.gameObject.activeSelf;
             PlaceCamera();
+            dirty = true;
         }
 
         public void Show(MiniatureModel model)
@@ -147,9 +154,10 @@ namespace IndoorNavigation.App
                 // Framed on the route; zooming out goes far enough to see everything drawn. A rebuild while
                 // the user walks keeps their pan, turn and tilt; a new route frames afresh.
                 Vector3 framed = Place + new Vector3((float)model.FocusX, (float)model.FocusY, (float)model.FocusZ);
-                bool newFrame = (framed - focus).sqrMagnitude > 25f || Mathf.Abs((float)model.NorthDegrees - startYaw) > 0.5f;
+                bool newFrame = !hasFrame || (framed - focus).sqrMagnitude > 25f || Mathf.Abs((float)model.NorthDegrees - startYaw) > 0.5f;
                 Vector3 panned = target - focus;
                 focus = framed;
+                hasFrame = true;
                 minBound = Place + new Vector3((float)model.MinX, (float)model.MinY, (float)model.MinZ);
                 maxBound = Place + new Vector3((float)model.MaxX, (float)model.MaxY, (float)model.MaxZ);
                 radius = Mathf.Max(5f, (float)model.FocusRadius);
@@ -248,6 +256,15 @@ namespace IndoorNavigation.App
             view.transform.SetPositionAndRotation(position, turn);
             view.nearClipPlane = Mathf.Max(0.1f, distance - (radius * maxZoom * 2f));
             view.farClipPlane = distance + (radius * maxZoom * 2f);
+            dirty = true;
+        }
+
+        /// <summary>Renders the miniature on demand, only on frames where the camera or model changed.</summary>
+        private void LateUpdate()
+        {
+            if (!active || !dirty || view == null || texture == null) return;
+            dirty = false;
+            view.Render();
         }
 
         private void AddPiece(MiniaturePart kind, MeshPart part)
@@ -288,7 +305,9 @@ namespace IndoorNavigation.App
         private Material MaterialFor(MiniaturePart kind)
         {
             if (materials.TryGetValue(kind, out Material material)) return material;
-            material = template != null ? new Material(template) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            Shader fallback = template == null ? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default") : null;
+            material = template != null ? new Material(template) : fallback != null ? new Material(fallback) : null;
+            if (material == null) return null;
             material.name = "Miniature " + kind;
             Color colour = Colours.TryGetValue(kind, out Color c) ? c : Color.gray;
             if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", colour);

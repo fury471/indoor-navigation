@@ -46,6 +46,8 @@ extern "C"
     {
         if (inAltimeter != nil) [inAltimeter stopRelativeAltitudeUpdates];
         inAltimeter = nil;
+        inMetres = 0.0;
+        inSeconds = -1.0;
         inState = 0;
     }
 

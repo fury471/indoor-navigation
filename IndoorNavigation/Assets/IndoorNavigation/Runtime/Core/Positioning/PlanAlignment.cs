@@ -199,18 +199,19 @@ namespace IndoorNavigation.Core.Positioning
 
         private static double Spread(IReadOnlyList<MarkerPair> markers, bool plan)
         {
-            double widest = 0;
+            double widest2 = 0;
             for (int i = 0; i < markers.Count; i++)
             {
                 for (int j = i + 1; j < markers.Count; j++)
                 {
                     double dx = plan ? markers[i].PlanX - markers[j].PlanX : markers[i].ArX - markers[j].ArX;
                     double dz = plan ? markers[i].PlanZ - markers[j].PlanZ : markers[i].ArZ - markers[j].ArZ;
-                    widest = Math.Max(widest, Math.Sqrt(dx * dx + dz * dz));
+                    double d2 = (dx * dx) + (dz * dz);
+                    if (d2 > widest2) widest2 = d2;
                 }
             }
 
-            return widest;
+            return Math.Sqrt(widest2);
         }
 
         private static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);

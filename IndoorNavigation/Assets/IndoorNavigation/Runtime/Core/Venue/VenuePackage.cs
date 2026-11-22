@@ -10,6 +10,8 @@ namespace IndoorNavigation.Core.Venue
     public sealed class VenuePackage
     {
         private readonly Dictionary<string, Place> placesById = new Dictionary<string, Place>();
+        private readonly Dictionary<int, FloorPlan> plansByFloor = new Dictionary<int, FloorPlan>();
+        private readonly Dictionary<string, AreaInfo> areasById = new Dictionary<string, AreaInfo>();
 
         public VenuePackage(VenueManifest manifest, IReadOnlyList<Place> places, RouteGraph graph, IReadOnlyList<FloorPlan> plans = null)
         {
@@ -27,6 +29,22 @@ namespace IndoorNavigation.Core.Venue
 
                 placesById.Add(place.Id, place);
             }
+
+            foreach (FloorPlan plan in Plans)
+            {
+                if (!plansByFloor.ContainsKey(plan.Floor))
+                {
+                    plansByFloor.Add(plan.Floor, plan);
+                }
+            }
+
+            foreach (AreaInfo area in Manifest.Areas)
+            {
+                if (!areasById.ContainsKey(area.Id))
+                {
+                    areasById.Add(area.Id, area);
+                }
+            }
         }
 
         public VenueManifest Manifest { get; }
@@ -37,15 +55,7 @@ namespace IndoorNavigation.Core.Venue
         public IReadOnlyList<FloorPlan> Plans { get; }
 
         /// <summary>The plan of this floor, or null when the package has none.</summary>
-        public FloorPlan PlanOf(int floor)
-        {
-            foreach (FloorPlan plan in Plans)
-            {
-                if (plan.Floor == floor) return plan;
-            }
-
-            return null;
-        }
+        public FloorPlan PlanOf(int floor) => plansByFloor.TryGetValue(floor, out FloorPlan plan) ? plan : null;
 
         public string Id => Manifest.VenueId;
         public string Name => Manifest.Name;
@@ -56,17 +66,19 @@ namespace IndoorNavigation.Core.Venue
         public Place FindPlace(string id) => id != null && placesById.TryGetValue(id, out Place place) ? place : null;
 
         /// <summary>The place's parent, or null for a top-level space.</summary>
-        public Place ParentOf(Place place) => FindPlace(place.ParentId);
+        public Place ParentOf(Place place) => place == null ? null : FindPlace(place.ParentId);
 
         /// <summary>The floor of a place, taken from the nearest ancestor that states one. 0 if none does.</summary>
         public int FloorOf(Place place)
         {
-            for (Place current = place; current != null; current = ParentOf(current))
+            int limit = placesById.Count + 1;
+            for (Place current = place; current != null && limit-- > 0; current = ParentOf(current))
             {
                 if (current.Floor != 0) return current.Floor;
-                if (current.ApproachNodeId != null && Graph.Node(current.ApproachNodeId) != null)
+                if (current.ApproachNodeId != null)
                 {
-                    return Graph.Node(current.ApproachNodeId).Floor;
+                    GraphNode node = Graph.Node(current.ApproachNodeId);
+                    if (node != null) return node.Floor;
                 }
             }
 
@@ -76,7 +88,8 @@ namespace IndoorNavigation.Core.Venue
         /// <summary>Where the route ends for this place: its own approach node, or its nearest ancestor's.</summary>
         public string ApproachNodeOf(Place place)
         {
-            for (Place current = place; current != null; current = ParentOf(current))
+            int limit = placesById.Count + 1;
+            for (Place current = place; current != null && limit-- > 0; current = ParentOf(current))
             {
                 if (!string.IsNullOrEmpty(current.ApproachNodeId)) return current.ApproachNodeId;
             }
@@ -84,15 +97,7 @@ namespace IndoorNavigation.Core.Venue
             return null;
         }
 
-        public AreaInfo Area(string areaId)
-        {
-            foreach (AreaInfo area in Manifest.Areas)
-            {
-                if (area.Id == areaId) return area;
-            }
-
-            return null;
-        }
+        public AreaInfo Area(string areaId) => areaId != null && areasById.TryGetValue(areaId, out AreaInfo area) ? area : null;
 
         /// <summary>The first area on a floor; a floor change loads its world map.</summary>
         public AreaInfo AreaOnFloor(int floor)

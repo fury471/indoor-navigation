@@ -48,6 +48,58 @@ namespace IndoorNavigation.UI
         private static readonly Color Destination = new Color32(0xD9, 0x48, 0x0F, 0xFF);
         private static readonly Color Muted = new Color32(0x5B, 0x62, 0x70, 0xFF);
         private static readonly Color Glass = new Color32(0x9F, 0xC5, 0xE8, 0xFF);
+        private static readonly float[] ConeRadii = { ConeRadius, ConeRadius * 0.72f, ConeRadius * 0.45f };
+        private static readonly float[] ConeAlphas = { 0.10f, 0.12f, 0.16f };
+        private static readonly Vector2[] UnitCircle = BuildUnitCircle(28);
+
+        private static Vector2[] BuildUnitCircle(int steps)
+        {
+            var points = new Vector2[steps + 1];
+            for (int i = 0; i <= steps; i++)
+            {
+                float angle = i * Mathf.PI * 2f / steps;
+                points[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            }
+
+            return points;
+        }
+
+        private readonly struct ScreenTransform
+        {
+            private readonly double px, pz, cx, cy, cos, sin, baseScale;
+            private readonly float areaCentreX, areaCentreY, zoom, panX, panY;
+
+            public ScreenTransform(
+                double px, double pz, double cx, double cy, double cos, double sin, double baseScale,
+                Vector2 areaCentre, float zoom, Vector2 pan)
+            {
+                this.px = px;
+                this.pz = pz;
+                this.cx = cx;
+                this.cy = cy;
+                this.cos = cos;
+                this.sin = sin;
+                this.baseScale = baseScale;
+                areaCentreX = areaCentre.x;
+                areaCentreY = areaCentre.y;
+                this.zoom = zoom;
+                panX = pan.x;
+                panY = pan.y;
+                Scale = (float)baseScale * zoom;
+            }
+
+            public float Scale { get; }
+
+            public Vector2 ToScreen(double x, double z)
+            {
+                double dx = x - px, dz = z - pz;
+                float x0 = (float)(cx + (dx * cos - dz * sin) * baseScale);
+                float y0 = (float)(cy + (dx * sin + dz * cos) * baseScale);
+                return new Vector2(
+                    areaCentreX + ((x0 - areaCentreX) * zoom) + panX,
+                    areaCentreY + ((y0 - areaCentreY) * zoom) + panY);
+            }
+        }
 
         private VenuePackage venue;
         private Route route;
@@ -61,8 +113,13 @@ namespace IndoorNavigation.UI
         private Vector2 pan;
         private float zoom = 1;
         private readonly Dictionary<int, Vector2> pointers = new Dictionary<int, Vector2>();
-        private FloorPlan wallsOf;
+        private FloorPlan classifiedPlan;
         private readonly List<bool> wallInDemo = new List<bool>();
+        private readonly List<bool> stairInDemo = new List<bool>();
+        private readonly List<bool> doorInDemo = new List<bool>();
+        private readonly List<(double X, double Z)> focusPoints = new List<(double, double)>();
+        private readonly List<Vector2> strokeBuffer = new List<Vector2>();
+        private readonly List<Rect> takenLabels = new List<Rect>();
 
         public RouteView()
         {
@@ -167,66 +224,63 @@ namespace IndoorNavigation.UI
             return plan != null ? -plan.NorthDegrees : 0;
         }
 
-        /// <summary>The points that must be in view, in plan metres.</summary>
-        private List<(double X, double Z)> FocusPoints(out (double X, double Z) pivot)
+        /// <summary>The points that must be in view, in plan metres, written into <see cref="focusPoints"/>.</summary>
+        private void FillFocusPoints(out (double X, double Z) pivot)
         {
-            var points = new List<(double X, double Z)>();
+            focusPoints.Clear();
             pivot = (0, 0);
-            if (venue == null) return points;
+            if (venue == null) return;
 
             if (orientation == MapOrientation.HeadingUp && you.HasValue)
             {
                 pivot = (you.Value.X, you.Value.Z);
-                return points; // follows you at a fixed scale
+                return; // follows you at a fixed scale
             }
 
             if (route != null)
             {
                 foreach (GraphNode node in route.Nodes)
                 {
-                    if (node.Floor == floor) points.Add((node.X, node.Z));
+                    if (node.Floor == floor) focusPoints.Add((node.X, node.Z));
                 }
 
-                if (points.Count > 0 && you.HasValue && you.Value.Floor == floor) points.Add((you.Value.X, you.Value.Z));
+                if (focusPoints.Count > 0 && you.HasValue && you.Value.Floor == floor) focusPoints.Add((you.Value.X, you.Value.Z));
             }
 
-            if (points.Count > 0)
+            if (focusPoints.Count > 0)
             {
-                PlanBounds b = Bounds(points).Grow(FocusMarginMetres);
+                PlanBounds b = Bounds(focusPoints).Grow(FocusMarginMetres);
                 double padX = Math.Max(0, (MinFocusMetres - b.Width) / 2), padZ = Math.Max(0, (MinFocusMetres - b.Height) / 2);
                 b = new PlanBounds(b.MinX - padX, b.MinZ - padZ, b.MaxX + padX, b.MaxZ + padZ);
-                points = Corners(b);
+                SetCorners(focusPoints, b);
             }
             else if (Plan != null)
             {
-                points = Corners(Plan.View);
+                SetCorners(focusPoints, Plan.View);
             }
             else
             {
                 foreach (GraphNode node in venue.Graph.Nodes)
                 {
-                    if (node.Floor == floor) points.Add((node.X, node.Z));
+                    if (node.Floor == floor) focusPoints.Add((node.X, node.Z));
                 }
             }
 
-            if (points.Count > 0)
+            if (focusPoints.Count > 0)
             {
-                PlanBounds all = Bounds(points);
+                PlanBounds all = Bounds(focusPoints);
                 pivot = (all.CentreX, all.CentreZ);
             }
-
-            return points;
         }
 
         /// <summary>Plan metres to element pixels: turned, then scaled to fit, proportions kept.</summary>
-        private bool TryMapping(out Func<double, double, Vector2> toScreen, out float scale)
+        private bool TryMapping(out ScreenTransform map)
         {
-            toScreen = null;
-            scale = 0;
+            map = default;
             Rect area = contentRect;
             if (venue == null || area.width < 2 * Margin || area.height < 2 * Margin) return false;
 
-            List<(double X, double Z)> points = FocusPoints(out (double X, double Z) pivot);
+            FillFocusPoints(out (double X, double Z) pivot);
             double angle = Rotation() * Math.PI / 180.0;
             double cos = Math.Cos(angle), sin = Math.Sin(angle);
 
@@ -239,10 +293,11 @@ namespace IndoorNavigation.UI
             }
             else
             {
-                if (points.Count == 0) return false;
+                if (focusPoints.Count == 0) return false;
                 double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-                foreach ((double x, double z) in points)
+                for (int i = 0; i < focusPoints.Count; i++)
                 {
+                    (double x, double z) = focusPoints[i];
                     double dx = x - pivot.X, dz = z - pivot.Z;
                     double rx = dx * cos - dz * sin, ry = dx * sin + dz * cos;
                     minX = Math.Min(minX, rx); maxX = Math.Max(maxX, rx);
@@ -255,32 +310,23 @@ namespace IndoorNavigation.UI
                 centreY -= (minY + maxY) / 2 * s;
             }
 
-            double px = pivot.X, pz = pivot.Z, cx = centreX, cy = centreY;
-            toScreen = (x, z) =>
-            {
-                double dx = x - px, dz = z - pz;
-                float x0 = (float)(cx + (dx * cos - dz * sin) * s);
-                float y0 = (float)(cy + (dx * sin + dz * cos) * s);
-                Vector2 centre = area.center;
-                return centre + (new Vector2(x0, y0) - centre) * zoom + pan;
-            };
-            scale = (float)s * zoom;
+            map = new ScreenTransform(pivot.X, pivot.Z, centreX, centreY, cos, sin, s, area.center, zoom, pan);
             return true;
         }
 
         private void Draw(MeshGenerationContext context)
         {
-            if (venue == null || !TryMapping(out Func<double, double, Vector2> toScreen, out float scale)) return;
+            if (venue == null || !TryMapping(out ScreenTransform map)) return;
             Painter2D painter = context.painter2D;
             painter.lineJoin = LineJoin.Round;
 
             FloorPlan plan = Plan;
-            if (plan != null) DrawPlan(painter, plan, toScreen, scale);
-            if (route != null) DrawRoute(painter, toScreen);
+            if (plan != null) DrawPlan(painter, plan, map);
+            if (route != null) DrawRoute(painter, map);
 
             if (you.HasValue && you.Value.Floor == floor)
             {
-                Vector2 at = toScreen(you.Value.X, you.Value.Z);
+                Vector2 at = map.ToScreen(you.Value.X, you.Value.Z);
                 if (uncertain)
                 {
                     Dot(painter, at, 18f, new Color(0.36f, 0.39f, 0.44f, 0.12f), 0);
@@ -295,40 +341,43 @@ namespace IndoorNavigation.UI
             }
         }
 
-        private void DrawPlan(Painter2D painter, FloorPlan plan, Func<double, double, Vector2> toScreen, float scale)
+        private void DrawPlan(Painter2D painter, FloorPlan plan, ScreenTransform map)
         {
+            float scale = map.Scale;
+            ClassifyPlan(plan);
             foreach (PlanSpace space in plan.Spaces)
             {
                 if (space.Outline.Count < 3) continue;
                 painter.fillColor = ColourOf(space);
-                Polygon(painter, space.Outline, toScreen);
+                Polygon(painter, space.Outline, map);
                 painter.Fill();
             }
 
             // Stairs: their treads, as hairlines, under the walls (blueprint: the stairs card's hatching).
             painter.lineCap = LineCap.Butt;
             painter.lineWidth = 1f;
-            foreach (PlanSegment line in plan.StairLines)
+            for (int i = 0; i < plan.StairLines.Count; i++)
             {
-                painter.strokeColor = InDemo(plan, (line.A.X + line.B.X) / 2, (line.A.Z + line.B.Z) / 2) ? Detail : DetailQuiet;
-                Line(painter, toScreen(line.A.X, line.A.Z), toScreen(line.B.X, line.B.Z));
+                PlanSegment line = plan.StairLines[i];
+                painter.strokeColor = stairInDemo[i] ? Detail : DetailQuiet;
+                Line(painter, map.ToScreen(line.A.X, line.A.Z), map.ToScreen(line.B.X, line.B.Z));
             }
 
             // Doors as architectural plans draw them, but quieter than walls: the open leaf and a hairline
             // swing (decision record 14).
-            foreach (PlanDoorSymbol door in plan.DoorSymbols)
+            for (int i = 0; i < plan.DoorSymbols.Count; i++)
             {
-                bool demo = InDemo(plan, door.Hinge.X, door.Hinge.Z);
+                PlanDoorSymbol door = plan.DoorSymbols[i];
+                bool demo = doorInDemo[i];
                 painter.strokeColor = demo ? Detail : DetailQuiet;
                 painter.lineWidth = 0.75f;
-                Swing(painter, door, toScreen);
+                Swing(painter, door, map);
                 painter.strokeColor = demo ? WallDemo : WallQuiet;
                 painter.lineWidth = demo ? Mathf.Clamp(0.06f * scale, 1f, 1.5f) : 1f;
-                Line(painter, toScreen(door.Hinge.X, door.Hinge.Z), toScreen(door.LeafEnd.X, door.LeafEnd.Z));
+                Line(painter, map.ToScreen(door.Hinge.X, door.Hinge.Z), map.ToScreen(door.LeafEnd.X, door.LeafEnd.Z));
             }
 
             // Walls: straight lines meeting at exact corners (build 17), so round caps close every corner.
-            ClassifyWalls(plan);
             painter.lineCap = LineCap.Round;
             for (int pass = 0; pass < 2; pass++)
             {
@@ -339,17 +388,17 @@ namespace IndoorNavigation.UI
                 {
                     if (wallInDemo[i] != demo) continue;
                     PlanSegment wall = plan.Walls[i];
-                    Line(painter, toScreen(wall.A.X, wall.A.Z), toScreen(wall.B.X, wall.B.Z));
+                    Line(painter, map.ToScreen(wall.A.X, wall.A.Z), map.ToScreen(wall.B.X, wall.B.Z));
                 }
             }
 
             painter.strokeColor = Glass;
             painter.lineWidth = Mathf.Clamp(0.1f * scale, 1.5f, 2.5f);
-            foreach (PlanSegment glass in plan.GlassWalls) Line(painter, toScreen(glass.A.X, glass.A.Z), toScreen(glass.B.X, glass.B.Z));
+            foreach (PlanSegment glass in plan.GlassWalls) Line(painter, map.ToScreen(glass.A.X, glass.A.Z), map.ToScreen(glass.B.X, glass.B.Z));
         }
 
         /// <summary>The quarter arc a door sweeps, from its open leaf's end to the far jamb.</summary>
-        private static void Swing(Painter2D painter, PlanDoorSymbol door, Func<double, double, Vector2> toScreen)
+        private static void Swing(Painter2D painter, PlanDoorSymbol door, ScreenTransform map)
         {
             double r = door.Width;
             if (r < 0.2) return;
@@ -363,7 +412,7 @@ namespace IndoorNavigation.UI
             for (int k = 0; k <= Steps; k++)
             {
                 double a = a0 + sweep * k / Steps;
-                Vector2 p = toScreen(door.Hinge.X + r * Math.Cos(a), door.Hinge.Z + r * Math.Sin(a));
+                Vector2 p = map.ToScreen(door.Hinge.X + r * Math.Cos(a), door.Hinge.Z + r * Math.Sin(a));
                 if (k == 0) painter.MoveTo(p);
                 else painter.LineTo(p);
             }
@@ -381,7 +430,7 @@ namespace IndoorNavigation.UI
             return false;
         }
 
-        private void DrawRoute(Painter2D painter, Func<double, double, Vector2> toScreen)
+        private void DrawRoute(Painter2D painter, ScreenTransform map)
         {
             painter.lineCap = LineCap.Round;
 
@@ -399,32 +448,32 @@ namespace IndoorNavigation.UI
 
             painter.strokeColor = Color.white;
             painter.lineWidth = 9f;
-            if (navigating) RoutePath(painter, toScreen, 0, ahead - 1, null, at);
-            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null, from);
+            if (navigating) RoutePath(painter, map, 0, ahead - 1, null, at);
+            RoutePath(painter, map, ahead, route.Nodes.Count - 1, at, null, from);
             painter.lineWidth = 5f;
             if (navigating)
             {
                 painter.strokeColor = Walked;
-                RoutePath(painter, toScreen, 0, ahead - 1, null, at);
+                RoutePath(painter, map, 0, ahead - 1, null, at);
             }
 
             painter.strokeColor = uncertain ? new Color32(0xB3, 0xD7, 0xD4, 255) : Accent;
-            RoutePath(painter, toScreen, ahead, route.Nodes.Count - 1, at, null, from);
+            RoutePath(painter, map, ahead, route.Nodes.Count - 1, at, null, from);
 
             // Build 21: the route starts at the dot. Off the line, the way to it is part of the route when
             // nothing stands between (as map apps join you to the route); through a wall it stays a dotted
             // hint, never a solid line through the wall.
             if (snap.OnRoute && snap.OffRouteMetres > 0.8 && !leadIn)
-                Dotted(painter, toScreen(here.Value.X, here.Value.Z), toScreen(snap.X, snap.Z));
+                Dotted(painter, map.ToScreen(here.Value.X, here.Value.Z), map.ToScreen(snap.X, snap.Z));
 
             // Floor connection badge where the route leaves this floor (blueprint legend).
             for (int i = 0; i + 1 < route.Nodes.Count; i++)
             {
                 GraphNode a = route.Nodes[i], b = route.Nodes[i + 1];
-                if (a.Floor == floor && b.Floor != floor) ConnectionBadge(painter, toScreen(a.X, a.Z));
+                if (a.Floor == floor && b.Floor != floor) ConnectionBadge(painter, map.ToScreen(a.X, a.Z));
             }
 
-            if (route.End.Floor == floor) Pin(painter, toScreen(route.End.X, route.End.Z));
+            if (route.End.Floor == floor) Pin(painter, map.ToScreen(route.End.X, route.End.Z));
         }
 
         /// <summary>A hint through a wall: small route-coloured dots, spaced as the other-floor dots.</summary>
@@ -443,26 +492,26 @@ namespace IndoorNavigation.UI
         /// Strokes the route's nodes <paramref name="from"/> to <paramref name="to"/> that lie on this
         /// floor, optionally starting at <paramref name="start"/> and ending at <paramref name="end"/>.
         /// </summary>
-        private void RoutePath(Painter2D painter, Func<double, double, Vector2> toScreen, int from, int to, PlanPose? start, PlanPose? end, PlanPose? leadIn = null)
+        private void RoutePath(Painter2D painter, ScreenTransform map, int from, int to, PlanPose? start, PlanPose? end, PlanPose? leadIn = null)
         {
-            var points = new List<Vector2>();
-            if (leadIn.HasValue) points.Add(toScreen(leadIn.Value.X, leadIn.Value.Z));
-            if (start.HasValue) points.Add(toScreen(start.Value.X, start.Value.Z));
+            strokeBuffer.Clear();
+            if (leadIn.HasValue) strokeBuffer.Add(map.ToScreen(leadIn.Value.X, leadIn.Value.Z));
+            if (start.HasValue) strokeBuffer.Add(map.ToScreen(start.Value.X, start.Value.Z));
             for (int i = Math.Max(0, from); i <= to && i < route.Nodes.Count; i++)
             {
                 GraphNode node = route.Nodes[i];
                 if (node.Floor != floor)
                 {
-                    StrokeLine(painter, points);
-                    points.Clear();
+                    StrokeLine(painter, strokeBuffer);
+                    strokeBuffer.Clear();
                     continue;
                 }
 
-                points.Add(toScreen(node.X, node.Z));
+                strokeBuffer.Add(map.ToScreen(node.X, node.Z));
             }
 
-            if (end.HasValue) points.Add(toScreen(end.Value.X, end.Value.Z));
-            StrokeLine(painter, points);
+            if (end.HasValue) strokeBuffer.Add(map.ToScreen(end.Value.X, end.Value.Z));
+            StrokeLine(painter, strokeBuffer);
         }
 
         private void StrokeLine(Painter2D painter, List<Vector2> points)
@@ -503,26 +552,34 @@ namespace IndoorNavigation.UI
         private static Color ColourOf(PlanSpace space) =>
             space.Kind == PlanSpaceKind.Corridor || space.Kind == PlanSpaceKind.Other ? Hall : Room;
 
-        /// <summary>A wall counts as the demo zone's when its middle lies inside a demo zone (or within 1 m of one).</summary>
-        private void ClassifyWalls(FloorPlan plan)
+        /// <summary>Caches whether each wall, stair line and door belongs to a demo zone (once per floor plan).</summary>
+        private void ClassifyPlan(FloorPlan plan)
         {
-            if (wallsOf == plan && wallInDemo.Count == plan.Walls.Count) return;
-            wallsOf = plan;
+            if (classifiedPlan == plan
+                && wallInDemo.Count == plan.Walls.Count
+                && stairInDemo.Count == plan.StairLines.Count
+                && doorInDemo.Count == plan.DoorSymbols.Count)
+            {
+                return;
+            }
+
+            classifiedPlan = plan;
             wallInDemo.Clear();
             foreach (PlanSegment wall in plan.Walls)
             {
-                double mx = (wall.A.X + wall.B.X) / 2, mz = (wall.A.Z + wall.B.Z) / 2;
-                bool demo = false;
-                foreach (IReadOnlyList<PlanPoint> zone in plan.Zones)
-                {
-                    if (Polygons.Contains(zone, mx, mz) || Polygons.DistanceToOutline(zone, mx, mz) < 1.0)
-                    {
-                        demo = true;
-                        break;
-                    }
-                }
+                wallInDemo.Add(InDemo(plan, (wall.A.X + wall.B.X) / 2, (wall.A.Z + wall.B.Z) / 2));
+            }
 
-                wallInDemo.Add(demo);
+            stairInDemo.Clear();
+            foreach (PlanSegment line in plan.StairLines)
+            {
+                stairInDemo.Add(InDemo(plan, (line.A.X + line.B.X) / 2, (line.A.Z + line.B.Z) / 2));
+            }
+
+            doorInDemo.Clear();
+            foreach (PlanDoorSymbol door in plan.DoorSymbols)
+            {
+                doorInDemo.Add(InDemo(plan, door.Hinge.X, door.Hinge.Z));
             }
         }
 
@@ -530,18 +587,16 @@ namespace IndoorNavigation.UI
         private static void DrawCone(Painter2D painter, Vector2 centre, float headingOnScreenDegrees, float fov)
         {
             // Three wedges, wide and faint to narrow and stronger, read as a gradient (blueprint: "You, with heading cone").
-            float[] radius = { ConeRadius, ConeRadius * 0.72f, ConeRadius * 0.45f };
-            float[] alpha = { 0.10f, 0.12f, 0.16f };
-            for (int k = 0; k < radius.Length; k++)
+            for (int k = 0; k < ConeRadii.Length; k++)
             {
-                painter.fillColor = new Color(You.r, You.g, You.b, alpha[k]);
+                painter.fillColor = new Color(You.r, You.g, You.b, ConeAlphas[k]);
                 painter.BeginPath();
                 painter.MoveTo(centre);
                 const int steps = 16;
                 for (int i = 0; i <= steps; i++)
                 {
                     float a = (headingOnScreenDegrees - fov / 2 + fov * i / steps) * Mathf.Deg2Rad;
-                    painter.LineTo(centre + new Vector2(Mathf.Sin(a), -Mathf.Cos(a)) * radius[k]);
+                    painter.LineTo(centre + new Vector2(Mathf.Sin(a), -Mathf.Cos(a)) * ConeRadii[k]);
                 }
 
                 painter.ClosePath();
@@ -595,12 +650,12 @@ namespace IndoorNavigation.UI
             painter.lineCap = LineCap.Round;
         }
 
-        private static void Polygon(Painter2D painter, IReadOnlyList<PlanPoint> outline, Func<double, double, Vector2> toScreen)
+        private static void Polygon(Painter2D painter, IReadOnlyList<PlanPoint> outline, ScreenTransform map)
         {
             painter.BeginPath();
             for (int i = 0; i < outline.Count; i++)
             {
-                Vector2 p = toScreen(outline[i].X, outline[i].Z);
+                Vector2 p = map.ToScreen(outline[i].X, outline[i].Z);
                 if (i == 0) painter.MoveTo(p);
                 else painter.LineTo(p);
             }
@@ -620,10 +675,16 @@ namespace IndoorNavigation.UI
             public PlanSpace Space;
             public VisualElement Root;
             public Label Text;
-            public string Number;
-            public string Name;
             public bool Amenity;
             public double Area;
+            public double LabelX;
+            public double LabelZ;
+            public string ShortText;
+            public Vector2 ShortSize;
+            public string FullText;
+            public Vector2 FullSize;
+            public string AmenityText;
+            public Vector2 AmenityTextSize;
         }
 
         private const float NameFromPixelsPerMetre = 16f;
@@ -649,7 +710,27 @@ namespace IndoorNavigation.UI
                 double area = Math.Abs(Polygons.SignedArea2(space.Outline)) / 2;
                 if (icon == null && ((number == null && name == null) || area < LabelMinArea)) continue;
 
-                var item = new MapLabel { Space = space, Number = number, Name = name, Amenity = icon != null, Area = area };
+                (double lx, double lz) = Polygons.LabelPoint(space.Outline);
+                string shortText = number ?? name;
+                string fullText = number != null && name != null ? number + "\n" + name : null;
+                string words = name ?? number;
+                bool generic = words == null || words == "WC" || words == "Lift";
+                string amenityText = icon != null && !generic ? words : null;
+
+                var item = new MapLabel
+                {
+                    Space = space,
+                    Amenity = icon != null,
+                    Area = area,
+                    LabelX = lx,
+                    LabelZ = lz,
+                    ShortText = shortText,
+                    ShortSize = TextSize(shortText, RoomFontPixels),
+                    FullText = fullText,
+                    FullSize = TextSize(fullText, RoomFontPixels),
+                    AmenityText = amenityText,
+                    AmenityTextSize = TextSize(amenityText, AmenityFontPixels),
+                };
                 if (icon != null)
                 {
                     item.Root = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -707,35 +788,24 @@ namespace IndoorNavigation.UI
 
         private void PlaceLabels()
         {
-            Func<double, double, Vector2> toScreen = null;
-            float scale = 0;
-            bool ok = ShowLabels && TryMapping(out toScreen, out scale);
-            var taken = new List<Rect>();
+            ScreenTransform map = default;
+            bool ok = ShowLabels && TryMapping(out map);
+            float scale = map.Scale;
+            takenLabels.Clear();
             Rect view = contentRect;
             foreach (MapLabel item in mapLabels)
             {
                 item.Root.style.display = DisplayStyle.None;
                 if (!ok) continue;
 
-                // The room's extent on screen, so a label shows only when it fits inside.
-                float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
-                foreach (PlanPoint corner in item.Space.Outline)
-                {
-                    Vector2 c = toScreen(corner.X, corner.Z);
-                    minX = Mathf.Min(minX, c.x); maxX = Mathf.Max(maxX, c.x);
-                    minY = Mathf.Min(minY, c.y); maxY = Mathf.Max(maxY, c.y);
-                }
-
-                (double lx, double lz) = Polygons.LabelPoint(item.Space.Outline);
-                Vector2 at = toScreen(lx, lz);
+                Vector2 at = map.ToScreen(item.LabelX, item.LabelZ);
                 string text;
                 Rect box;
                 if (item.Amenity)
                 {
-                    string words = item.Name ?? item.Number;
-                    bool generic = words == null || words == "WC" || words == "Lift";
-                    text = !generic && scale >= AmenityTextFromPixelsPerMetre ? words : null;
-                    Vector2 size = TextSize(text, AmenityFontPixels);
+                    bool showText = item.AmenityText != null && scale >= AmenityTextFromPixelsPerMetre;
+                    text = showText ? item.AmenityText : null;
+                    Vector2 size = showText ? item.AmenityTextSize : Vector2.zero;
                     float w = Mathf.Max(BadgePixels, size.x), h = BadgePixels + size.y;
                     box = new Rect(at.x - w / 2, at.y - BadgePixels / 2, w, h);
                     item.Text.style.display = text == null ? DisplayStyle.None : DisplayStyle.Flex;
@@ -743,18 +813,29 @@ namespace IndoorNavigation.UI
                 }
                 else
                 {
-                    var tries = new List<string>(3);
-                    if (item.Number != null && item.Name != null && scale >= NameFromPixelsPerMetre) tries.Add(item.Number + "\n" + item.Name);
-                    tries.Add(item.Number ?? item.Name);
+                    // The room's extent on screen, so a label shows only when it fits inside.
+                    float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+                    IReadOnlyList<PlanPoint> outline = item.Space.Outline;
+                    for (int i = 0; i < outline.Count; i++)
+                    {
+                        Vector2 c = map.ToScreen(outline[i].X, outline[i].Z);
+                        minX = Mathf.Min(minX, c.x); maxX = Mathf.Max(maxX, c.x);
+                        minY = Mathf.Min(minY, c.y); maxY = Mathf.Max(maxY, c.y);
+                    }
+
+                    float limitW = (maxX - minX) * 0.92f, limitH = (maxY - minY) * 0.92f;
                     text = null;
                     box = Rect.zero;
-                    foreach (string t in tries)
+                    if (item.FullText != null && scale >= NameFromPixelsPerMetre
+                        && item.FullSize.x <= limitW && item.FullSize.y <= limitH)
                     {
-                        Vector2 size = TextSize(t, RoomFontPixels);
-                        if (size.x > (maxX - minX) * 0.92f || size.y > (maxY - minY) * 0.92f) continue;
-                        text = t;
-                        box = new Rect(at.x - size.x / 2, at.y - size.y / 2, size.x, size.y);
-                        break;
+                        text = item.FullText;
+                        box = new Rect(at.x - item.FullSize.x / 2, at.y - item.FullSize.y / 2, item.FullSize.x, item.FullSize.y);
+                    }
+                    else if (item.ShortText != null && item.ShortSize.x <= limitW && item.ShortSize.y <= limitH)
+                    {
+                        text = item.ShortText;
+                        box = new Rect(at.x - item.ShortSize.x / 2, at.y - item.ShortSize.y / 2, item.ShortSize.x, item.ShortSize.y);
                     }
 
                     if (text == null) continue;
@@ -764,14 +845,14 @@ namespace IndoorNavigation.UI
                 if (box.xMin < view.xMin + 4 || box.yMin < view.yMin + 4 || box.xMax > view.xMax - 4 || box.yMax > view.yMax - 4) continue;
                 Rect padded = new Rect(box.x - 3, box.y - 2, box.width + 6, box.height + 4);
                 bool clash = false;
-                foreach (Rect other in taken)
+                for (int i = 0; i < takenLabels.Count; i++)
                 {
-                    if (other.Overlaps(padded)) { clash = true; break; }
+                    if (takenLabels[i].Overlaps(padded)) { clash = true; break; }
                 }
 
                 if (clash) continue;
-                taken.Add(padded);
-                if (text != null) item.Text.text = text;
+                takenLabels.Add(padded);
+                if (text != null && item.Text.text != text) item.Text.text = text;
                 item.Root.style.left = box.x;
                 item.Root.style.top = box.y;
                 item.Root.style.display = DisplayStyle.Flex;
@@ -781,14 +862,18 @@ namespace IndoorNavigation.UI
         private static PlanBounds Bounds(List<(double X, double Z)> points)
         {
             var b = new PlanBounds(points[0].X, points[0].Z, points[0].X, points[0].Z);
-            foreach ((double x, double z) in points) b = b.Include(x, z);
+            for (int i = 1; i < points.Count; i++) b = b.Include(points[i].X, points[i].Z);
             return b;
         }
 
-        private static List<(double X, double Z)> Corners(PlanBounds b) => new List<(double X, double Z)>
+        private static void SetCorners(List<(double X, double Z)> points, PlanBounds b)
         {
-            (b.MinX, b.MinZ), (b.MaxX, b.MinZ), (b.MaxX, b.MaxZ), (b.MinX, b.MaxZ),
-        };
+            points.Clear();
+            points.Add((b.MinX, b.MinZ));
+            points.Add((b.MaxX, b.MinZ));
+            points.Add((b.MaxX, b.MaxZ));
+            points.Add((b.MinX, b.MaxZ));
+        }
 
         private static void Line(Painter2D painter, Vector2 from, Vector2 to)
         {
@@ -801,12 +886,10 @@ namespace IndoorNavigation.UI
         private static void Circle(Painter2D painter, Vector2 centre, float radius)
         {
             painter.BeginPath();
-            for (int i = 0; i <= 28; i++)
+            painter.MoveTo(centre + UnitCircle[0] * radius);
+            for (int i = 1; i < UnitCircle.Length; i++)
             {
-                float angle = i * Mathf.PI * 2f / 28f;
-                Vector2 point = centre + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
-                if (i == 0) painter.MoveTo(point);
-                else painter.LineTo(point);
+                painter.LineTo(centre + UnitCircle[i] * radius);
             }
 
             painter.ClosePath();

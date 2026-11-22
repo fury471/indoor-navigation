@@ -62,6 +62,13 @@ namespace IndoorNavigation.Core.Tests
             Assert.AreEqual(0, Polygons.Triangulate(Points(0, 0, 1, 1)).Count);
         }
 
+        [Test]
+        public void LabelPoint_NullOrEmpty_ReturnsOrigin()
+        {
+            Assert.AreEqual((0.0, 0.0), Polygons.LabelPoint(null));
+            Assert.AreEqual((0.0, 0.0), Polygons.LabelPoint(new PlanPoint[0]));
+        }
+
         private static FloorPlan PlanOfFloor1() => new FloorPlan(
             1,
             "Floor 1",

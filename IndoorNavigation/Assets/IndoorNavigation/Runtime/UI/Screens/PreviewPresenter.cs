@@ -11,8 +11,15 @@ namespace IndoorNavigation.UI.Screens
         private readonly Label destination;
         private readonly Label where;
         private readonly Label summary;
+        private readonly Label summaryDetail;
+        private readonly VisualElement summaryRow;
         private readonly Toggle avoidStairs;
+        private readonly Label avoidDetail;
+        private readonly Button stepsButton;
+        private readonly Label stepsDetail;
         private readonly VisualElement noRoute;
+        private readonly Label noRouteTitle;
+        private readonly Label noRouteDetail;
         private readonly Button start;
         private readonly VisualElement mapSwitch;
         private readonly Button orientation;
@@ -21,6 +28,7 @@ namespace IndoorNavigation.UI.Screens
         private readonly MapControls controls;
         private readonly NavigationPanels panels;
         private readonly VisualElement firstTip;
+        private bool firstTipOpen;
         private const string TipKey = "IndoorNavigation.RouteTipSeen";
 
         public PreviewPresenter(VisualElement root, AppSession session) : base(root, session)
@@ -28,12 +36,20 @@ namespace IndoorNavigation.UI.Screens
             destination = Find<Label>("destination");
             where = Find<Label>("where");
             summary = Find<Label>("summary");
+            summaryDetail = Find<Label>("summary-detail");
+            summaryRow = Find<VisualElement>("summary-row");
             avoidStairs = Find<Toggle>("avoid-stairs");
+            avoidDetail = Find<Label>("avoid-detail");
+            stepsButton = Find<Button>("steps");
+            stepsDetail = Find<Label>("steps-detail");
             var knob = new VisualElement { pickingMode = PickingMode.Ignore };
             knob.AddToClassList("toggle-knob");
             avoidStairs.Q(className: "unity-toggle__checkmark")?.Add(knob);
             noRoute = Find<VisualElement>("no-route");
-            Find<Button>("back").Add(new NavigationIcon("back", NavigationIcon.Ink));
+            noRouteTitle = Find<Label>("no-route-title");
+            noRouteDetail = Find<Label>("no-route-detail");
+            Button back = Find<Button>("back");
+            back.Add(new NavigationIcon("back", NavigationIcon.Ink));
             Find<VisualElement>("avoid-icon").Add(new NavigationIcon("steps"));
             Find<VisualElement>("steps-icon").Add(new NavigationIcon("list"));
             Find<VisualElement>("steps-chevron").Add(new NavigationIcon("chevron", NavigationIcon.Muted));
@@ -45,13 +61,14 @@ namespace IndoorNavigation.UI.Screens
             map.EnableInteraction(Session.SetViewInteraction);
             panels = new NavigationPanels(root, session);
             controls = new MapControls(root, session, panels, map.Recentre);
-            Find<Button>("steps").clicked += panels.ShowSteps;
+            stepsButton.clicked += panels.ShowSteps;
             firstTip = Find<VisualElement>("first-tip");
             SetVisible(firstTip, false);
             Find<Button>("got-it").clicked += () =>
             {
                 PlayerPrefs.SetInt(TipKey, 1);
                 PlayerPrefs.Save();
+                firstTipOpen = false;
                 SetVisible(firstTip, false);
                 Session.SetViewInteraction(false);
                 Session.StartRoute();
@@ -66,9 +83,17 @@ namespace IndoorNavigation.UI.Screens
             start.clicked += () =>
             {
                 if (Session.Study.Condition == StudyCondition.TwoDOnly || PlayerPrefs.GetInt(TipKey, 0) == 1) Session.StartRoute();
-                else { Session.SetViewInteraction(true); SetVisible(firstTip, true); firstTip.BringToFront(); }
+                else { firstTipOpen = true; Session.SetViewInteraction(true); SetVisible(firstTip, true); firstTip.BringToFront(); }
             };
-            Find<Button>("back").clicked += Session.BackFromPreview;
+            back.clicked += Session.BackFromPreview;
+            Session.Changed += () =>
+            {
+                if (firstTipOpen && (Session.Relocating || Session.State != SessionState.Previewing))
+                {
+                    firstTipOpen = false;
+                    SetVisible(firstTip, false);
+                }
+            };
         }
 
         public override void Render()
@@ -84,19 +109,19 @@ namespace IndoorNavigation.UI.Screens
 
             bool hasRoute = Session.Route != null;
             SetVisible(noRoute, !hasRoute);
-            Find<Label>("no-route-title").text = Session.AvoidStairs ? "No step-free route mapped" : "No route mapped";
-            Find<Label>("no-route-detail").text = Session.AvoidStairs ? "Switch off Avoid stairs, or choose another place." : "The building's records do not connect your position to this place.";
-            Find<Label>("avoid-detail").text = !hasRoute ? (Session.AvoidStairs ? "On: only step-free routes" : "Off")
+            noRouteTitle.text = Session.AvoidStairs ? "No step-free route mapped" : "No route mapped";
+            noRouteDetail.text = Session.AvoidStairs ? "Switch off Avoid stairs, or choose another place." : "The building's records do not connect your position to this place.";
+            avoidDetail.text = !hasRoute ? (Session.AvoidStairs ? "On: only step-free routes" : "Off")
                 : Session.Route.UsesStairs ? "This route uses the stairs"
                 : Session.Route.UsesLift ? "This route uses the lift" : "This route has no stairs";
             int steps = hasRoute ? Session.Route.Nodes.Count - 1 : 0;
-            Find<Label>("steps-detail").text = hasRoute ? steps + (steps == 1 ? " step" : " steps") + ", from here to " + Session.Destination.Name : "No route to describe";
-            SetVisible(Find<VisualElement>("summary-row"), hasRoute);
+            stepsDetail.text = hasRoute ? steps + (steps == 1 ? " step" : " steps") + ", from here to " + Session.Destination.Name : "No route to describe";
+            SetVisible(summaryRow, hasRoute);
             start.SetEnabled(hasRoute);
-            Find<Button>("steps").SetEnabled(hasRoute);
+            stepsButton.SetEnabled(hasRoute);
             SetVisible(mapSwitch, hasRoute);
             summary.text = hasRoute ? Wording.Minutes(Session.Route.LengthMetres) : "";
-            Find<Label>("summary-detail").text = hasRoute ? Summary() : "";
+            summaryDetail.text = hasRoute ? Summary() : "";
             bool lost = Session.PositionState != PositionState.Found;
             map.Show(Session.Venue, Session.Route, Session.View.FloorShown, lost ? Session.LastKnownPose : Session.Pose, -1,
                 Session.MapOrientation, Session.CameraFovDegrees, lost, Session.UserFloor);

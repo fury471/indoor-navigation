@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using IndoorNavigation.Core.Ports;
 using UnityEngine;
 
+#pragma warning disable 0414, 0067 // fields and events are only invoked on the iPhone
+
 namespace IndoorNavigation.Adapters.Device
 {
     /// <summary>

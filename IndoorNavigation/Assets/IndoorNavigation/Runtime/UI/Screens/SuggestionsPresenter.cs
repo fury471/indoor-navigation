@@ -12,6 +12,8 @@ namespace IndoorNavigation.UI.Screens
         private readonly ScrollView list;
         private readonly VisualElement noMatch;
         private readonly Label noMatchText;
+        private readonly Button browseButton;
+        private readonly Button refineButton;
         private SearchAnswer renderedAnswer;
 
         public SuggestionsPresenter(VisualElement root, AppSession session) : base(root, session)
@@ -20,18 +22,21 @@ namespace IndoorNavigation.UI.Screens
             list = Find<ScrollView>("list");
             noMatch = Find<VisualElement>("no-match");
             noMatchText = Find<Label>("no-match-text");
-            Find<Button>("refine").clicked += () => RunAsync(Session.RefineAsync());
+            refineButton = Find<Button>("refine");
+            browseButton = Find<Button>("browse");
+            refineButton.clicked += () => RunAsync(Session.RefineAsync());
             Find<Button>("edit").clicked += Session.EditSearch;
-            Find<Button>("browse").clicked += () => Session.BrowsePlaces();
+            browseButton.clicked += () => Session.BrowsePlaces();
         }
 
         public override void Render()
         {
             request.text = Session.RequestText ?? "";
-            bool none = Session.Suggestions.Count == 0;
+            var suggestions = Session.Suggestions;
+            bool none = suggestions.Count == 0;
             SetVisible(noMatch, none);
-            SetVisible(Find<Button>("browse"), none);
-            SetVisible(Find<Button>("refine"), !none);
+            SetVisible(browseButton, none);
+            SetVisible(refineButton, !none);
             noMatchText.text = Session.Answer?.Text ?? "";
             if (renderedAnswer == Session.Answer)
             {
@@ -40,7 +45,7 @@ namespace IndoorNavigation.UI.Screens
 
             renderedAnswer = Session.Answer;
             list.Clear();
-            foreach (Suggestion suggestion in Session.Suggestions)
+            foreach (Suggestion suggestion in suggestions)
             {
                 list.Add(Card(Session.Venue.FindPlace(suggestion.PlaceId), suggestion.Reason));
             }
