@@ -356,8 +356,13 @@ Why each change was made, with sources: decision record 16.
 - **3D view.** Each floor is its 2D plan laid flat on a slab cut to the building's footprint, in the 2D colours; only the floors you walk on are shown. It opens north up from 55° above. One finger moves it, pinch zooms, a two-finger twist turns it, a two-finger swipe up or down tilts it (25°–85°); Reset view returns to the start.
 - **Labelling page** (claude.ai artifact "IKDC plan labels"): pins for stairs, WCs, lifts, printers and other things with status and comment; flags for stray lines; missing walls. The labels feed package 1.6.x.
 - Tests: 344 core EditMode tests pass offline (Mono + Unity Roslyn; all 7 Editor and 4 iOS-player assemblies compile against Unity 6000.3.24f1), including new ones for the barometer, the multi-floor lift ride (including intermediate stops before reaching the lift node), a cut corner, replanning after a fix, `FloorChangeDetector`, cyclic place parents, `LabelPoint` edge cases, idempotent view interaction and `AppSession.Dispose`. `IkdcPackageTests`: the exploded view of a stairs route 1→3 shows floors 1 and 3; every floor has its footprint; floor 3 has rooms 308 and 310.
-- Build: export folder `E:\IndoorNavigationBuilds\final-002\Xcode`, release tag `export-final-002` (the project's naming). Before packaging, check that the exported `Info.plist` holds `NSMotionUsageDescription`: without it the app stops when the barometer starts. ZIP SHA-256, workflow run and IPA: pending.
-- Unity result: pending. Device result: pending. On the phone, check:
+- Build: export folder `E:\IndoorNavigationBuilds\final-003\Xcode`, release tag `export-final-003`, from commit `a4efe98` (Fury's refinement of build 21: hot paths, barometer, gesture and UI edge cases, resource leaks). `final-002` (commit `02f0158`) was not tested on the phone. Before packaging, check that the exported `Info.plist` holds `NSMotionUsageDescription`: without it the app stops when the barometer starts. ZIP SHA-256, workflow run and IPA: pending.
+- Unity result: built and installed by Fury (25 Nov). ZIP SHA-256 and workflow run not recorded here. Device result (25 Nov, iPhone 16 Pro, four screenshots), all addressed in build 22:
+  1. The AR track ran along one side of a floor-3 corridor instead of its middle; the minimap put the dot about 0.9 m to one side of the route line while Fury walked down the middle.
+  2. The AR track did not start where Fury stood but some way ahead or to the side.
+  3. Walking 5–7 m off the route for several seconds did not plan it again.
+  4. After a relocalisation the progress stuck: the 2D route ran behind and ahead of the dot, did not follow as Fury walked, and the AR track was out of view.
+- Original checklist for build 21:
   1. Motion & Fitness is asked for once.
   2. A route starts at the dot, also after Fix position in the preview.
   3. Ride the lift from floor 1 to 3: screen E shows "Take the lift to floor 3" in front of the doors, and on arrival the floor switches by itself and the lobby map relocalises.
@@ -365,3 +370,22 @@ Why each change was made, with sources: decision record 16.
   5. The 3D view's gestures.
   6. The 2D colours, icons and the dotted route on another floor.
 
+## Build 22 — follow the user along the whole route, reroute after 3 s off it, route in the corridor's middle (25 Nov 2026)
+
+Why each change was made, with sources: decision record 17.
+
+- **Progress after a fix.** The user's place on the route is found on every leg ahead on their floor, not only the three around the next node (`RouteProgress.Snap`). A fix further along moves the progress on at once (build 21, screenshot 4).
+- **The route starts at you.** The planned route's first node is where you stood (`Route.FromUser`, id `you`); the camera view and the 2D map both draw from your feet to the route when no wall stands between (`RouteProgress.JoinsUser`).
+- **Reroute.** Off the route (more than 5 m from it, or a wall between you and it) for 3 s without a break plans it again from where you are; the 2D map, the AR track and the step follow. Standing still counts too. A fix off the route reroutes at once, also on a new floor. Log lines: `route: planned again: off the route for 3 s`, `... found away from the route on the new floor`.
+- **One settings object.** All thresholds are in `NavigationTuning` (defaults: arrival 1.5 m, floor link 3 m, on route 3 m, replan 2 m, reroute 5 m for 3 s, corridor at most 6 m wide, centring at most 1.5 m).
+- **Corridor centring.** When the building loads, junctions move onto their corridor's centre line, measured from the plan's walls (`CorridorCentring`). Package 1.6.1: 23 of 40 junctions move, at most 1.37 m, no leg gains a wall crossing, 10–15 ms. Log line: `venue: centred 23 of 40 junctions ...`.
+- **Wall correction.** While a route is followed, ARKit also detects vertical planes; twice a second the walls seen are paired with the plan's walls and the plan is shifted to fit them, 30 % of the way per update, at most 1.5 m in total, reset by every new fix (`WallCorrection`, `WorldMapPositionSource`). Log line: `walls: correction 0.62 m (x …, z …) from 3 of 5 walls seen`.
+- Tests: 367 core EditMode tests pass offline (Mono + Roslyn), 23 more than build 21: matching several legs ahead, a doubling-back route, the floor-link stretch, off-route by distance and by wall, the route ahead from the user and through a wall, the chevron metres, the 3-second monitor, the tuning checks, centring in a straight corridor, a corner, a hall, a doorway and a far move, the wall correction (one direction, a corner, an outlier, the cap, short and crossing walls), and five session scenarios (3 s off route, a short step aside, standing still, a fix further along, found away from the route on a new floor). `IkdcPackageTests`: centring keeps every leg wall-free. The Editor and iOS-player assemblies are not compiled offline: Unity compiles them on the next build.
+- Build: pending (`final-004`).
+- On the phone, check:
+  1. In a corridor, the AR track runs down the middle within a few seconds of walking with the camera up; the log shows `walls:` lines.
+  2. The AR track starts at your feet when you start a route and after Fix position.
+  3. Walk into a side corridor or 6 m away: within about 3 s the route, the map and the AR track turn to the new way. A short step aside does not reroute.
+  4. Fix position further along the route: the progress jumps to you, and the map shows the walked part grey.
+  5. Lift to another floor and walk away from the lift before the floor is found: the route is planned again from where you are found.
+  6. Build 21's checks still hold: floor change by barometer, 3D gestures, 2D colours.

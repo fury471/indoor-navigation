@@ -442,8 +442,7 @@ namespace IndoorNavigation.UI
             bool navigating = nextNode > 0 && nextNode < route.Nodes.Count && snap.OnRoute;
             PlanPose? at = snap.OnRoute ? new PlanPose(floor, snap.X, snap.Z, 0) : (PlanPose?)null;
             int ahead = snap.OnRoute ? snap.NextIndex : 0;
-            bool leadIn = snap.OnRoute && snap.OffRouteMetres > 0.05 && !uncertain
-                && LineOfSight.Clear(Plan, here.Value.X, here.Value.Z, snap.X, snap.Z);
+            bool leadIn = here.HasValue && !uncertain && RouteProgress.JoinsUser(Plan, here.Value, snap); // the camera view's rule too
             PlanPose? from = leadIn ? here : null;
 
             painter.strokeColor = Color.white;

@@ -19,24 +19,6 @@ namespace IndoorNavigation.Core.Session
     /// </summary>
     public sealed class AppSession : IDisposable
     {
-        /// <summary>A route node counts as reached within this distance.</summary>
-        public const double ArrivalRadiusMetres = 1.5;
-
-        /// <summary>
-        /// Stairs and lifts count as reached within this distance: in front of the lift doors or at the
-        /// foot of the stairs, before tracking can be lost in the lift car (build 20 test).
-        /// </summary>
-        public const double FloorLinkRadiusMetres = 3.0;
-
-        /// <summary>Within this distance of the route line, nodes the user walked past count as reached, so cut corners do not stall the progress.</summary>
-        public const double OnRouteMetres = 3.0;
-
-        /// <summary>While previewing, the route is planned again when the user has moved this far from where it was planned.</summary>
-        public const double ReplanMetres = 2.0;
-
-        /// <summary>A new fix this far from the route while navigating plans the route again from there.</summary>
-        public const double RerouteMetres = 5.0;
-
         /// <summary>The position is logged at most this often, for counting wrong turns afterwards.</summary>
         public const double PoseLogIntervalSeconds = 1.0;
 
@@ -61,6 +43,7 @@ namespace IndoorNavigation.Core.Session
         private int floorChangeBase; // the floor the barometer counts from
         private PlanPose? plannedFrom;
         private bool replanWhenFound;
+        private readonly OffRouteMonitor offRoute = new OffRouteMonitor();
 
         /// <param name="altimeter">The barometer, or null: floor changes are then confirmed by the user alone (screen E).</param>
         public AppSession(
@@ -73,8 +56,10 @@ namespace IndoorNavigation.Core.Session
             IClock clock,
             StudySettings study,
             string rememberedVenueId = null,
-            IAltimeter altimeter = null)
+            IAltimeter altimeter = null,
+            NavigationTuning tuning = null)
         {
+            Tuning = tuning ?? NavigationTuning.Default;
             this.directory = directory ?? throw new ArgumentNullException(nameof(directory));
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
             this.position = position ?? throw new ArgumentNullException(nameof(position));
@@ -208,6 +193,9 @@ namespace IndoorNavigation.Core.Session
         public VenuePackage Venue { get; private set; }
         public PositionState PositionState => position.State;
         public PlanPose Pose => position.Pose;
+
+        /// <summary>The route-following thresholds in use (build 22: one object instead of scattered constants).</summary>
+        public NavigationTuning Tuning { get; }
 
         /// <summary>A historical fix, never a live position while tracking is lost.</summary>
         public PlanPose? LastKnownPose => lastFound;
@@ -354,7 +342,13 @@ namespace IndoorNavigation.Core.Session
                     throw new InvalidOperationException("The building data has errors. Please try again later.");
                 }
 
-                Venue = package;
+                Venue = CorridorCentring.Apply(package, Tuning, out CentringResult centred);
+                if (centred.Moved > 0)
+                {
+                    Log("venue", string.Format(CultureInfo.InvariantCulture,
+                        "centred {0} of {1} junctions in their corridors, the largest move {2:F2} m", centred.Moved, centred.Junctions, centred.LargestMetres));
+                }
+
                 DownloadProgress = 1;
                 Log("download", "ready " + package.Id + " " + package.PackageVersion);
                 Fire(SessionTrigger.DataReady);
@@ -462,10 +456,13 @@ namespace IndoorNavigation.Core.Session
             {
                 Replan(replanWhenFound ? "found on another floor" : "new fix");
             }
-            else if (State == SessionState.Navigating && !AwaitingFloorChange && !afterFloorChange && Route != null)
+            else if (State == SessionState.Navigating && !AwaitingFloorChange && Route != null)
             {
-                RouteSnap snap = RouteProgress.Snap(Route, NextNodeIndex, pose);
-                if (!snap.OnRoute || snap.OffRouteMetres > RerouteMetres) Replan("new fix away from the route");
+                // A fix is deliberate, so it reroutes at once when it puts the user off the route; on a
+                // new floor too, when the user was found away from the lift or stairs (build 21 test).
+                offRoute.Reset();
+                if (IsOffRoute(pose)) Replan(afterFloorChange ? "found away from the route on the new floor" : "new fix away from the route");
+                else AdvanceAlongRoute(pose);
             }
 
             replanWhenFound = false;
@@ -932,7 +929,8 @@ namespace IndoorNavigation.Core.Session
         private void PlanRoute()
         {
             string to = Venue.ApproachNodeOf(Destination);
-            Route = FindBestRoute(to);
+            Route route = FindBestRoute(to);
+            Route = PositionState == PositionState.Found ? Route.FromUser(route, Pose, Tuning.LeadInMinMetres) : route;
             plannedFrom = Pose;
             Log("route", Route == null
                 ? "none"
@@ -944,6 +942,7 @@ namespace IndoorNavigation.Core.Session
         private void Replan(string why)
         {
             Log("route", "planned again: " + why);
+            offRoute.Reset();
             PlanRoute();
             if (State != SessionState.Navigating) return;
             AwaitingFloorChange = false;
@@ -973,6 +972,7 @@ namespace IndoorNavigation.Core.Session
 
             NextNodeIndex = Route.Nodes.Count > 1 ? 1 : 0;
             AwaitingFloorChange = false;
+            offRoute.Reset();
             View.ShowFloor(UserFloor);
             View.SetMap(MapKind.TwoD);
             Log("route", "start " + Destination.Id);
@@ -1033,6 +1033,7 @@ namespace IndoorNavigation.Core.Session
             RequestText = null;
             AwaitingFloorChange = false;
             plannedFrom = null;
+            offRoute.Reset();
             NotifyChanged();
         }
 
@@ -1043,9 +1044,10 @@ namespace IndoorNavigation.Core.Session
             if (State == SessionState.Navigating)
             {
                 AdvanceAlongRoute(pose);
+                WatchOffRoute(pose);
             }
             else if (State == SessionState.Previewing && Destination != null && PositionState == PositionState.Found && plannedFrom.HasValue
-                && plannedFrom.Value.DistanceTo(pose.Floor, pose.X, pose.Z) > ReplanMetres)
+                && plannedFrom.Value.DistanceTo(pose.Floor, pose.X, pose.Z) > Tuning.ReplanMetres)
             {
                 Replan("moved while previewing");
             }
@@ -1066,8 +1068,8 @@ namespace IndoorNavigation.Core.Session
 
             // Nodes behind the user's place on the route count as passed, so a corner cut more than the
             // arrival radius away does not stall the progress (the snap never crosses a floor link).
-            RouteSnap snap = RouteProgress.Snap(Route, NextNodeIndex, pose);
-            if (snap.OnRoute && snap.OffRouteMetres <= OnRouteMetres)
+            RouteSnap snap = RouteProgress.Snap(Route, NextNodeIndex, pose, Tuning);
+            if (snap.OnRoute && snap.OffRouteMetres <= Tuning.OnRouteMetres)
             {
                 while (NextNodeIndex < snap.NextIndex && NextNodeIndex < Route.Nodes.Count - 1)
                 {
@@ -1078,7 +1080,7 @@ namespace IndoorNavigation.Core.Session
             while (NextNodeIndex < Route.Nodes.Count)
             {
                 GraphNode next = Route.Nodes[NextNodeIndex];
-                double radius = IsFloorLink(NextNodeIndex) ? FloorLinkRadiusMetres : ArrivalRadiusMetres;
+                double radius = IsFloorLink(NextNodeIndex) ? Tuning.FloorLinkRadiusMetres : Tuning.ArrivalRadiusMetres;
                 if (pose.DistanceTo(next.Floor, next.X, next.Z) > radius)
                 {
                     return;
@@ -1092,6 +1094,37 @@ namespace IndoorNavigation.Core.Session
                 }
 
                 if (PassNode()) return;
+            }
+        }
+
+        /// <summary>
+        /// True when the user is off the route on their floor: no leg ahead there, farther than
+        /// <see cref="NavigationTuning.RerouteMetres"/> from it, or a wall in between (RouteProgress.IsOff).
+        /// </summary>
+        private bool IsOffRoute(PlanPose pose)
+        {
+            RouteSnap snap = RouteProgress.Snap(Route, NextNodeIndex, pose, Tuning);
+            return RouteProgress.IsOff(Venue?.PlanOf(pose.Floor), pose, snap, Tuning);
+        }
+
+        /// <summary>
+        /// Build 22: off the route for <see cref="NavigationTuning.RerouteSeconds"/> without a break plans
+        /// the route again from where the user is, so the 2D map, the camera view and the step all follow
+        /// (build 21 test: the route stayed where it was). Checked on every pose; the attitude's frame
+        /// clock (<see cref="OnPitchChanged"/>) ends the wait while the user stands still.
+        /// </summary>
+        private void WatchOffRoute(PlanPose pose)
+        {
+            if (State != SessionState.Navigating || AwaitingFloorChange || Route == null || PositionState != PositionState.Found
+                || Relocating || pose.Floor != UserFloor)
+            {
+                offRoute.Reset();
+                return;
+            }
+
+            if (offRoute.Update(IsOffRoute(pose), clock.UtcNow, Tuning.RerouteSeconds))
+            {
+                Replan(string.Format(CultureInfo.InvariantCulture, "off the route for {0:F0} s", Tuning.RerouteSeconds));
             }
         }
 
@@ -1212,6 +1245,13 @@ namespace IndoorNavigation.Core.Session
         {
             DateTime now = clock.UtcNow;
             tilt.Update(pitchDegrees, now);
+            if (State == SessionState.Navigating && offRoute.IsOff && !AwaitingFloorChange && !Relocating
+                && PositionState == PositionState.Found && offRoute.Elapsed(now, Tuning.RerouteSeconds))
+            {
+                Replan(string.Format(CultureInfo.InvariantCulture, "off the route for {0:F0} s", Tuning.RerouteSeconds));
+                NotifyChanged();
+            }
+
             if (State != SessionState.Locating && !Relocating) return;
 
             bool hintChanged = guide.Update(now, tilt.Pose == PhonePose.Raised);

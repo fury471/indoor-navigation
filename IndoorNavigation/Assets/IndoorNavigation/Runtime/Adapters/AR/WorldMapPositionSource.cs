@@ -69,6 +69,19 @@ namespace IndoorNavigation.Adapters.AR
         private int floor;
         private PlanAlignment alignment;
         private PlanAlignment pendingAlignment;
+
+        // Build 22: the walls ARKit sees keep the plan in register sideways (WallCorrection).
+        private readonly WallCorrection wallCorrection = new WallCorrection();
+        private readonly List<PlanSegment> seenWalls = new List<PlanSegment>();
+        private PlanAlignment wallBase;   // the alignment the correction is measured against
+        private PlanAlignment corrected;  // wallBase moved by the correction
+        private bool wantsWalls;
+        private float nextWallsAt;
+        private float nextWallLogAt;
+        private double loggedWallMetres;
+
+        /// <summary>How often the seen walls are read: twice a second is enough for a walking pace.</summary>
+        public const float WallSeconds = 0.5f;
         private bool loadPending;
         private bool waitingForRelocalisation;
         private bool observedRelocalising;
@@ -103,8 +116,54 @@ namespace IndoorNavigation.Adapters.AR
         /// <summary>One line for the developer panel.</summary>
         public string Status { get; private set; } = "Not started";
 
-        /// <summary>The current alignment, or null while the position is not known.</summary>
-        public PlanAlignment Alignment => alignment;
+        /// <summary>The current alignment with the wall correction, or null while the position is not known.</summary>
+        public PlanAlignment Alignment => Current;
+
+        /// <summary>
+        /// The alignment in use: the fix's alignment moved by the wall correction. A new fix brings a new
+        /// alignment object, and the correction starts again from zero.
+        /// </summary>
+        private PlanAlignment Current
+        {
+            get
+            {
+                if (alignment == null) return null;
+                if (!ReferenceEquals(alignment, wallBase))
+                {
+                    wallBase = alignment;
+                    corrected = alignment;
+                    wallCorrection.Reset();
+                }
+
+                return corrected;
+            }
+        }
+
+        /// <summary>The floor plans, for the wall correction; set by the composition root.</summary>
+        public Func<int, FloorPlan> PlanOf { get; set; }
+
+        /// <summary>How far the wall correction moves the plan now, in metres.</summary>
+        public double WallCorrectionMetres => Math.Sqrt((wallCorrection.OffsetX * wallCorrection.OffsetX) + (wallCorrection.OffsetZ * wallCorrection.OffsetZ));
+
+        /// <summary>
+        /// True while route guidance runs: ARKit then also looks for vertical planes, which the wall
+        /// correction reads. Leaves any horizontal plane search (door fix, recording) as it is.
+        /// </summary>
+        public bool WantsWalls
+        {
+            get => wantsWalls;
+            set
+            {
+                if (wantsWalls == value) return;
+                wantsWalls = value;
+                if (planes == null) return;
+                PlaneDetectionMode mode = value
+                    ? planes.requestedDetectionMode | PlaneDetectionMode.Vertical
+                    : planes.requestedDetectionMode & ~PlaneDetectionMode.Vertical;
+                planes.requestedDetectionMode = mode;
+                planes.enabled = mode != PlaneDetectionMode.None;
+            }
+        }
 
         /// <summary>True once the session is in the current map's frame, so the map can be continued.</summary>
         public bool InMapFrame => inMapFrame;
@@ -828,13 +887,14 @@ namespace IndoorNavigation.Adapters.AR
 
             notTrackingSince = -1f;
             RefreshAnchorAlignment();
+            UpdateWalls();
 
             // The camera in session coordinates. Facing uses forward + up, which points where the top
             // of the phone points when it lies flat and where the camera looks when it is held upright.
             Transform frame = origin.TrackablesParent;
             Vector3 position = frame.InverseTransformPoint(cameraTransform.position);
             Vector3 facing = frame.InverseTransformDirection(cameraTransform.forward + cameraTransform.up);
-            PlanPose pose = alignment.ToPlanPose(floor, position.x, position.z, facing.x, facing.z);
+            PlanPose pose = Current.ToPlanPose(floor, position.x, position.z, facing.x, facing.z);
 
             bool found = State == PositionState.Found;
             if (!found || force || Moved(Pose, pose))
@@ -848,8 +908,79 @@ namespace IndoorNavigation.Adapters.AR
         private void SetPlaneDetection(bool on)
         {
             if (planes == null) return;
-            planes.requestedDetectionMode = on ? PlaneDetectionMode.Horizontal : PlaneDetectionMode.None;
-            planes.enabled = on;
+            PlaneDetectionMode mode = on ? PlaneDetectionMode.Horizontal : PlaneDetectionMode.None;
+            if (wantsWalls) mode |= PlaneDetectionMode.Vertical; // route guidance keeps reading the walls
+            planes.requestedDetectionMode = mode;
+            planes.enabled = mode != PlaneDetectionMode.None;
+        }
+
+        /// <summary>
+        /// Lays the vertical planes ARKit tracks on the plan (with the uncorrected alignment) and lets the
+        /// wall correction pair them with the plan's walls. Twice a second, only while guiding.
+        /// </summary>
+        private void UpdateWalls()
+        {
+            if (!wantsWalls || planes == null || PlanOf == null || alignment == null || FixingDoor != null) return;
+            float now = Time.realtimeSinceStartup;
+            if (now < nextWallsAt) return;
+            nextWallsAt = now + WallSeconds;
+            if (Current == null) return; // also restarts the correction after a new fix
+            FloorPlan plan = PlanOf(floor);
+            if (plan == null) return;
+
+            seenWalls.Clear();
+            Transform frame = origin.TrackablesParent;
+            foreach (ARPlane plane in planes.trackables)
+            {
+                if (plane == null || plane.trackingState != TrackingState.Tracking || plane.subsumedBy != null || !plane.alignment.IsVertical()) continue;
+                if (!TryWallSegment(plane, frame, out Vector3 a, out Vector3 b)) continue;
+                (double ax, double az) = wallBase.ToPlan(a.x, a.z);
+                (double bx, double bz) = wallBase.ToPlan(b.x, b.z);
+                seenWalls.Add(new PlanSegment(ax, az, bx, bz));
+            }
+
+            if (!wallCorrection.Update(plan, seenWalls)) return;
+            corrected = wallBase.Shifted(wallCorrection.OffsetX, wallCorrection.OffsetZ);
+            double metres = WallCorrectionMetres;
+            if (Math.Abs(metres - loggedWallMetres) >= 0.1 && now >= nextWallLogAt)
+            {
+                nextWallLogAt = now + 5f;
+                loggedWallMetres = metres;
+                Report("walls", string.Format(CultureInfo.InvariantCulture,
+                    "correction {0:F2} m (x {1:F2}, z {2:F2}) from {3} of {4} walls seen",
+                    metres, wallCorrection.OffsetX, wallCorrection.OffsetZ, wallCorrection.LastPairs, seenWalls.Count));
+            }
+        }
+
+        /// <summary>
+        /// A vertical plane as a floor-level segment in session coordinates: its horizontal extent through
+        /// its centre, measured on its boundary. False for a plane that is not upright or has no extent.
+        /// </summary>
+        private static bool TryWallSegment(ARPlane plane, Transform frame, out Vector3 a, out Vector3 b)
+        {
+            a = default;
+            b = default;
+            NativeArray<Vector2> boundary = plane.boundary;
+            if (!boundary.IsCreated || boundary.Length < 3) return false;
+            Vector3 normal = frame.InverseTransformDirection(plane.normal);
+            var along = new Vector3(-normal.z, 0f, normal.x); // horizontal, in the wall
+            if (along.sqrMagnitude < 0.81f) return false;      // tilted more than about 25°: not a wall
+            along.Normalize();
+            Vector3 centre = frame.InverseTransformPoint(plane.center);
+            float min = float.MaxValue, max = float.MinValue;
+            Transform local = plane.transform;
+            for (int i = 0; i < boundary.Length; i++)
+            {
+                Vector3 p = frame.InverseTransformPoint(local.TransformPoint(new Vector3(boundary[i].x, 0f, boundary[i].y)));
+                float t = Vector3.Dot(p - centre, along);
+                if (t < min) min = t;
+                if (t > max) max = t;
+            }
+
+            if (max - min < 0.01f) return false;
+            a = centre + (along * min);
+            b = centre + (along * max);
+            return true;
         }
 
         /// <summary>
@@ -870,7 +1001,7 @@ namespace IndoorNavigation.Adapters.AR
             string detail = string.Format(CultureInfo.InvariantCulture, "{0} {1}: ar {2:F2}, {3:F2}, {4:F2}", CurrentArea, checkPoints, p.x, p.y, p.z);
             if (alignment != null)
             {
-                (double x, double z) = alignment.ToPlan(p.x, p.z);
+                (double x, double z) = Current.ToPlan(p.x, p.z);
                 detail += string.Format(CultureInfo.InvariantCulture, "; plan floor {0} {1:F2}, {2:F2}", floor, x, z);
             }
 

@@ -289,9 +289,10 @@ namespace IndoorNavigation.Core.Tests
         [Test]
         public void StartsAtTheUser_AndStopsAfterTheLength()
         {
-            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 1, new PlanPose(1, 2, 0, 90), maxMetres: 12);
+            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 1, new PlanPose(1, 2, 0, 90), null, out double leadIn, maxMetres: 12);
 
             Assert.AreEqual(3, points.Count);
+            Assert.AreEqual(0.0, leadIn, "On the line: nothing to join.");
             Assert.AreEqual((2.0, 0.0), points[0]);
             Assert.AreEqual((10.0, 0.0), points[1]);
             Assert.AreEqual(10.0, points[2].X, 1e-9);
@@ -301,26 +302,28 @@ namespace IndoorNavigation.Core.Tests
         [Test]
         public void Snap_JoinsTheUserToTheLeg_NotStraightToTheNextNode()
         {
-            // 1 m beside the leg a-b: the route ahead starts on the leg at x = 4, not at the user.
+            // 1 m beside the leg a-b: the route joins the leg at x = 4, not the next node.
             RouteSnap snap = RouteProgress.Snap(StraightRoute(), 1, new PlanPose(1, 4, 1, 0));
             Assert.IsTrue(snap.OnRoute);
             Assert.AreEqual(4.0, snap.X, 1e-9);
             Assert.AreEqual(0.0, snap.Z, 1e-9);
             Assert.AreEqual(1, snap.NextIndex);
             Assert.AreEqual(1.0, snap.OffRouteMetres, 1e-9);
-            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 1, new PlanPose(1, 4, 1, 0), maxMetres: 50);
-            Assert.AreEqual((4.0, 0.0), points[0]);
+            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 1, new PlanPose(1, 4, 1, 0), null, out double leadIn, maxMetres: 50);
+            Assert.AreEqual((4.0, 1.0), points[0], "Build 22: the track starts at the user's feet ...");
+            Assert.AreEqual((4.0, 0.0), points[1], "... and joins the leg at the user's place on it.");
+            Assert.AreEqual(1.0, leadIn, 1e-9);
             Assert.AreEqual(26.0, RouteProgress.RemainingMetres(StraightRoute(), 1, new PlanPose(1, 4, 1, 0)), 1e-9, "6 m to b along the leg (not 6.1 m from the user), 10 m to c, the stairs 0 m, 10 m on floor 2.");
         }
 
         [Test]
         public void StopsAtAFloorChange_AndDrawsNothingOnAnotherFloor()
         {
-            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 2, new PlanPose(1, 10, 0, 0), maxMetres: 50);
+            List<(double X, double Z)> points = RouteAhead.Points(StraightRoute(), 2, new PlanPose(1, 10, 0, 0), null, out _, maxMetres: 50);
             Assert.AreEqual(2, points.Count, "The user, then c; the stairs lead to floor 2, which is not drawn.");
 
-            Assert.IsEmpty(RouteAhead.Points(StraightRoute(), 4, new PlanPose(1, 10, 10, 0)));
-            Assert.IsEmpty(RouteAhead.Points(null, 0, new PlanPose(1, 0, 0, 0)));
+            Assert.IsEmpty(RouteAhead.Points(StraightRoute(), 4, new PlanPose(1, 10, 10, 0), null, out _));
+            Assert.IsEmpty(RouteAhead.Points(null, 0, new PlanPose(1, 0, 0, 0), null, out _));
         }
     }
 

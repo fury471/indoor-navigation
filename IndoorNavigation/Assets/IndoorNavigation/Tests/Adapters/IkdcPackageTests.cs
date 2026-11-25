@@ -78,6 +78,27 @@ namespace IndoorNavigation.Adapters.Tests
         }
 
         [Test]
+        public void CorridorCentring_MovesJunctionsALittle_AndPutsNoWallOnALeg()
+        {
+            // Build 22. Checked offline on package 1.6.1: 23 of 40 junctions move, at most 1.37 m.
+            VenuePackage venue = Load();
+            VenuePackage centred = CorridorCentring.Apply(venue, NavigationTuning.Default, out CentringResult result);
+
+            Assert.Greater(result.Moved, 0);
+            Assert.LessOrEqual(result.LargestMetres, NavigationTuning.Default.CorridorMaxShiftMetres);
+            foreach (GraphEdge edge in venue.Graph.Edges)
+            {
+                GraphNode a = venue.Graph.Node(edge.FromId), b = venue.Graph.Node(edge.ToId);
+                if (a.Floor != b.Floor) continue;
+                GraphNode a2 = centred.Graph.Node(a.Id), b2 = centred.Graph.Node(b.Id);
+                FloorPlan plan = venue.PlanOf(a.Floor);
+                bool before = plan.Walls.Concat(plan.GlassWalls).Any(w => Segments.Crossing(a.X, a.Z, b.X, b.Z, w.A.X, w.A.Z, w.B.X, w.B.Z) >= 0);
+                bool after = plan.Walls.Concat(plan.GlassWalls).Any(w => Segments.Crossing(a2.X, a2.Z, b2.X, b2.Z, w.A.X, w.A.Z, w.B.X, w.B.Z) >= 0);
+                Assert.IsFalse(after && !before, edge.FromId + " - " + edge.ToId + " now crosses a wall.");
+            }
+        }
+
+        [Test]
         public void ArGuidance_FromTheVrLab_HidesTheToiletUntilItIsInSight()
         {
             VenuePackage venue = Load();

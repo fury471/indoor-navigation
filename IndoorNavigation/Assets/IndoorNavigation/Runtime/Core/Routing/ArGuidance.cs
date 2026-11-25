@@ -35,11 +35,13 @@ namespace IndoorNavigation.Core.Routing
     /// </summary>
     public static class ArGuidance
     {
-        public static ArGuidanceFrame Plan(Route route, int nextNodeIndex, PlanPose pose, FloorPlan plan)
+        public static ArGuidanceFrame Plan(Route route, int nextNodeIndex, PlanPose pose, FloorPlan plan, NavigationTuning tuning = null)
         {
-            List<(double X, double Z)> ahead = RouteAhead.Points(route, nextNodeIndex, pose);
+            List<(double X, double Z)> ahead = RouteAhead.Points(route, nextNodeIndex, pose, plan, out double leadIn, RouteAhead.DefaultMetres, tuning);
             List<(double X, double Z)> visible = LineOfSight.VisiblePart(plan, ahead);
-            double toDestination = RouteProgress.RemainingMetres(route, nextNodeIndex, pose);
+
+            // From the first point drawn: the joining line from the user, then the rest of the route.
+            double toDestination = leadIn + RouteProgress.RemainingMetres(route, nextNodeIndex, pose, tuning);
 
             bool reaches = false;
             (double X, double Z)? pin = null;

@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using IndoorNavigation.Core.Ports;
+using IndoorNavigation.Core.Routing;
 using IndoorNavigation.Core.Session;
 using IndoorNavigation.Core.Venue;
 using NUnit.Framework;
@@ -427,18 +428,118 @@ namespace IndoorNavigation.Core.Tests
         // Build 21: the route starts where you are; floor changes after a lift or the stairs
         // ------------------------------------------------------------------
 
+        // ------------------------------------------------------------------
+        // Build 22: off the route for 3 s plans it again; a fix further along moves the progress on
+        // ------------------------------------------------------------------
+
+        private static GraphNode FirstGraphNode(Route route) => route.Start.Id == Route.UserNodeId ? route.Nodes[1] : route.Start;
+
+        private void StartToPrinter()
+        {
+            GoToPreview("printer");
+            session.StartRoute();
+            Assert.AreEqual(SessionState.Navigating, session.State);
+        }
+
+        [Test]
+        public void OffTheRouteForThreeSeconds_PlansItAgainFromThere()
+        {
+            StartToPrinter();
+            Route before = session.Route;
+
+            // 8 m east of the corridor, still walking.
+            position.MoveTo(new PlanPose(1, 20.0, 14.0, 90));
+            clock.Advance(1.5);
+            position.MoveTo(new PlanPose(1, 20.2, 14.0, 90));
+            clock.Advance(1.0);
+            position.MoveTo(new PlanPose(1, 20.4, 14.0, 90));
+            Assert.AreSame(before, session.Route, "2.5 s off the route: not yet.");
+
+            clock.Advance(0.6);
+            position.MoveTo(new PlanPose(1, 20.6, 14.0, 90));
+            Assert.AreNotSame(before, session.Route, "3 s off the route: planned again.");
+            Assert.AreEqual(1, log.Count("route", "off the route for 3 s"));
+            Assert.AreEqual(SessionState.Navigating, session.State, "Still navigating, on the new route.");
+        }
+
+        [Test]
+        public void AShortStepAside_DoesNotPlanAgain()
+        {
+            StartToPrinter();
+            Route before = session.Route;
+
+            position.MoveTo(new PlanPose(1, 20.0, 14.0, 90));
+            clock.Advance(2.0);
+            position.MoveTo(new PlanPose(1, 11.9, 13.0, 0)); // back on the route
+            clock.Advance(0.5);
+            position.MoveTo(new PlanPose(1, 20.0, 13.0, 90));
+            clock.Advance(2.0);
+            position.MoveTo(new PlanPose(1, 20.2, 13.0, 90));
+
+            Assert.AreSame(before, session.Route, "Two stretches of 2 s are not one of 3 s.");
+        }
+
+        [Test]
+        public void StandingStillOffTheRoute_PlansAgainOnTheFrameClock()
+        {
+            StartToPrinter();
+            Route before = session.Route;
+
+            position.MoveTo(new PlanPose(1, 20.0, 14.0, 90)); // then no more pose updates
+            clock.Advance(3.1);
+            attitude.Report(80);
+
+            Assert.AreNotSame(before, session.Route);
+        }
+
+        [Test]
+        public void AFixFurtherAlongTheRoute_MovesTheProgressOn_WithoutPlanningAgain()
+        {
+            GoToPreview("printer");
+            position.MoveTo(new PlanPose(1, 11.9, 25.5, 0)); // by the workshop
+            session.StartRoute();
+            Assert.AreEqual("j-vr-lab", FirstGraphNode(session.Route).Id, "Straight up the corridor to the VR lab junction.");
+            Route route = session.Route;
+
+            // Build 21, screenshot 4: fixed by the office door, four legs on. The old search looked at
+            // three legs round the next node, found the route 3.7 m away and neither moved on nor rerouted.
+            session.FixPosition();
+            position.SetFound(new PlanPose(1, 6.0, 4.6, 0));
+
+            Assert.AreSame(route, session.Route, "On the route: no new plan.");
+            Assert.AreEqual("n-printer", session.Route.Nodes[session.NextNodeIndex].Id, "The progress caught up with the user.");
+        }
+
+        [Test]
+        public void FoundAwayFromTheRouteOnTheNewFloor_PlansAgain()
+        {
+            GoToPreview("cable-drawer");
+            session.SetAvoidStairs(true);
+            session.StartRoute();
+            WalkRoute();
+            session.ConfirmFloor(2);
+            Route before = session.Route;
+
+            position.SetFound(new PlanPose(2, 20.0, 8.2, 270)); // by the stairs, not at the lift
+
+            Assert.AreNotSame(before, session.Route);
+            Assert.AreEqual(1, log.Count("route", "found away from the route on the new floor"));
+            Assert.AreEqual(2, session.Route.Start.Floor);
+        }
+
         [Test]
         public void ANewFixWhilePreviewing_PlansTheRouteFromThere()
         {
             GoToPreview("workshop");
             var before = session.Route;
-            Assert.AreEqual("j-workshop", before.Start.Id);
+            Assert.AreEqual("j-workshop", FirstGraphNode(before).Id);
+            Assert.AreEqual(Route.UserNodeId, before.Start.Id, "Build 22: the route itself starts at the user.");
 
             // "Fix position" by the printer: the route is planned again from there (build 20: it kept
             // starting where the old position was).
             position.SetFound(new PlanPose(1, 6.0, 4.0, 0));
             Assert.AreNotSame(before, session.Route, "A new fix plans the route again.");
-            Assert.AreNotEqual("j-workshop", session.Route.Start.Id);
+            Assert.AreNotEqual("j-workshop", FirstGraphNode(session.Route).Id);
 
             // A step does not; walking away while previewing does.
             var afterFix = session.Route;
@@ -458,12 +559,12 @@ namespace IndoorNavigation.Core.Tests
             Assert.IsTrue(session.AwaitingFloorChange);
             session.ConfirmFloor(2);
             position.SetFound(new PlanPose(2, 11.9, 32.0, 180));
-            int atLift = session.NextNodeIndex;
-            Assert.AreEqual("lift-2", session.Route.Nodes[atLift].Id);
+            int atKitchen = session.NextNodeIndex;
+            Assert.AreEqual("j-kitchen", session.Route.Nodes[atKitchen].Id, "Found 1 m from the lift on the new floor: the lift counts as passed (build 22).");
 
-            // Three metres past the lift, never within the arrival radius of its node.
-            position.MoveTo(new PlanPose(2, 11.9, 29.0, 180));
-            Assert.AreEqual(atLift + 1, session.NextNodeIndex, "The node walked past counts as reached.");
+            // Three metres past the kitchen junction, never within the arrival radius of its node.
+            position.MoveTo(new PlanPose(2, 11.9, 24.0, 180));
+            Assert.AreEqual(atKitchen + 1, session.NextNodeIndex, "The node walked past counts as reached.");
         }
 
         [Test]

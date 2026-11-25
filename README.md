@@ -6,12 +6,12 @@ It is the project of the course MAMN41 (UX/XR) at Lund University, built in Unit
 
 Owner: Fury (fury471). Licence: MIT.
 
-## Status on 21 Nov 2026
+## Status on 25 Nov 2026
 
 | Part | State |
 |---|---|
 | Walking skeleton: ten visitor screens, the session statechart, route planner, sample two-floor package, developer panel | Done; device-tested 26 Oct |
-| Visitor screens against the October blueprint | Build 20, which carries build 19's changes, tested on the iPhone on 21 Nov: the 2D plan style is kept; the route start, 3D view, colours and floor change needed fixing. Build 21 is in the source: the route planned from where you stand, one colour system for the 2D map, a map-style 3D view with map-app gestures (decision 16). Unity tests and iPhone check pending. See `Docs/blueprint-refinement.md` and `Docs/device-tests.md` |
+| Visitor screens against the October blueprint | Build 20, which carries build 19's changes, tested on the iPhone on 21 Nov: the 2D plan style is kept; the route start, 3D view, colours and floor change needed fixing. Build 21 (the route planned from where you stand, one colour system for the 2D map, a map-style 3D view; decision 16) was tested on the iPhone on 25 Nov: the AR track ran beside the corridor's middle, did not start at the user, did not reroute, and stuck after a relocalisation. Build 22 is in the source: the whole route ahead is matched, the route starts at you, 3 s off the route reroutes, junctions are centred in their corridors and the walls ARKit sees keep the plan in register (decision 17). Unity build and iPhone check pending. See `Docs/blueprint-refinement.md` and `Docs/device-tests.md` |
 | Real phone attitude (raise for AR, lower for 2D) | Done; device-tested 26 Oct |
 | Real position from ARKit world maps, aligned to the plan by door corners (decision 7) | Works, but too slow and unreliable on its own (lab visit 1, builds 4–6) |
 | **Where are you?** when the map is slow: mark the door of the room you're in, or of the corridor door you're at (decision 11); Fix position at any time; route ahead drawn in AR | Build 10 (build 9's fixes from build 8, plus inner-room wording) code done; layout checked at iPhone SE and 16 Pro sizes; device test pending |
@@ -120,7 +120,7 @@ Where to look:
 | `Docs/lab-visit-2.md` | Lab visit 2 (21 Nov): the floor 2 and 3 maps, how their plans were made and aligned, and package 1.5.0 |
 | `Docs/archive/localisation-experiment.md` | The localisation method and how it is measured |
 | `Docs/device-tests.md` | Every device test, newest last |
-| `Docs/decisions/` | Decision records 1–16 (context, decision, consequences, sources) |
+| `Docs/decisions/` | Decision records 1–17 (context, decision, consequences, sources) |
 | `Tools/scan-to-plan/README.md` | The scan converter, its checks and its limits |
 
 The architecture document, the UI blueprint (38 boards) and the reference log live outside the repo; ask Fury for access. Where they and the repo disagree about the code, the repo wins.
@@ -146,7 +146,7 @@ The architecture document, the UI blueprint (38 boards) and the reference log li
 Short list; the architecture document has the full plan.
 
 1. Run the Continue corner-check comparison (`Docs/archive/continue-corner-check.md`): establish baseline/revisit residuals, then select and validate a correction for the remaining build-11 offset. Earlier build-10 checks in `Docs/archive/build-7-guide.md` part D remain relevant where not yet verified.
-2. Build 21 in Unity and on the iPhone (checklist in `Docs/device-tests.md`): the route start, the floor change by lift and by stairs, the 3D gestures, the 2D colours.
+2. Build 22 in Unity and on the iPhone (checklist in `Docs/device-tests.md`): the AR track in the corridor's middle, starting at you, rerouting after 3 s off the route, progress after a fix; then build 21's floor change, 3D gestures and 2D colours again.
 3. The rest of the plan labels (other stairs, the remaining WCs) in the labelling page, then package 1.6.x. Measure the floor-to-floor height (the barometer assumes 4 m).
 4. Measure the uncertainty-based "raise the phone" prompt (decision 9) and floor height along the ramp.
 5. The venue service, LLM search (RQ2), step wording with landmarks, the measured localisation test (world map versus door fix), the study (tests from 14 Dec), report draft 2.

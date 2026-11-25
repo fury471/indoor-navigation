@@ -160,6 +160,13 @@ namespace IndoorNavigation.Core.Positioning
             return new PlanAlignment(radians, offsetX, offsetZ, floor, Math.Sqrt(squares / n), markers.Count);
         }
 
+        /// <summary>
+        /// The same alignment with the plan moved by (dx, dz) metres: every AR point lands that much further
+        /// on the plan, and every plan point that much less far in AR. Used for the wall correction (build 22).
+        /// </summary>
+        public PlanAlignment Shifted(double dx, double dz) =>
+            new PlanAlignment(RotationDegrees * Math.PI / 180.0, OffsetX + dx, OffsetZ + dz, FloorHeight, RmsErrorMetres, MarkerCount);
+
         /// <summary>An AR point on the floor (x, z in the session) to plan metres.</summary>
         public (double X, double Z) ToPlan(double arX, double arZ)
         {

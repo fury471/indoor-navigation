@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using IndoorNavigation.Core.Ports;
 using IndoorNavigation.Core.Venue;
 
 namespace IndoorNavigation.Core.Routing
@@ -39,6 +40,26 @@ namespace IndoorNavigation.Core.Routing
         public bool UsesLift { get; }
         public GraphNode Start => Nodes[0];
         public GraphNode End => Nodes[Nodes.Count - 1];
+
+        /// <summary>The id of the first node when the route starts where the user stood (<see cref="FromUser"/>).</summary>
+        public const string UserNodeId = "you";
+
+        /// <summary>
+        /// The same route, starting where the user stands (build 22): the walk to the first graph node
+        /// becomes the first leg, so the route, the progress along it and the off-route check all begin
+        /// at the user instead of at a node up to several metres away. Unchanged when the user stands
+        /// within <paramref name="withinMetres"/> of the first node or on another floor.
+        /// </summary>
+        public static Route FromUser(Route route, PlanPose pose, double withinMetres)
+        {
+            if (route == null || route.Nodes.Count == 0) return route;
+            GraphNode first = route.Nodes[0];
+            double reach = pose.DistanceTo(first.Floor, first.X, first.Z);
+            if (double.IsInfinity(reach) || reach <= withinMetres) return route;
+            var nodes = new List<GraphNode>(route.Nodes.Count + 1) { new GraphNode(UserNodeId, NodeKind.Junction, pose.Floor, pose.X, pose.Z) };
+            nodes.AddRange(route.Nodes);
+            return new Route(nodes, route.LengthMetres + reach, route.UsesStairs, route.UsesLift);
+        }
     }
 
     /// <summary>

@@ -174,7 +174,11 @@ namespace IndoorNavigation.App
                 placeholderDirectory, placeholderRepository, position, placeholderSearch,
                 attitude, log, clock, study, rememberedVenue, altimeter);
             session.Changed += OnSessionChanged;
-            if (realPosition != null) realPosition.Diagnostic += session.LogExternal;
+            if (realPosition != null)
+            {
+                realPosition.Diagnostic += session.LogExternal;
+                realPosition.PlanOf = floor => session.Venue?.PlanOf(floor); // for the wall correction (build 22)
+            }
             if (altimeter != null)
             {
                 altimeterDiagnostic = detail => session.LogExternal("barometer", detail);
@@ -256,6 +260,10 @@ namespace IndoorNavigation.App
             if (overlay == null || session == null) return;
             // Always show the corner just marked, including the first half of a door. No saved
             // alignment or developer toggle is needed. LateUpdate follows AR trackable updates.
+            // Build 22: ARKit looks for walls only while the route is followed, and never while recording.
+            bool recording = mapRecorder != null && (mapRecorder.IsRecording || mapRecorder.IsTesting);
+            realPositionSource.WantsWalls = !recording && session.State == SessionState.Navigating;
+
             if (mapRecorder != null && mapRecorder.IsRecording)
             {
                 overlay.HidePath();
@@ -277,7 +285,7 @@ namespace IndoorNavigation.App
             bool found = session.PositionState == PositionState.Found && alignment != null;
             if (found && session.Route != null && session.Screen == ScreenCodes.ArGuidance && !session.AwaitingFloorChange)
             {
-                ArGuidanceFrame guidance = ArGuidance.Plan(session.Route, session.NextNodeIndex, session.Pose, session.Venue?.PlanOf(session.Pose.Floor));
+                ArGuidanceFrame guidance = ArGuidance.Plan(session.Route, session.NextNodeIndex, session.Pose, session.Venue?.PlanOf(session.Pose.Floor), session.Tuning);
                 overlay.ShowPath(alignment, guidance.Points, guidance.MetresToDestination, guidance.ReachesDestination, guidance.PinAt);
             }
             else
